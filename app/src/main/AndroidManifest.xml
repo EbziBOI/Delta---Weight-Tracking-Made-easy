@@ -63,6 +63,11 @@
                 android:resource="@xml/widget_progress_info" />
         </receiver>
 
+        <receiver android:name=".widget.JourneyWidgetReceiver" android:exported="true" android:label="@string/widget_journey_name">
+            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_journey_info" />
+        </receiver>
+
         <receiver
             android:name=".widget.SummaryWidgetReceiver"
             android:exported="true"

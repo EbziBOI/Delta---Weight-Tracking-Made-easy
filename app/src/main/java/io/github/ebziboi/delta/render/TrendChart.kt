@@ -98,8 +98,9 @@ object TrendChart {
         labels: Boolean,
         reveal: Float = 1f,
         zone: ZoneId = ZoneId.systemDefault(),
+        contrastShadow: Boolean = false,
     ) {
-        val points = spec.points
+        val points = spec.points.filter { it.kg.isFinite() && it.trendKg.isFinite() }.sortedBy { it.epochMs }
         val targetKg = spec.targetKg
         val unit = spec.unit
         val caption = Paint(Paint.ANTI_ALIAS_FLAG or Paint.SUBPIXEL_TEXT_FLAG).apply {
@@ -107,6 +108,7 @@ object TrendChart {
             textSize = 10f * density
             color = colors.textDim
             fontFeatureSettings = "tnum"
+            if (contrastShadow) setShadowLayer(2f * density, 0f, density, if (colors.isLight) android.graphics.Color.WHITE else android.graphics.Color.BLACK)
         }
 
         if (points.size < 2) {
@@ -124,6 +126,7 @@ object TrendChart {
             low = min(low, targetKg)
             high = max(high, targetKg)
         }
+        spec.startKg?.let { low = min(low, it); high = max(high, it) }
         val margin = max((high - low) * 0.08, 0.25)
         val bottomKg = low - margin
         val topKg = high + margin
@@ -153,7 +156,11 @@ object TrendChart {
         if (plot.width() <= 0f || plot.height() <= 0f) return
 
         val firstMs = points.first().epochMs
-        val lastMs = max(points.last().epochMs, firstMs + DAY_MS)
+        val dataEnd = max(points.last().epochMs, firstMs + DAY_MS)
+        // Keep at least two thirds of the width for recorded data.
+        val horizon = dataEnd + max(7 * DAY_MS, (dataEnd - firstMs) / 2)
+        val projection = spec.projection?.takeIf { it.atEpochMs > points.last().epochMs }
+        val lastMs = projection?.let { min(it.atEpochMs, horizon) }?.coerceAtLeast(dataEnd) ?: dataEnd
         fun x(epochMs: Long): Float =
             plot.left + (epochMs - firstMs).toFloat() / (lastMs - firstMs).toFloat() * plot.width()
         fun y(kg: Double): Float =
@@ -196,12 +203,17 @@ object TrendChart {
             }
         }
 
-        // Fill under the trend.
+        val drawing = canvas.save()
+        canvas.clipRect(plot.left - 7f * density, plot.top - 7f * density,
+            plot.left + (plot.width() + 7f * density) * reveal.coerceIn(0f, 1f), plot.bottom + 7f * density)
+        fun value(point: TrendPoint) = if (spec.style == ChartStyle.CONNECTED) point.kg else point.trendKg
+
+        // Fill under the selected line.
         val line = Path()
         val fill = Path()
         points.forEachIndexed { index, point ->
             val px = x(point.epochMs)
-            val py = y(point.trendKg)
+            val py = y(value(point))
             if (index == 0) {
                 line.moveTo(px, py)
                 fill.moveTo(px, py)
@@ -226,9 +238,9 @@ object TrendChart {
         // Raw weigh-ins.
         val raw = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             style = Paint.Style.FILL
-            color = Palettes.withAlpha(colors.textDim, 0x8C)
+            color = if (spec.style == ChartStyle.CONNECTED) colors.accent else Palettes.withAlpha(colors.textDim, 0x8C)
         }
-        val rawRadius = (if (points.size > 150) 1.1f else 1.7f) * density
+        val rawRadius = (if (points.size > 150) 1.1f else if (spec.style == ChartStyle.CONNECTED) 2.5f else 1.7f) * density
         for (point in points) {
             canvas.drawCircle(x(point.epochMs), y(point.kg), rawRadius, raw)
         }
@@ -241,13 +253,34 @@ object TrendChart {
             strokeJoin = Paint.Join.ROUND
             color = colors.accent
         }
-        if (colors.glow) stroke.setShadowLayer(6f * density, 0f, 0f, colors.accent)
+        if (contrastShadow) stroke.setShadowLayer(2f * density, 0f, density, if (colors.isLight) android.graphics.Color.WHITE else android.graphics.Color.BLACK)
+        else if (colors.glow) stroke.setShadowLayer(6f * density, 0f, 0f, colors.accent)
         canvas.drawPath(line, stroke)
 
         // Where things stand now.
         val last = points.last()
         val lastX = x(last.epochMs)
-        val lastY = y(last.trendKg)
+        val lastY = y(value(last))
+        if (projection != null) {
+            val endMs = min(projection.atEpochMs, lastMs)
+            val ratio = (endMs - last.epochMs).toDouble() / (projection.atEpochMs - last.epochMs)
+            val endY = y(value(last) + (projection.targetKg - value(last)) * ratio)
+            val dash = Paint(stroke).apply {
+                clearShadowLayer()
+                strokeWidth = 1.5f * density
+                pathEffect = DashPathEffect(floatArrayOf(5f * density, 4f * density), 0f)
+            }
+            canvas.drawLine(lastX, lastY, x(endMs), endY, dash)
+            if (projection.atEpochMs > lastMs) {
+                dash.pathEffect = null
+                val arrow = Path().apply {
+                    moveTo(plot.right - 5f * density, endY - 4f * density)
+                    lineTo(plot.right, endY)
+                    lineTo(plot.right - 5f * density, endY + 4f * density)
+                }
+                canvas.drawPath(arrow, dash)
+            }
+        }
         val halo = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             style = Paint.Style.FILL
             color = colors.bg
@@ -258,13 +291,34 @@ object TrendChart {
         }
         canvas.drawCircle(lastX, lastY, 6f * density, halo)
         canvas.drawCircle(lastX, lastY, 4f * density, marker)
+        canvas.restoreToCount(drawing)
+
+        if (labels && reveal >= 1f) {
+            spec.fraction?.let { fraction ->
+                val tag = Paint(caption).apply { color = colors.accent; textAlign = Paint.Align.RIGHT }
+                val text = "${(fraction.coerceIn(0f, 1f) * 100).toInt()}%"
+                canvas.drawText(text, lastX.coerceAtLeast(plot.left + tag.measureText(text)),
+                    (lastY - 10f * density).coerceIn(plot.top + tag.textSize, plot.bottom), tag)
+            }
+        }
 
         if (labels) {
             val baseline = area.bottom - 3f * density
             caption.textAlign = Paint.Align.LEFT
             canvas.drawText(format(firstMs, zone), plot.left, baseline, caption)
             caption.textAlign = Paint.Align.RIGHT
-            canvas.drawText(format(last.epochMs, zone), plot.right, baseline, caption)
+            canvas.drawText(format(lastMs, zone), plot.right, baseline, caption)
+            spec.targetEpochMs?.takeIf { it > firstMs && it < lastMs }?.let { goal ->
+                val text = "Goal ${format(goal, zone)}"
+                val center = x(goal)
+                val width = caption.measureText(text)
+                if (center - width / 2 > plot.left + caption.measureText(format(firstMs, zone)) + 8f * density &&
+                    center + width / 2 < plot.right - caption.measureText(format(lastMs, zone)) - 8f * density) {
+                    caption.textAlign = Paint.Align.CENTER
+                    caption.color = colors.accent
+                    canvas.drawText(text, center, baseline, caption)
+                }
+            }
         }
     }
 

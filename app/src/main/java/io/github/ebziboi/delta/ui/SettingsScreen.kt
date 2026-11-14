@@ -5,6 +5,16 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.os.Build
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.graphics.asImageBitmap
+import io.github.ebziboi.delta.data.*
+import io.github.ebziboi.delta.render.WidgetBitmaps
+import io.github.ebziboi.delta.render.WidgetKind
+import io.github.ebziboi.delta.widget.WidgetCatalog
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -69,6 +79,11 @@ fun SettingsScreen(
     val syncing by vm.syncing.collectAsStateWithLifecycle()
     val unit = settings.unit
     var editing by remember { mutableStateOf("") }
+    var section by rememberSaveable { mutableStateOf("") }
+    if (section.isNotEmpty()) {
+        SettingsDetail(section, vm, settings, snapshot, padding, onBack = { section = "" })
+        return
+    }
     // Asked once: the answer depends on the home screen app, which does not change while this is open.
     val canPin = remember { canPinWidgets(context) }
 
@@ -82,12 +97,7 @@ fun SettingsScreen(
             .padding(horizontal = 16.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-        Text(
-            text = "Settings",
-            fontSize = 26.sp,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier.padding(top = 8.dp),
-        )
+        ScreenHeader(title = "Settings", eyebrow = "Make Delta yours")
 
         // Goal
         DeltaCard {
@@ -142,48 +152,12 @@ fun SettingsScreen(
             )
         }
 
-        // Look
-        DeltaCard {
-            Caption("Theme")
-            ChoiceRow(
-                options = ThemeStyle.values().toList(),
-                selected = settings.theme,
-                label = { it.label },
-                onSelect = { picked -> vm.update { it.copy(theme = picked) } },
-            )
-            Caption("Accent colour")
-            if (settings.theme == ThemeStyle.DYNAMIC) {
-                Text(
-                    text = "Material You takes its colours from your wallpaper.",
-                    color = Color(colors.textDim),
-                    fontSize = 13.sp,
-                )
-            } else {
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    for (accent in Accent.values()) {
-                        val tint = Color((if (colors.isLight) accent.onLight else accent.onDark).toInt())
-                        val selected = accent == settings.accent
-                        Box(
-                            modifier = Modifier
-                                .size(40.dp)
-                                .clip(CircleShape)
-                                .background(tint)
-                                .border(
-                                    width = 3.dp,
-                                    color = if (selected) Color(colors.text) else Color.Transparent,
-                                    shape = CircleShape,
-                                )
-                                .clickable { vm.update { it.copy(accent = accent) } }
-                                .semantics { contentDescription = "${accent.label} accent" },
-                        )
-                    }
-                }
-            }
-            Text(
-                text = "Widgets follow the theme and accent you choose here.",
-                color = Color(colors.textDim),
-                fontSize = 13.sp,
-            )
+        GlassCard {
+            NavRow(io.github.ebziboi.delta.R.drawable.ic_palette, "Appearance", subtitle = "Theme, accent, typography and motion", onClick = { section = "Appearance" })
+            GlassDivider()
+            NavRow(io.github.ebziboi.delta.R.drawable.ic_show_chart, "Graphs", subtitle = "Line style and path to your goal", onClick = { section = "Graphs" })
+            GlassDivider()
+            NavRow(io.github.ebziboi.delta.R.drawable.ic_widgets, "Widgets", subtitle = "Glass, light and dark modes, and home-screen widgets", onClick = { section = "Widgets" })
         }
 
         // Health Connect
@@ -224,36 +198,6 @@ fun SettingsScreen(
             }
         }
 
-        // Widgets and about
-        DeltaCard {
-            Caption("Widgets")
-            if (canPin) {
-                for (choice in WIDGET_CHOICES) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(text = choice.title, fontSize = 15.sp)
-                            Text(text = choice.detail, color = Color(colors.textDim), fontSize = 12.sp)
-                        }
-                        OutlinedButton(onClick = { pinWidget(context, choice.receiver) }) { Text("Add") }
-                    }
-                }
-                Text(
-                    text = "Add puts the widget on your home screen. Touch and hold it there to resize it.",
-                    color = Color(colors.textDim),
-                    fontSize = 13.sp,
-                )
-            } else {
-                Text(
-                    text = "Touch and hold an empty part of your home screen, choose Widgets, then Delta. " +
-                        "There are four: progress, start/now/target, trend and pace. Each can be resized.",
-                    color = Color(colors.textDim),
-                    fontSize = 14.sp,
-                )
-            }
-        }
         Text(
             text = "Delta ${versionName(context)}",
             color = Color(colors.textDim),
@@ -318,15 +262,6 @@ private fun AccessRow(title: String, granted: Boolean) {
     }
 }
 
-private class WidgetChoice(val title: String, val detail: String, val receiver: Class<*>)
-
-private val WIDGET_CHOICES = listOf(
-    WidgetChoice("Progress", "The delta, filling as you close the gap", ProgressWidgetReceiver::class.java),
-    WidgetChoice("Start, now, target", "Three numbers over a progress bar", SummaryWidgetReceiver::class.java),
-    WidgetChoice("Trend", "Your weight graph with the target line", TrendWidgetReceiver::class.java),
-    WidgetChoice("Pace", "Weekly rate, projected date and streak", PaceWidgetReceiver::class.java),
-)
-
 /** Whether the home screen in use lets an app offer its widgets directly. */
 private fun canPinWidgets(context: Context): Boolean =
     runCatching { AppWidgetManager.getInstance(context).isRequestPinAppWidgetSupported }.getOrDefault(false)
@@ -352,3 +287,98 @@ private fun openHealthConnect(context: Context) {
 private fun versionName(context: Context): String =
     runCatching { context.packageManager.getPackageInfo(context.packageName, 0).versionName }
         .getOrNull() ?: ""
+
+
+@Composable
+private fun SettingsDetail(
+    title: String, vm: AppViewModel, settings: AppSettings,
+    snap: io.github.ebziboi.delta.data.ProgressSnapshot?, padding: PaddingValues, onBack: () -> Unit,
+) {
+    val colors = LocalDeltaColors.current
+    val context = LocalContext.current
+    BackHandler(onBack = onBack)
+    Column(
+        Modifier.fillMaxSize().padding(top = padding.calculateTopPadding())
+            .verticalScroll(rememberScrollState()).padding(horizontal = 16.dp)
+            .padding(bottom = padding.calculateBottomPadding() + 24.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
+    ) {
+        TextAction("Back", onClick = onBack, modifier = Modifier.padding(top = 12.dp))
+        ScreenHeader(title = title)
+        when (title) {
+            "Appearance" -> {
+                GlassCard {
+                    Caption("Theme")
+                    ChoiceRow(ThemeStyle.entries, settings.theme, { it.label }) { chosen -> vm.update { it.copy(theme = chosen) } }
+                    Text(settings.theme.detail, color = Color(colors.textDim))
+                }
+                GlassCard {
+                    Caption("Accent colour")
+                    if (settings.theme == ThemeStyle.DYNAMIC) Text("Material You takes its colours from your wallpaper.")
+                    else ChoiceRow(Accent.entries, settings.accent, { it.label }) { chosen -> vm.update { it.copy(accent = chosen) } }
+                }
+                GlassCard {
+                    Caption("Typography")
+                    ChoiceRow(TypeStyle.entries, settings.typeStyle, { it.label }) { chosen -> vm.update { it.copy(typeStyle = chosen) } }
+                    Text("Your progress, beautifully clear", style = LocalDeltaType.current.title)
+                    Text("82.4 kg", style = LocalDeltaType.current.number)
+                    ToggleRow("Motion", settings.motion, { enabled -> vm.update { it.copy(motion = enabled) } },
+                        note = "Slow-moving light and gentle entrances. Follows the phone's animation setting.")
+                }
+            }
+            "Graphs" -> {
+                GlassCard {
+                    Caption("In the app")
+                    ChoiceRow(ChartStyle.entries, settings.appChart, { it.label }) { chosen -> vm.update { it.copy(appChart = chosen) } }
+                    Text(settings.appChart.detail, color = Color(colors.textDim))
+                    if (snap != null) TrendChartView(
+                        io.github.ebziboi.delta.render.ChartSpec.journey(snap, settings.appChart, settings.unit, settings.showProjection),
+                        Modifier.fillMaxWidth().height(190.dp))
+                }
+                GlassCard {
+                    Caption("On widgets")
+                    ChoiceRow(ChartStyle.entries, settings.widgetChart, { it.label }) { chosen -> vm.update { it.copy(widgetChart = chosen) } }
+                    ToggleRow("Path to the goal", settings.showProjection, { enabled -> vm.update { it.copy(showProjection = enabled) } },
+                        note = "A dashed line to your target at your current pace.")
+                }
+            }
+            "Widgets" -> {
+                GlassCard {
+                    Caption("Glass")
+                    ChoiceRow(WidgetGlass.entries, settings.widgetGlass, { it.label }) { chosen ->
+                        vm.update { it.copy(widgetGlass = chosen, widgetOpacityDark = chosen.defaultDark, widgetOpacityLight = chosen.defaultLight) }
+                    }
+                    Text(settings.widgetGlass.detail, color = Color(colors.textDim))
+                    OpacityControl("Dark glass opacity", settings.widgetOpacityDark, settings.widgetGlass != WidgetGlass.SOLID) { value ->
+                        vm.update { it.copy(widgetOpacityDark = value) }
+                    }
+                    OpacityControl("Light glass opacity", settings.widgetOpacityLight, settings.widgetGlass != WidgetGlass.SOLID) { value ->
+                        vm.update { it.copy(widgetOpacityLight = value) }
+                    }
+                    Caption("Light and dark")
+                    ChoiceRow(WidgetTheme.entries, settings.widgetTheme, { it.label }) { chosen -> vm.update { it.copy(widgetTheme = chosen) } }
+                }
+                for (kind in WidgetKind.entries) {
+                    GlassCard {
+                        Text(kind.title, style = LocalDeltaType.current.title)
+                        Text(kind.detail, color = Color(colors.textDim))
+                        if (snap != null) {
+                            val image = remember(kind, snap, settings) {
+                                WidgetBitmaps.render(context, kind, 320f, if (kind == WidgetKind.SUMMARY) 105f else 180f, snap, settings, maxSidePx = 700f).asImageBitmap()
+                            }
+                            Image(image, contentDescription = "${kind.title} preview", modifier = Modifier.fillMaxWidth().height(if (kind == WidgetKind.SUMMARY) 105.dp else 180.dp))
+                        }
+                        if (canPinWidgets(context)) SecondaryButton("Add", onClick = { pinWidget(context, WidgetCatalog.receiver(kind)) })
+                    }
+                }
+                Text("Touch and hold a widget on your home screen to resize it. You can also add all five from your home screen's widget picker.", color = Color(colors.textDim))
+            }
+        }
+    }
+}
+
+@Composable
+private fun OpacityControl(title: String, stored: Float, enabled: Boolean, save: (Float) -> Unit) {
+    var value by remember(stored) { mutableStateOf(stored) }
+    SliderRow(title, value, "${(value * 100).toInt()}%", { value = it }, { save(value) }, enabled = enabled)
+}

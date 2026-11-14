@@ -6,6 +6,7 @@ name: Smoke test
 on:
   push:
     branches:
+      - main
       - "claude/**"
   workflow_dispatch:
 

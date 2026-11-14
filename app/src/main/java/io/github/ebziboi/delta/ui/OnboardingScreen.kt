@@ -47,6 +47,7 @@ fun OnboardingScreen(
     onConnect: () -> Unit,
 ) {
     var step by rememberSaveable { mutableStateOf(0) }
+    androidx.activity.compose.BackHandler(enabled = step > 0) { step-- }
 
     Column(
         modifier = Modifier
@@ -74,7 +75,7 @@ private fun Welcome(onNext: () -> Unit) {
     ) {
         Spacer(Modifier.height(48.dp))
         DeltaTrack(fraction = null, modifier = Modifier.size(190.dp))
-        Text(text = "Delta", fontSize = 40.sp, fontWeight = FontWeight.Bold)
+        Text(text = "Delta", style = LocalDeltaType.current.display)
         Text(
             text = "Your weight, from where you started to where you're going.",
             color = Color(colors.textDim),
@@ -188,7 +189,7 @@ private fun Goal(vm: AppViewModel, settings: AppSettings, onBack: () -> Unit) {
     var editing by remember { mutableStateOf("") }
 
     // What the journey looks like with the start date as currently chosen.
-    val preview = remember(entries, startDay) {
+    val preview = remember(entries, startDay, settings) {
         ProgressCalculator.compute(entries, settings.copy(startEpochDay = startDay.toEpochDay()))
     }
 

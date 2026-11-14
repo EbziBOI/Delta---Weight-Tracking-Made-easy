@@ -21,7 +21,7 @@ import java.time.LocalDate
  *     ./gradlew :app:connectedDebugAndroidTest \
  *       -Pandroid.testInstrumentationRunnerArguments.class=io.github.ebziboi.delta.WidgetPreviewRender
  *     adb exec-out run-as io.github.ebziboi.delta tar -cf - -C files previews | tar -xf - -C /tmp
- *     cp /tmp/previews/*.png app/src/main/res/drawable-nodpi/
+ *     Copy the generated PNG files from /tmp/previews into res/drawable-nodpi.
  *
  * On Android 15 and later the app also publishes previews drawn from the
  * user's own data and theme, which replace these.

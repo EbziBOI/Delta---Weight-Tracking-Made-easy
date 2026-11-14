@@ -9,7 +9,7 @@ the gap to your target.
 
 ## Status
 
-**Milestone 1: weight.** Working towards a first installable build.
+**Weight tracking is available.** GitHub Actions builds and publishes an installable APK.
 
 - Reads your full weight history from Health Connect, so progress starts from
   your real start date rather than from the day you install
@@ -32,7 +32,7 @@ Food tracking comes next. The full plan is in [docs/SPEC.md](docs/SPEC.md).
 
 ## Install
 
-Every push builds an APK. On your phone, download the latest one:
+Pushes to `main` and `claude/**` branches build an APK. On your phone, download the latest one:
 
 https://github.com/EbziBOI/Delta---Weight-Tracking-Made-easy/releases/latest/download/Delta.apk
 

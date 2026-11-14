@@ -774,8 +774,8 @@ fun <T> SegmentedControl(
     options: List<T>,
     selected: T,
     label: (T) -> String,
-    onSelect: (T) -> Unit,
     modifier: Modifier = Modifier,
+    onSelect: (T) -> Unit,
 ) {
     val colors = LocalDeltaColors.current
     val type = LocalDeltaType.current
@@ -830,8 +830,8 @@ fun <T> ChoiceRow(
     options: List<T>,
     selected: T,
     label: (T) -> String,
-    onSelect: (T) -> Unit,
     modifier: Modifier = Modifier,
+    onSelect: (T) -> Unit,
 ) {
     val colors = LocalDeltaColors.current
     val type = LocalDeltaType.current

@@ -10,7 +10,6 @@ import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import java.time.Instant
-import java.time.ZonedDateTime
 
 sealed interface SyncResult {
     data class Done(val count: Int) : SyncResult
@@ -52,7 +51,7 @@ class WeightRepository(context: Context) {
         if (health.availability() != HealthAvailability.AVAILABLE) return@withLock SyncResult.Unavailable
         if (!health.state().canRead) return@withLock SyncResult.NoPermission
 
-        val since = ZonedDateTime.now().minusYears(HISTORY_YEARS).toInstant()
+        val since = Instant.EPOCH
         val fresh = try {
             health.readWeights(since)
         } catch (cancelled: CancellationException) {
@@ -91,8 +90,4 @@ class WeightRepository(context: Context) {
         false
     }
 
-    private companion object {
-        /** Far enough back to cover any start date someone is likely to choose. */
-        const val HISTORY_YEARS = 5L
-    }
 }

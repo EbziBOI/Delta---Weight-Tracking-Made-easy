@@ -1,5 +1,9 @@
 package io.github.ebziboi.delta.ui
 
+import dev.chrisbanes.haze.HazeState
+import dev.chrisbanes.haze.HazeTint
+import dev.chrisbanes.haze.hazeEffect
+import dev.chrisbanes.haze.hazeSource
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -35,7 +39,7 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.platform.LocalContext
+import androidx.activity.compose.LocalActivity
 import androidx.compose.ui.unit.dp
 import androidx.health.connect.client.PermissionController
 import androidx.lifecycle.Lifecycle
@@ -86,7 +90,7 @@ fun DeltaRoot(vm: AppViewModel = viewModel()) {
             if (settings.onboardingDone) {
                 MainScreen(vm, settings, health, snackbar, requestAccess)
             } else {
-                OnboardingScreen(vm, settings, health, requestAccess)
+                AuroraBackground { OnboardingScreen(vm, settings, health, requestAccess) }
             }
         }
     }
@@ -105,16 +109,24 @@ private fun MainScreen(
     requestAccess: () -> Unit,
 ) {
     val colors = LocalDeltaColors.current
+    val haze = remember { HazeState() }
     var tab by rememberSaveable { mutableStateOf(0) }
     var logging by remember { mutableStateOf(false) }
     val snap by vm.snapshot.collectAsStateWithLifecycle()
 
     Scaffold(
-        containerColor = Color(colors.bg),
+        containerColor = Color.Transparent,
         contentColor = Color(colors.text),
         snackbarHost = { SnackbarHost(snackbar) },
         bottomBar = {
-            NavigationBar(containerColor = Color(colors.surface), tonalElevation = 0.dp) {
+            NavigationBar(
+                modifier = Modifier.hazeEffect(haze) {
+                    backgroundColor = Color(colors.bg)
+                    blurRadius = 24.dp
+                    tints = listOf(HazeTint(Color(colors.glass.fillTop)))
+                    fallbackTint = HazeTint(Color(colors.glass.scrim))
+                },
+                containerColor = Color.Transparent, tonalElevation = 0.dp) {
                 TABS.forEachIndexed { index, item ->
                     NavigationBarItem(
                         selected = tab == index,
@@ -154,10 +166,12 @@ private fun MainScreen(
             }
         },
     ) { padding ->
-        when (tab) {
-            0 -> ProgressScreen(vm, settings, health, padding, requestAccess, onOpenSettings = { tab = 2 })
-            1 -> HistoryScreen(vm, settings, padding)
-            else -> SettingsScreen(vm, settings, health, padding, requestAccess)
+        AuroraBackground(modifier = Modifier.hazeSource(haze)) {
+            when (tab) {
+                0 -> ProgressScreen(vm, settings, health, padding, requestAccess, onOpenSettings = { tab = 2 })
+                1 -> HistoryScreen(vm, settings, padding)
+                else -> SettingsScreen(vm, settings, health, padding, requestAccess)
+            }
         }
     }
 
@@ -197,7 +211,7 @@ private fun DeltaIcon() {
 /** Dark themes want light status-bar icons and light themes dark ones. */
 @Composable
 private fun SystemBars(light: Boolean) {
-    val activity = LocalContext.current as? ComponentActivity ?: return
+    val activity = LocalActivity.current as? ComponentActivity ?: return
     LaunchedEffect(light) {
         val clear = android.graphics.Color.TRANSPARENT
         val style = if (light) SystemBarStyle.light(clear, clear) else SystemBarStyle.dark(clear)

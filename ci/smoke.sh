@@ -17,7 +17,7 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 adb install -r app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
 adb logcat -c
 
-adb shell am instrument -w -e class "$PKG.SmokeTest" "$PKG.test/androidx.test.runner.AndroidJUnitRunner" \
+adb shell am instrument -w -e class "$PKG.RenderContractTest,$PKG.SmokeTest,$PKG.WidgetPreviewRender" "$PKG.test/androidx.test.runner.AndroidJUnitRunner" \
   | tee "$OUT/instrument.txt"
 
 adb logcat -d > "$OUT/logcat.txt" || true

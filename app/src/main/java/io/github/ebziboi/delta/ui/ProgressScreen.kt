@@ -75,7 +75,7 @@ fun ProgressScreen(
                 .padding(top = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(text = "Delta", fontSize = 26.sp, fontWeight = FontWeight.Bold)
+            Text(text = "Delta", style = LocalDeltaType.current.display)
             Spacer(Modifier.weight(1f))
             if (syncing) {
                 CircularProgressIndicator(
@@ -177,8 +177,7 @@ private fun Hero(snap: ProgressSnapshot, unit: WeightUnit) {
             Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text(
                     text = Units.weightValue(current, unit),
-                    fontSize = 44.sp,
-                    fontWeight = FontWeight.Bold,
+                    style = LocalDeltaType.current.hero,
                 )
                 Text(
                     text = Units.suffix(unit),
@@ -284,7 +283,7 @@ private fun TrendCard(snap: ProgressSnapshot, unit: WeightUnit, settings: AppSet
             ChoiceRow(options = RANGES, selected = range, label = { it }, onSelect = { range = it })
         }
         TrendChartView(
-            spec = io.github.ebziboi.delta.render.ChartSpec.journey(snap, settings.appChart, unit, settings.showProjection).copy(points = points),
+            spec = io.github.ebziboi.delta.render.ChartSpec.journey(snap, settings.appChart, unit, settings.showProjection).copy(points = points, startKg = if (range == "All") snap.startKg else null, fraction = if (range == "All") snap.fraction else null),
             modifier = Modifier
                 .fillMaxWidth()
                 .height(230.dp),

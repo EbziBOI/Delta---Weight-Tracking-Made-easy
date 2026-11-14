@@ -74,7 +74,7 @@ enum class ChartStyle(val label: String, val detail: String) {
  */
 enum class WidgetGlass(val label: String, val detail: String, val defaultDark: Float, val defaultLight: Float) {
     SOLID("Solid", "An opaque panel in your theme's colours", 1f, 1f),
-    FROSTED("Frosted", "Semi-transparent glass that softens the wallpaper", 0.55f, 0.72f),
+    FROSTED("Frosted", "Tinted, translucent glass", 0.55f, 0.72f),
     CLEAR("Clear", "See-through glass with just an edge of light", 0.14f, 0.24f),
 }
 

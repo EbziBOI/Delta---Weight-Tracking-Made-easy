@@ -140,7 +140,7 @@ class SettingsStore(context: Context) {
             val parts = segment.split('|', limit = 4)
             if (parts.size < 4) return@mapNotNull null
             val time = parts[0].toLongOrNull() ?: return@mapNotNull null
-            val kg = parts[1].toDoubleOrNull() ?: return@mapNotNull null
+            val kg = parts[1].toDoubleOrNull()?.takeIf { it.isFinite() && it > 0 } ?: return@mapNotNull null
             WeightEntry(epochMs = time, kg = kg, own = parts[2] == "1", id = parts[3])
         }
     }

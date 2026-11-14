@@ -65,7 +65,7 @@ fun HistoryScreen(vm: AppViewModel, settings: AppSettings, padding: PaddingValue
     ) {
         item(key = "header") {
             Column(modifier = Modifier.padding(bottom = 6.dp)) {
-                Text(text = "History", fontSize = 26.sp, fontWeight = FontWeight.Bold)
+                ScreenHeader(title = "History")
                 Text(
                     text = when (newestFirst.size) {
                         0 -> "Weigh-ins from Health Connect will appear here."
@@ -121,9 +121,9 @@ private fun HistoryRow(
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = MaterialTheme.shapes.medium,
-        color = Color(colors.surface),
+        color = Color(colors.glass.fill),
         contentColor = Color(colors.text),
-        border = BorderStroke(1.dp, Color(colors.outline)),
+        border = BorderStroke(1.dp, Color(colors.glass.edge)),
     ) {
         Row(
             modifier = Modifier.padding(start = 16.dp, end = 6.dp, top = 10.dp, bottom = 10.dp),
@@ -131,7 +131,7 @@ private fun HistoryRow(
             horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             Column(modifier = Modifier.weight(1f)) {
-                Text(text = Units.weight(entry.kg, unit), fontSize = 17.sp, fontWeight = FontWeight.Bold)
+                Text(text = Units.weight(entry.kg, unit), style = LocalDeltaType.current.number)
                 Text(text = Format.moment(entry.epochMs), color = Color(colors.textDim), fontSize = 13.sp)
             }
             if (previous != null) {

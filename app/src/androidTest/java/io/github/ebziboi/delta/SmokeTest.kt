@@ -48,6 +48,10 @@ import kotlin.math.roundToInt
 @RunWith(AndroidJUnit4::class)
 @FixMethodOrder(MethodSorters.NAME_ASCENDING)
 class SmokeTest {
+    init {
+        // Continuous sync indicators should not force a ten-second idle timeout before every action.
+        androidx.test.uiautomator.Configurator.getInstance().setWaitForIdleTimeout(1_000)
+    }
     private val instrumentation = InstrumentationRegistry.getInstrumentation()
     private val context: Context = instrumentation.targetContext
     private val device: UiDevice = UiDevice.getInstance(instrumentation)
@@ -88,10 +92,15 @@ class SmokeTest {
             Look("material-you-day", base.copy(theme = ThemeStyle.DYNAMIC), night = false),
             Look("material-you-night", base.copy(theme = ThemeStyle.DYNAMIC), night = true),
         )
+        val matrix = ThemeStyle.entries.flatMap { theme -> WidgetGlass.entries.flatMap { glass ->
+            listOf(false, true).map { night -> Look("matrix-${theme.name.lowercase()}-${glass.name.lowercase()}-${if (night) "night" else "day"}",
+                base.copy(theme = theme, widgetGlass = glass, widgetOpacityDark = glass.defaultDark, widgetOpacityLight = glass.defaultLight), night)
+            }
+        } }
         val density = context.resources.displayMetrics.density
         val gap = (16 * density).roundToInt()
 
-        for (look in looks) {
+        for (look in looks + matrix) {
             val snap = ProgressCalculator.compute(entries, look.settings)
             fun draw(kind: WidgetKind, widthDp: Float, heightDp: Float) =
                 WidgetBitmaps.render(context, kind, widthDp, heightDp, snap, look.settings, night = look.night)
@@ -117,6 +126,7 @@ class SmokeTest {
             y += journey.height + gap
             canvas.drawBitmap(trend, gap.toFloat(), y, null)
             SampleData.save(sheet, File(out, "widgets-${look.name}.png"))
+            listOf(progress, pace, summary, journey, trend, sheet).forEach(Bitmap::recycle)
         }
 
         // Every widget from the smallest size the home screen allows to very large, so
@@ -137,11 +147,14 @@ class SmokeTest {
                 x += bitmap.width + gap
             }
             SampleData.save(sheet, File(out, "widgets-sizes-${kind.name.lowercase()}.png"))
+            drawn.forEach(Bitmap::recycle)
+            sheet.recycle()
         }
     }
 
     @Test
     fun t2_firstRunAndHealthConnectScreens() {
+        runBlocking { SettingsStore(context).update { it.copy(onboardingDone = false) } }
         launch()
         waitFor("Get started")
         shot("01-welcome")
@@ -188,18 +201,22 @@ class SmokeTest {
         }
         note("Permissions the test had to grant itself: ${if (missing.isEmpty()) "none" else missing.toString()}")
 
-        val sample = SampleData.entries(startDay)
+        // Health Connect may coalesce writes with identical timestamps on repeated runs.
+        val offsetMs = System.currentTimeMillis() % 3_600_000L + 1L
+        val sample = SampleData.entries(startDay).map { it.copy(epochMs = it.epochMs + offsetMs) }
         runBlocking {
             val state = repo.health.state()
             check(state.canRead && state.canWrite) { "Health Connect access could not be granted: $state" }
 
+            repo.sync()
+            val beforeIds = repo.entries.first().map { it.id }.toSet()
             for (entry in sample) {
                 repo.health.writeWeight(entry.kg, Instant.ofEpochMilli(entry.epochMs))
             }
             val result = repo.sync()
             check(result is SyncResult.Done) { "Sync did not complete: $result" }
 
-            val stored = repo.entries.first()
+            val stored = repo.entries.first().filter { it.id !in beforeIds }
             check(stored.size == sample.size) { "Wrote ${sample.size} weigh-ins but read back ${stored.size}" }
             check(stored.all { it.own }) { "Weigh-ins written by Delta were not recognised as its own" }
             check(stored == stored.sortedBy { it.epochMs }) { "Weigh-ins did not come back oldest first" }
@@ -212,9 +229,9 @@ class SmokeTest {
             // Delete the oldest, check it is gone, then put it back for the screens that follow.
             val oldest = stored.first()
             check(repo.delete(oldest)) { "Deleting a weigh-in failed" }
-            check(repo.entries.first().size == sample.size - 1) { "A deleted weigh-in was still there" }
+            check(repo.entries.first().size == beforeIds.size + sample.size - 1) { "A deleted weigh-in was still there" }
             check(repo.logWeight(oldest.kg, Instant.ofEpochMilli(oldest.epochMs))) { "Logging a weigh-in failed" }
-            check(repo.entries.first().size == sample.size) { "A logged weigh-in did not appear" }
+            check(repo.entries.first().size == beforeIds.size + sample.size) { "A logged weigh-in did not appear" }
 
             note(
                 "Health Connect round trip: wrote ${sample.size}, read ${stored.size} back unchanged, " +
@@ -300,27 +317,26 @@ class SmokeTest {
         repeat(6) { swipeUp() }
         shot("23-settings-widgets")
 
-        val confirm = Pattern.compile("(?i)add to home ?screen|add automatically")
-        device.wait(Until.hasObject(By.text("Add")), 10_000)
-        val buttons = device.findObjects(By.text("Add")).size
-        for (index in 0 until buttons) {
-            val add = device.findObjects(By.text("Add")).getOrNull(index) ?: break
-            add.click()
-            // The home screen app shows its own confirmation. Its title can read the
-            // same as its button, so insist on something clickable.
-            val accept = device.wait(Until.findObject(By.text(confirm).clickable(true)), 8_000)
+        val manager = android.appwidget.AppWidgetManager.getInstance(context)
+        val confirm = Pattern.compile("(?i)add to home ?screen|add automatically|add")
+        for (kind in WidgetKind.entries) {
+            val component = android.content.ComponentName(context, io.github.ebziboi.delta.widget.WidgetCatalog.receiver(kind))
+            val previous = manager.getAppWidgetIds(component).size
+            check(manager.requestPinAppWidget(component, null, null)) { "Launcher rejected ${kind.title}" }
+            val accept = device.wait(Until.findObject(By.text(confirm).clickable(true)), 10_000)
                 ?: device.findObjects(By.text(confirm)).lastOrNull()
-            if (index == 0) shot("24-add-widget-prompt")
-            accept?.click()
-            device.wait(Until.hasObject(By.pkg(pkg).depth(0)), 5_000)
-            Thread.sleep(1_000)
+                ?: throw AssertionError("No launcher confirmation for ${kind.title}")
+            shot("24-add-${kind.name.lowercase()}-prompt")
+            accept.click()
+            val deadline = System.currentTimeMillis() + 15_000
+            while (manager.getAppWidgetIds(component).size <= previous && System.currentTimeMillis() < deadline) Thread.sleep(500)
+            check(manager.getAppWidgetIds(component).size > previous) { "${kind.title} was not added" }
+            device.pressHome()
+            Thread.sleep(2_000)
+            shot("25-home-${kind.name.lowercase()}")
+            launch()
+            waitForMainScreen()
         }
-
-        device.pressHome()
-        Thread.sleep(6_000)
-        shot("25-home")
-
-        if (buttons == 0) throw AssertionError("No Add buttons: this home screen does not accept widgets from apps")
     }
 
     /**
@@ -425,6 +441,12 @@ class SmokeTest {
     }
 
     private fun tap(text: String) {
+        if (!device.hasObject(By.text(text))) {
+            for (attempt in 0 until 8) {
+                swipeUp()
+                if (device.hasObject(By.text(text))) break
+            }
+        }
         waitFor(text)
         repeat(3) {
             try {

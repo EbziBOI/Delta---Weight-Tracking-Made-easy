@@ -13,4 +13,6 @@
 
     <string name="widget_pace_name">Pace</string>
     <string name="widget_pace_desc">Your weekly rate, projected goal date and weigh-in streak.</string>
+    <string name="widget_journey_name">Journey</string>
+    <string name="widget_journey_desc">Your weight graph and progress towards your target together.</string>
 </resources>

@@ -137,6 +137,7 @@ object DeltaMark {
         color: Int,
         typeface: Typeface,
         sizeScale: Float = 1f,
+        shadowColor: Int? = null,
     ) {
         val scale = size / SPAN
         val big = Paint(Paint.ANTI_ALIAS_FLAG or Paint.SUBPIXEL_TEXT_FLAG).apply {
@@ -144,6 +145,7 @@ object DeltaMark {
             textSize = (if (value.length >= 3) LABEL_SIZE * 0.86f else LABEL_SIZE) * scale * sizeScale
             fontFeatureSettings = "tnum"
             this.color = color
+            shadowColor?.let { setShadowLayer(2f * scale, 0f, scale, it) }
         }
         val small = Paint(big).apply { textSize = big.textSize * 0.52f }
 

@@ -11,6 +11,11 @@ import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
@@ -69,7 +74,8 @@ fun DeltaTheme(settings: AppSettings, content: @Composable () -> Unit) {
     val type = remember(settings.typeStyle) { deltaType(settings.typeStyle) }
     val typography = remember(type) { type.toMaterial() }
     val canvasType = remember(settings.typeStyle) { DeltaFonts.canvas(context, settings.typeStyle) }
-    val systemMotion = remember { systemAllowsMotion(context) }
+    var systemMotion by remember { mutableStateOf(systemAllowsMotion(context)) }
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { systemMotion = systemAllowsMotion(context) }
 
     CompositionLocalProvider(
         LocalDeltaColors provides palette,
