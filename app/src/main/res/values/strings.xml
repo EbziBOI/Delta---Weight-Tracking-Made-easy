@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Delta</string>
+
+    <string name="widget_progress_name">Delta progress</string>
+    <string name="widget_progress_desc">Your progress round the delta, with how far there is to go.</string>
+
+    <string name="widget_summary_name">Start, now, target</string>
+    <string name="widget_summary_desc">Your starting weight, current weight and target side by side.</string>
+
+    <string name="widget_trend_name">Weight trend</string>
+    <string name="widget_trend_desc">A graph of your weight since you started, against your target.</string>
+
+    <string name="widget_pace_name">Pace</string>
+    <string name="widget_pace_desc">Your weekly rate, projected goal date and weigh-in streak.</string>
+</resources>

@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The Delta mark. Paths are in the 300-unit design space of the approved
+     icon; the group maps that space onto the 72dp the launcher mask shows. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <group
+        android:scaleX="0.24"
+        android:scaleY="0.24"
+        android:translateX="18"
+        android:translateY="18">
+
+        <!-- What is still to go: eleven dots back up to the apex. -->
+        <path
+            android:fillColor="#FF5B9BE0"
+            android:pathData="M141.739,61.852a3,3 0 1,0 6,0a3,3 0 1,0 -6,0z M136.478,72.374a3,3 0 1,0 6,0a3,3 0 1,0 -6,0z M131.217,82.896a3,3 0 1,0 6,0a3,3 0 1,0 -6,0z M125.956,93.418a3,3 0 1,0 6,0a3,3 0 1,0 -6,0z M120.695,103.941a3,3 0 1,0 6,0a3,3 0 1,0 -6,0z M115.434,114.463a3,3 0 1,0 6,0a3,3 0 1,0 -6,0z M110.173,124.985a3,3 0 1,0 6,0a3,3 0 1,0 -6,0z M104.912,135.507a3,3 0 1,0 6,0a3,3 0 1,0 -6,0z M99.651,146.029a3,3 0 1,0 6,0a3,3 0 1,0 -6,0z M94.39,156.551a3,3 0 1,0 6,0a3,3 0 1,0 -6,0z M89.129,167.073a3,3 0 1,0 6,0a3,3 0 1,0 -6,0z" />
+
+        <!-- Progress so far: one delta-shaped track, clockwise from the apex. -->
+        <path
+            android:pathData="M150,51.33 L244.7,240.75 L55.3,240.75 L83.71,183.93"
+            android:strokeColor="#FF7DD3FC"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round"
+            android:strokeWidth="8" />
+
+        <!-- The letter: thin left stroke, heavy right stroke, flat apex. -->
+        <path
+            android:fillColor="#FFFFFFFF"
+            android:fillType="evenOdd"
+            android:pathData="M144.93,107.254 L155.07,107.254 L211.57,220.254 L88.43,220.254 Z M138.82,135.124 L102.75,207.254 L174.89,207.254 Z"
+            android:strokeColor="#FFFFFFFF"
+            android:strokeLineJoin="round"
+            android:strokeWidth="3" />
+    </group>
+</vector>
