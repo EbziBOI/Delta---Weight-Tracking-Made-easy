@@ -122,6 +122,14 @@ private fun Connect(health: HealthState?, onConnect: () -> Unit, onNext: () -> U
         }
         val missing = health?.missing?.size ?: 4
         if (missing > 0) {
+            // Health Connect's second screen has two switches that are off by default,
+            // and the one for past data is what brings in the history.
+            Text(
+                text = "Health Connect asks in two steps. On the second, switch on both options: " +
+                    "past data is what reaches back to your start date.",
+                color = Color(colors.textDim),
+                fontSize = 14.sp,
+            )
             Button(onClick = onConnect, modifier = Modifier.fillMaxWidth()) {
                 Text(
                     text = if (health?.canRead == true) "Allow the rest" else "Connect",

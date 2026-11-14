@@ -281,7 +281,11 @@ class SmokeTest {
             // A phone that has never used Health Connect shows its introduction first.
             if (clickIfPresent("(?i)get started")) continue
 
+            // First screen: the data types. Second screen: past data and background access,
+            // each with its own switch and no "Allow all".
             clickIfPresent("(?i)allow all")
+            clickIfPresent("(?i)access past data")
+            clickIfPresent("(?i)access data in the background")
             Thread.sleep(700)
             if (!clickIfPresent("(?i)allow", mustBeClickable = true)) clickIfPresent("(?i)allow")
         }
