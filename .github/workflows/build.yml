@@ -77,7 +77,13 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "build-${{ github.run_number }}" Delta.apk \
-            --title "Delta build ${{ github.run_number }}" \
-            --notes "Built from ${{ github.sha }} on ${{ github.ref_name }}." \
-            --target "${{ github.sha }}"
+          TAG="build-${{ github.run_number }}"
+          # Re-running a build keeps its number, so replace the file if the release already exists.
+          if gh release view "$TAG" > /dev/null 2>&1; then
+            gh release upload "$TAG" Delta.apk --clobber
+          else
+            gh release create "$TAG" Delta.apk \
+              --title "Delta build ${{ github.run_number }}" \
+              --notes "Built from ${{ github.sha }} on ${{ github.ref_name }}." \
+              --target "${{ github.sha }}"
+          fi
