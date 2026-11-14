@@ -1,0 +1,104 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- Health Connect: weight in and out, the full history back to the start
+         date, and reads while the app is closed so widgets stay current. -->
+    <uses-permission android:name="android.permission.health.READ_WEIGHT" />
+    <uses-permission android:name="android.permission.health.WRITE_WEIGHT" />
+    <uses-permission android:name="android.permission.health.READ_HEALTH_DATA_HISTORY" />
+    <uses-permission android:name="android.permission.health.READ_HEALTH_DATA_IN_BACKGROUND" />
+
+    <queries>
+        <package android:name="com.google.android.apps.healthdata" />
+    </queries>
+
+    <application
+        android:name=".DeltaApp"
+        android:allowBackup="true"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.Delta">
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:windowSoftInputMode="adjustResize">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!-- Shown from Health Connect when the user asks why Delta wants access. -->
+        <activity
+            android:name=".PermissionsRationaleActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="androidx.health.ACTION_SHOW_PERMISSIONS_RATIONALE" />
+            </intent-filter>
+        </activity>
+
+        <activity-alias
+            android:name="ViewPermissionUsageActivity"
+            android:exported="true"
+            android:permission="android.permission.START_VIEW_PERMISSION_USAGE"
+            android:targetActivity=".PermissionsRationaleActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW_PERMISSION_USAGE" />
+                <category android:name="android.intent.category.HEALTH_PERMISSIONS" />
+            </intent-filter>
+        </activity-alias>
+
+        <receiver
+            android:name=".widget.ProgressWidgetReceiver"
+            android:exported="true"
+            android:label="@string/widget_progress_name">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_progress_info" />
+        </receiver>
+
+        <receiver
+            android:name=".widget.SummaryWidgetReceiver"
+            android:exported="true"
+            android:label="@string/widget_summary_name">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_summary_info" />
+        </receiver>
+
+        <receiver
+            android:name=".widget.TrendWidgetReceiver"
+            android:exported="true"
+            android:label="@string/widget_trend_name">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_trend_info" />
+        </receiver>
+
+        <receiver
+            android:name=".widget.PaceWidgetReceiver"
+            android:exported="true"
+            android:label="@string/widget_pace_name">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_pace_info" />
+        </receiver>
+
+    </application>
+
+</manifest>

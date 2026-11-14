@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Single-colour version for themed icons. The launcher supplies the tint,
+     so only shape and opacity matter here. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <group
+        android:scaleX="0.24"
+        android:scaleY="0.24"
+        android:translateX="18"
+        android:translateY="18">
+
+        <path
+            android:fillAlpha="0.55"
+            android:fillColor="#FF000000"
+            android:pathData="M141.739,61.852a3,3 0 1,0 6,0a3,3 0 1,0 -6,0z M136.478,72.374a3,3 0 1,0 6,0a3,3 0 1,0 -6,0z M131.217,82.896a3,3 0 1,0 6,0a3,3 0 1,0 -6,0z M125.956,93.418a3,3 0 1,0 6,0a3,3 0 1,0 -6,0z M120.695,103.941a3,3 0 1,0 6,0a3,3 0 1,0 -6,0z M115.434,114.463a3,3 0 1,0 6,0a3,3 0 1,0 -6,0z M110.173,124.985a3,3 0 1,0 6,0a3,3 0 1,0 -6,0z M104.912,135.507a3,3 0 1,0 6,0a3,3 0 1,0 -6,0z M99.651,146.029a3,3 0 1,0 6,0a3,3 0 1,0 -6,0z M94.39,156.551a3,3 0 1,0 6,0a3,3 0 1,0 -6,0z M89.129,167.073a3,3 0 1,0 6,0a3,3 0 1,0 -6,0z" />
+
+        <path
+            android:pathData="M150,51.33 L244.7,240.75 L55.3,240.75 L83.71,183.93"
+            android:strokeColor="#FF000000"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round"
+            android:strokeWidth="8" />
+
+        <path
+            android:fillColor="#FF000000"
+            android:fillType="evenOdd"
+            android:pathData="M144.93,107.254 L155.07,107.254 L211.57,220.254 L88.43,220.254 Z M138.82,135.124 L102.75,207.254 L174.89,207.254 Z"
+            android:strokeColor="#FF000000"
+            android:strokeLineJoin="round"
+            android:strokeWidth="3" />
+    </group>
+</vector>
