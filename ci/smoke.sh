@@ -25,6 +25,12 @@ echo "----- notes from the test -----"
 cat "$OUT/smoke/notes.txt" 2>/dev/null || echo "(none)"
 echo "----- end of notes -----"
 
+echo "----- Health Connect in the device log -----"
+grep -iE "healthconnect|PermissionsActivity|HealthPermission|health\.connect|io\.github\.ebziboi" "$OUT/logcat.txt" \
+  | grep -ivE "chatty|GC freed|Compiler allocated|hiddenapi|ziparchive|nativeloader|AppWidget|studio\.deploy|TestRunner|art_apex" \
+  | cut -c1-320 | head -260 || true
+echo "----- end of Health Connect log -----"
+
 echo "----- crashes in the device log -----"
 grep -n -A 40 "FATAL EXCEPTION" "$OUT/logcat.txt" | head -300 || true
 echo "----- end of crashes -----"

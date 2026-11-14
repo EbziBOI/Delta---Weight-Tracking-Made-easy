@@ -260,18 +260,26 @@ class SmokeTest {
      */
     private fun allowHealthAccess(): Boolean {
         var appeared = false
-        for (step in 1..10) {
+        var quietChecks = 0
+        for (step in 1..12) {
             device.waitForIdle()
             Thread.sleep(1_500)
-            if (device.currentPackageName == pkg) {
-                if (appeared) return true
+            val foreground = device.currentPackageName
+            shot("03-health-connect-step-$step")
+            note("Permission step $step: foreground is $foreground")
+
+            if (foreground == pkg) {
+                // One screen hands over to the next through our own app for a moment,
+                // so only treat it as finished once it has stayed put.
+                quietChecks++
+                if (quietChecks >= 3) return appeared
                 continue
             }
+            quietChecks = 0
             appeared = true
-            shot("03-health-connect-step-$step")
 
             // A phone that has never used Health Connect shows its introduction first.
-            if (clickIfPresent("(?i)get started", mustBeClickable = true)) continue
+            if (clickIfPresent("(?i)get started")) continue
 
             clickIfPresent("(?i)allow all")
             Thread.sleep(700)
