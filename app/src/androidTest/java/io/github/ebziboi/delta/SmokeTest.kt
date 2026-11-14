@@ -7,6 +7,7 @@ import android.graphics.Canvas
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.uiautomator.By
+import androidx.test.uiautomator.StaleObjectException
 import androidx.test.uiautomator.UiDevice
 import androidx.test.uiautomator.Until
 import io.github.ebziboi.delta.data.Accent
@@ -231,6 +232,7 @@ class SmokeTest {
         shot("17-settings-widgets")
 
         val confirm = Pattern.compile("(?i)add to home ?screen|add automatically")
+        device.wait(Until.hasObject(By.text("Add")), 10_000)
         val buttons = device.findObjects(By.text("Add")).size
         for (index in 0 until buttons) {
             val add = device.findObjects(By.text("Add")).getOrNull(index) ?: break
@@ -258,7 +260,7 @@ class SmokeTest {
      */
     private fun allowHealthAccess(): Boolean {
         var appeared = false
-        for (step in 1..8) {
+        for (step in 1..10) {
             device.waitForIdle()
             Thread.sleep(1_500)
             if (device.currentPackageName == pkg) {
@@ -269,19 +271,32 @@ class SmokeTest {
             shot("03-health-connect-step-$step")
 
             // A phone that has never used Health Connect shows its introduction first.
-            val intro = device.findObject(By.text(Pattern.compile("(?i)get started")).clickable(true))
-            if (intro != null) {
-                intro.click()
-                continue
-            }
+            if (clickIfPresent("(?i)get started", mustBeClickable = true)) continue
 
-            device.findObject(By.text(Pattern.compile("(?i)allow all")))?.click()
+            clickIfPresent("(?i)allow all")
             Thread.sleep(700)
-            val allow = device.findObject(By.text(Pattern.compile("(?i)allow")).clickable(true))
-                ?: device.findObject(By.text(Pattern.compile("(?i)allow")))
-            allow?.click()
+            if (!clickIfPresent("(?i)allow", mustBeClickable = true)) clickIfPresent("(?i)allow")
         }
         return appeared
+    }
+
+    /**
+     * Taps the first thing on screen whose text matches, if there is one. Screens
+     * that are still changing can invalidate what was just found, so it retries.
+     */
+    private fun clickIfPresent(pattern: String, mustBeClickable: Boolean = false): Boolean {
+        repeat(3) {
+            try {
+                var selector = By.text(Pattern.compile(pattern))
+                if (mustBeClickable) selector = selector.clickable(true)
+                val target = device.findObject(selector) ?: return false
+                target.click()
+                return true
+            } catch (stale: StaleObjectException) {
+                Thread.sleep(400)
+            }
+        }
+        return false
     }
 
     /** Finishes set-up directly: a goal, a start date and a target date. Weigh-ins come from Health Connect. */

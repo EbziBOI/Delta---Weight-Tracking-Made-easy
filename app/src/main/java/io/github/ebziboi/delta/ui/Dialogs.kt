@@ -23,7 +23,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.ebziboi.delta.data.Units
@@ -51,17 +53,22 @@ fun WeightDialog(
     extra: (@Composable () -> Unit)? = null,
 ) {
     val initialStone = remember(initialKg) { initialKg?.let { Units.stoneParts(it) } }
-    var stones by remember { mutableStateOf(initialStone?.first?.toString() ?: "") }
-    var main by remember {
+    // Fields start with their contents selected, so typing a new number replaces the old one.
+    var stonesField by remember { mutableStateOf(selected(initialStone?.first?.toString() ?: "")) }
+    var mainField by remember {
         mutableStateOf(
-            when {
-                initialKg == null -> ""
-                unit == WeightUnit.KG -> Units.weightValue(initialKg, WeightUnit.KG)
-                unit == WeightUnit.LB -> Units.weightValue(initialKg, WeightUnit.LB)
-                else -> initialStone?.second?.toString() ?: ""
-            }
+            selected(
+                when {
+                    initialKg == null -> ""
+                    unit == WeightUnit.KG -> Units.weightValue(initialKg, WeightUnit.KG)
+                    unit == WeightUnit.LB -> Units.weightValue(initialKg, WeightUnit.LB)
+                    else -> initialStone?.second?.toString() ?: ""
+                }
+            )
         )
     }
+    val stones = stonesField.text
+    val main = mainField.text
 
     val kg: Double? = when (unit) {
         WeightUnit.KG -> Units.parse(main)
@@ -89,8 +96,8 @@ fun WeightDialog(
                 if (unit == WeightUnit.ST_LB) {
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         OutlinedTextField(
-                            value = stones,
-                            onValueChange = { stones = it },
+                            value = stonesField,
+                            onValueChange = { stonesField = it },
                             modifier = Modifier
                                 .weight(1f)
                                 .focusRequester(focus),
@@ -99,8 +106,8 @@ fun WeightDialog(
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         )
                         OutlinedTextField(
-                            value = main,
-                            onValueChange = { main = it },
+                            value = mainField,
+                            onValueChange = { mainField = it },
                             modifier = Modifier.weight(1f),
                             singleLine = true,
                             suffix = { Text("lb") },
@@ -109,8 +116,8 @@ fun WeightDialog(
                     }
                 } else {
                     OutlinedTextField(
-                        value = main,
-                        onValueChange = { main = it },
+                        value = mainField,
+                        onValueChange = { mainField = it },
                         modifier = Modifier
                             .fillMaxWidth()
                             .focusRequester(focus),
@@ -135,6 +142,9 @@ fun WeightDialog(
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
     )
 }
+
+private fun selected(text: String): TextFieldValue =
+    TextFieldValue(text = text, selection = TextRange(0, text.length))
 
 /** Logging a weigh-in: the weight, and the day if it is not today. */
 @Composable
