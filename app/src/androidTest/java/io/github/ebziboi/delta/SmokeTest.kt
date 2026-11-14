@@ -105,7 +105,7 @@ class SmokeTest {
     fun t3_mainScreens() {
         seed()
         launch()
-        waitFor("Log weight")
+        waitForMainScreen()
         shot("4-progress")
         swipeUp()
         shot("5-progress-lower")
@@ -132,7 +132,7 @@ class SmokeTest {
     fun t4_widgetsOnHomeScreen() {
         seed()
         launch()
-        waitFor("Log weight")
+        waitForMainScreen()
         tap("Settings")
         waitFor("Target weight")
         repeat(3) { swipeUp() }
@@ -144,7 +144,9 @@ class SmokeTest {
             val add = device.findObjects(By.text("Add")).getOrNull(index) ?: break
             add.click()
             // The home screen app shows its own confirmation.
-            val accept = device.wait(Until.findObject(By.text(confirm)), 8_000)
+            // The prompt's title can read the same as its button, so insist on something clickable.
+            val accept = device.wait(Until.findObject(By.text(confirm).clickable(true)), 8_000)
+                ?: device.findObjects(By.text(confirm)).lastOrNull()
             if (index == 0) shot("12-add-widget-prompt")
             accept?.click()
             device.wait(Until.hasObject(By.pkg(pkg).depth(0)), 5_000)
@@ -198,6 +200,15 @@ class SmokeTest {
         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
         context.startActivity(intent)
         device.wait(Until.hasObject(By.pkg(pkg).depth(0)), 15_000)
+    }
+
+    /** The tabs only exist once set-up is done, and the log button must be findable by name. */
+    private fun waitForMainScreen() {
+        waitFor("History")
+        if (device.wait(Until.hasObject(By.desc("Log weight")), 10_000) != true) {
+            shot("failed-no-log-weight-button")
+            throw AssertionError("The Log weight button has no accessible name")
+        }
     }
 
     private fun waitFor(text: String) {

@@ -6,14 +6,13 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -166,7 +165,7 @@ fun TrendChartView(
     }
 }
 
-/** A row of pills where exactly one is selected. Scrolls sideways if it runs out of room. */
+/** A row of pills where exactly one is selected. Wraps onto another line if it runs out of room. */
 @Composable
 fun <T> ChoiceRow(
     options: List<T>,
@@ -176,9 +175,10 @@ fun <T> ChoiceRow(
     modifier: Modifier = Modifier,
 ) {
     val colors = LocalDeltaColors.current
-    Row(
-        modifier = modifier.horizontalScroll(rememberScrollState()),
+    FlowRow(
+        modifier = modifier,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         for (option in options) {
             val isSelected = option == selected

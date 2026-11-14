@@ -70,6 +70,7 @@ kotlin {
         // The date picker and a few other Material 3 pieces are still marked experimental.
         optIn.add("androidx.compose.material3.ExperimentalMaterial3Api")
         optIn.add("androidx.compose.foundation.ExperimentalFoundationApi")
+        optIn.add("androidx.compose.foundation.layout.ExperimentalLayoutApi")
     }
 }
 

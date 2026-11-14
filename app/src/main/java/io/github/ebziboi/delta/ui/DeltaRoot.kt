@@ -5,8 +5,6 @@ import androidx.activity.SystemBarStyle
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
@@ -22,6 +20,7 @@ import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -78,10 +77,11 @@ fun DeltaRoot(vm: AppViewModel = viewModel()) {
         LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { vm.refresh() }
         LaunchedEffect(Unit) { vm.messages.collect { snackbar.showSnackbar(it) } }
 
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(Color(colors.bg)),
+        // The surface sets the text colour for everything inside it; without it text defaults to black.
+        Surface(
+            modifier = Modifier.fillMaxSize(),
+            color = Color(colors.bg),
+            contentColor = Color(colors.text),
         ) {
             if (settings.onboardingDone) {
                 MainScreen(vm, settings, health, snackbar, requestAccess)
@@ -145,7 +145,8 @@ private fun MainScreen(
                         // Logging writes to Health Connect, so ask for access first if it is missing.
                         if (health?.canWrite == true) logging = true else requestAccess()
                     },
-                    icon = { Icon(Icons.Filled.Add, contentDescription = null) },
+                    // Screen readers take the button's name from the icon, not from the text beside it.
+                    icon = { Icon(Icons.Filled.Add, contentDescription = "Log weight") },
                     text = { Text("Log weight") },
                     containerColor = Color(colors.accent),
                     contentColor = Color(colors.onAccent),
