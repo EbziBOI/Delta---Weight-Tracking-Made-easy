@@ -43,7 +43,13 @@ jobs:
         run: |
           KEYSTORE="$RUNNER_TEMP/delta.jks"
           if [ -n "$KEYSTORE_B64" ] && [ -n "$KEYSTORE_PASSWORD" ]; then
-            echo "$KEYSTORE_B64" | base64 --decode > "$KEYSTORE"
+            # Pasted secrets often pick up stray spaces or line breaks; ignore them.
+            KEYSTORE_PASSWORD="$(printf '%s' "$KEYSTORE_PASSWORD" | tr -d '[:space:]')"
+            printf '%s' "$KEYSTORE_B64" | base64 --decode --ignore-garbage > "$KEYSTORE"
+            if ! keytool -list -keystore "$KEYSTORE" -storepass "$KEYSTORE_PASSWORD" -alias delta > /dev/null 2>&1; then
+              echo "::error::The stored signing key could not be opened. Check the DELTA_KEYSTORE_B64 and DELTA_KEYSTORE_PASSWORD secrets."
+              exit 1
+            fi
             echo "Signed with the stored key: this build installs over earlier ones." >> "$GITHUB_STEP_SUMMARY"
           else
             KEYSTORE_PASSWORD="throwaway-$GITHUB_RUN_ID"

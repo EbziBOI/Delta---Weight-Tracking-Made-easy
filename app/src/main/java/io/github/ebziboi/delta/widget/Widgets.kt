@@ -1,5 +1,6 @@
 package io.github.ebziboi.delta.widget
 
+import android.appwidget.AppWidgetManager
 import android.content.Context
 import android.graphics.Bitmap
 import androidx.glance.appwidget.GlanceAppWidget
@@ -7,6 +8,7 @@ import androidx.glance.appwidget.GlanceAppWidgetReceiver
 import androidx.glance.appwidget.updateAll
 import io.github.ebziboi.delta.data.AppSettings
 import io.github.ebziboi.delta.data.ProgressSnapshot
+import io.github.ebziboi.delta.data.SyncWorker
 import io.github.ebziboi.delta.render.WidgetBitmaps
 import kotlinx.coroutines.CancellationException
 
@@ -62,19 +64,30 @@ class PaceWidget : BitmapWidget() {
     ): Bitmap = WidgetBitmaps.pace(context, widthDp, heightDp, snap, settings)
 }
 
-class ProgressWidgetReceiver : GlanceAppWidgetReceiver() {
+/**
+ * The home screen asks each widget to update about every half hour. As well as
+ * redrawing, that is taken as the cue to fetch the latest weigh-ins.
+ */
+abstract class DeltaWidgetReceiver : GlanceAppWidgetReceiver() {
+    override fun onUpdate(context: Context, appWidgetManager: AppWidgetManager, appWidgetIds: IntArray) {
+        super.onUpdate(context, appWidgetManager, appWidgetIds)
+        runCatching { SyncWorker.requestNow(context) }
+    }
+}
+
+class ProgressWidgetReceiver : DeltaWidgetReceiver() {
     override val glanceAppWidget: GlanceAppWidget = ProgressWidget()
 }
 
-class SummaryWidgetReceiver : GlanceAppWidgetReceiver() {
+class SummaryWidgetReceiver : DeltaWidgetReceiver() {
     override val glanceAppWidget: GlanceAppWidget = SummaryWidget()
 }
 
-class TrendWidgetReceiver : GlanceAppWidgetReceiver() {
+class TrendWidgetReceiver : DeltaWidgetReceiver() {
     override val glanceAppWidget: GlanceAppWidget = TrendWidget()
 }
 
-class PaceWidgetReceiver : GlanceAppWidgetReceiver() {
+class PaceWidgetReceiver : DeltaWidgetReceiver() {
     override val glanceAppWidget: GlanceAppWidget = PaceWidget()
 }
 

@@ -7,6 +7,7 @@ import android.graphics.Canvas
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.uiautomator.By
+import androidx.test.uiautomator.BySelector
 import androidx.test.uiautomator.StaleObjectException
 import androidx.test.uiautomator.UiDevice
 import androidx.test.uiautomator.Until
@@ -264,6 +265,7 @@ class SmokeTest {
         for (step in 1..12) {
             device.waitForIdle()
             Thread.sleep(1_500)
+            dismissSystemDialogs()
             val foreground = device.currentPackageName
             shot("03-health-connect-step-$step")
             note("Permission step $step: foreground is $foreground")
@@ -352,34 +354,48 @@ class SmokeTest {
     /** The tabs only exist once set-up is done, and the log button must be findable by name. */
     private fun waitForMainScreen() {
         waitFor("History")
-        if (device.wait(Until.hasObject(By.desc("Log weight")), 10_000) != true) {
-            shot("failed-no-log-weight-button")
-            throw AssertionError("The Log weight button has no accessible name")
-        }
+        waitFor(By.desc("Log weight"), "the Log weight button")
     }
 
-    private fun waitFor(text: String) {
-        if (device.wait(Until.hasObject(By.text(text)), 15_000) != true) {
-            shot("failed-waiting-for-${text.replace(' ', '-')}")
-            throw AssertionError("\"$text\" never appeared")
-        }
-    }
+    private fun waitFor(text: String) = waitFor(By.text(text), text)
 
-    private fun waitFor(pattern: Pattern) {
-        if (device.wait(Until.hasObject(By.text(pattern)), 15_000) != true) {
-            shot("failed-waiting-for-pattern")
-            throw AssertionError("Nothing matching \"$pattern\" appeared")
+    private fun waitFor(pattern: Pattern) = waitFor(By.text(pattern), pattern.toString())
+
+    /** Waits for something to be on screen, clearing any system pop-up that gets in the way. */
+    private fun waitFor(selector: BySelector, what: String) {
+        val deadline = System.currentTimeMillis() + 25_000
+        while (System.currentTimeMillis() < deadline) {
+            dismissSystemDialogs()
+            if (device.wait(Until.hasObject(selector), 1_500) == true) return
         }
+        shot("failed-waiting-for-${what.filter { it.isLetterOrDigit() || it == ' ' }.replace(' ', '-')}")
+        throw AssertionError("\"$what\" never appeared")
     }
 
     private fun tap(text: String) {
-        val target = device.wait(Until.findObject(By.text(text)), 15_000)
-        if (target == null) {
-            shot("failed-finding-${text.replace(' ', '-')}")
-            throw AssertionError("Could not find \"$text\" to tap")
+        waitFor(text)
+        repeat(3) {
+            try {
+                device.findObject(By.text(text))?.click()
+                device.waitForIdle()
+                return
+            } catch (stale: StaleObjectException) {
+                Thread.sleep(400)
+            }
         }
-        target.click()
-        device.waitForIdle()
+        throw AssertionError("Could not tap \"$text\"")
+    }
+
+    /**
+     * A slow emulator sometimes reports that the home screen app is not
+     * responding. That pop-up covers the app under test, so tell it to wait.
+     */
+    private fun dismissSystemDialogs() {
+        repeat(3) {
+            device.findObject(By.text(Pattern.compile(".*isn.t responding.*"))) ?: return
+            clickIfPresent("(?i)wait")
+            Thread.sleep(1_000)
+        }
     }
 
     private fun swipeUp() {

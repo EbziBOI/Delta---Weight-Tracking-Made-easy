@@ -8,6 +8,11 @@ OUT=smoke-output
 mkdir -p "$OUT"
 status=0
 
+# Give a freshly booted emulator a moment to settle; a busy one reports apps as not responding.
+sleep 20
+adb shell input keyevent KEYCODE_HOME || true
+sleep 5
+
 adb install -r app/build/outputs/apk/debug/app-debug.apk
 adb install -r app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
 adb logcat -c
