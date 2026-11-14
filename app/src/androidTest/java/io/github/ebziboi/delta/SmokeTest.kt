@@ -267,6 +267,14 @@ class SmokeTest {
             }
             appeared = true
             shot("03-health-connect-step-$step")
+
+            // A phone that has never used Health Connect shows its introduction first.
+            val intro = device.findObject(By.text(Pattern.compile("(?i)get started")).clickable(true))
+            if (intro != null) {
+                intro.click()
+                continue
+            }
+
             device.findObject(By.text(Pattern.compile("(?i)allow all")))?.click()
             Thread.sleep(700)
             val allow = device.findObject(By.text(Pattern.compile("(?i)allow")).clickable(true))
