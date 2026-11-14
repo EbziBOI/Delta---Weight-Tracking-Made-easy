@@ -60,10 +60,12 @@ fun ProgressScreen(
     val unit = settings.unit
 
     Column(
+        // The top inset sits outside the scrolling area so content never slides under the status bar.
         modifier = Modifier
             .fillMaxSize()
+            .padding(top = padding.calculateTopPadding())
             .verticalScroll(rememberScrollState())
-            .padding(padding)
+            .padding(bottom = padding.calculateBottomPadding())
             .padding(horizontal = 16.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {

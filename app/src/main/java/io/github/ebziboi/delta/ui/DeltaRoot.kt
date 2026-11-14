@@ -142,8 +142,8 @@ private fun MainScreen(
             if (tab != 2) {
                 ExtendedFloatingActionButton(
                     onClick = {
-                        // Logging writes to Health Connect, so ask for access first if it is missing.
-                        if (health?.canWrite == true) logging = true else requestAccess()
+                        // Logging writes to Health Connect, so ask for access first if it is known to be missing.
+                        if (health?.canWrite == false) requestAccess() else logging = true
                     },
                     // Screen readers take the button's name from the icon, not from the text beside it.
                     icon = { Icon(Icons.Filled.Add, contentDescription = "Log weight") },

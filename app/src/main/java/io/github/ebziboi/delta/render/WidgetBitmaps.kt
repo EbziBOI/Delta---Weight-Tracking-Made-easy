@@ -127,12 +127,15 @@ object WidgetBitmaps {
         val colors = Palettes.resolve(context, settings.theme, settings.accent)
         val sheet = sheet(context, widthDp, heightDp, colors)
         val canvas = sheet.canvas
-        // Everything scales with the height, within limits, so a taller widget reads bigger.
-        val k = sheet.dp * (heightDp / 64f).coerceIn(0.78f, 1.5f)
-        val padX = 16f * k
         val unit = settings.unit
 
-        val tall = heightDp >= 104f
+        // A taller widget gets a second line; either way the content is scaled to fit
+        // the height it has been given, so nothing is cut off at the edges.
+        val tall = heightDp >= 96f
+        val contentHeight = if (tall) 71f else 49.5f
+        val scale = min(min(1.5f, (heightDp - 18f) / contentHeight), widthDp / 240f)
+        val k = sheet.dp * max(scale, 0.6f)
+        val padX = 16f * k
         val labelSize = 9.5f * k
         val valueSize = 19f * k
         val barHeight = 6f * k

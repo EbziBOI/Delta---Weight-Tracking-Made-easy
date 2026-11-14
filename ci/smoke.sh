@@ -21,6 +21,10 @@ adb logcat -d > "$OUT/logcat.txt" || true
 adb exec-out run-as "$PKG" tar -cf - -C files smoke | tar -xf - -C "$OUT" || true
 ls -la "$OUT" "$OUT/smoke" || true
 
+echo "----- notes from the test -----"
+cat "$OUT/smoke/notes.txt" 2>/dev/null || echo "(none)"
+echo "----- end of notes -----"
+
 echo "----- crashes in the device log -----"
 grep -n -A 40 "FATAL EXCEPTION" "$OUT/logcat.txt" | head -300 || true
 echo "----- end of crashes -----"

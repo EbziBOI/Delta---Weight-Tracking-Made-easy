@@ -52,11 +52,13 @@ fun HistoryScreen(vm: AppViewModel, settings: AppSettings, padding: PaddingValue
     var deleting by remember { mutableStateOf<WeightEntry?>(null) }
 
     LazyColumn(
-        modifier = Modifier.fillMaxSize(),
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(top = padding.calculateTopPadding()),
         contentPadding = PaddingValues(
             start = 16.dp,
             end = 16.dp,
-            top = padding.calculateTopPadding() + 8.dp,
+            top = 8.dp,
             bottom = padding.calculateBottomPadding() + 96.dp,
         ),
         verticalArrangement = Arrangement.spacedBy(8.dp),

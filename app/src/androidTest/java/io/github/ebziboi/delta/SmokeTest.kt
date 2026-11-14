@@ -13,26 +13,31 @@ import io.github.ebziboi.delta.data.Accent
 import io.github.ebziboi.delta.data.AppSettings
 import io.github.ebziboi.delta.data.ProgressCalculator
 import io.github.ebziboi.delta.data.SettingsStore
+import io.github.ebziboi.delta.data.SyncResult
 import io.github.ebziboi.delta.data.ThemeStyle
 import io.github.ebziboi.delta.data.WeightEntry
 import io.github.ebziboi.delta.render.WidgetBitmaps
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.FixMethodOrder
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.MethodSorters
 import java.io.File
+import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
 import java.util.regex.Pattern
+import kotlin.math.abs
 import kotlin.math.exp
 import kotlin.math.roundToInt
 
 /**
  * Runs the app on a real Android system and photographs it: the widgets as
- * drawn by the device, the first-run screens, the main screens with sample
- * weigh-ins, and the widgets sitting on a home screen. The pictures are saved
- * in the app's files folder for the build to collect.
+ * drawn by the device, first-run set-up including Health Connect's own
+ * permission screens, a full write-and-read round trip through Health Connect,
+ * the main screens, and the widgets sitting on a home screen. Pictures and
+ * notes are saved in the app's files folder for the build to collect.
  *
  * The numbers are sample data, never anyone's real weight.
  */
@@ -44,6 +49,7 @@ class SmokeTest {
     private val device: UiDevice = UiDevice.getInstance(instrumentation)
     private val pkg: String = context.packageName
     private val out: File = File(context.filesDir, "smoke").apply { mkdirs() }
+    private val repo get() = (context.applicationContext as DeltaApp).repo
 
     private val startDay: LocalDate = LocalDate.now().minusDays(74)
 
@@ -65,7 +71,7 @@ class SmokeTest {
             val snap = ProgressCalculator.compute(entries, look)
             val progress = WidgetBitmaps.progress(context, 172f, 190f, snap, look)
             val pace = WidgetBitmaps.pace(context, 172f, 190f, snap, look)
-            val summary = WidgetBitmaps.summary(context, 360f, 90f, snap, look)
+            val summary = WidgetBitmaps.summary(context, 360f, 110f, snap, look)
             val trend = WidgetBitmaps.trend(context, 360f, 190f, snap, look)
 
             // One picture per theme, laid out like a home screen.
@@ -89,65 +95,151 @@ class SmokeTest {
     }
 
     @Test
-    fun t2_firstRun() {
+    fun t2_firstRunAndHealthConnectScreens() {
         launch()
         waitFor("Get started")
-        shot("1-welcome")
+        shot("01-welcome")
         tap("Get started")
         waitFor("Connect Health Connect")
-        shot("2-connect")
-        tap("Skip for now")
+        shot("02-connect")
+
+        // "Connect" must bring up Health Connect's own permission screens. If the app's
+        // declarations were wrong, the system would refuse silently and nothing would appear.
+        tap("Connect")
+        val appeared = allowHealthAccess()
+        repeat(3) {
+            if (device.currentPackageName != pkg) {
+                device.pressBack()
+                Thread.sleep(700)
+            }
+        }
+        device.wait(Until.hasObject(By.pkg(pkg).depth(0)), 8_000)
+        Thread.sleep(1_500)
+        shot("04-connect-after")
+
+        val state = runBlocking { repo.health.state() }
+        note("Health Connect permission screens appeared: $appeared")
+        note(
+            "After those screens: read=${state.canRead} write=${state.canWrite} " +
+                "history=${state.hasHistory} background=${state.hasBackground}"
+        )
+
+        val next = device.findObject(By.text("Continue")) ?: device.findObject(By.text("Skip for now"))
+        next?.click()
         waitFor("Set your goal")
-        shot("3-goal")
+        shot("05-goal")
+
+        if (!appeared) throw AssertionError("Health Connect's permission screens never appeared")
     }
 
     @Test
-    fun t3_mainScreens() {
-        seed()
+    fun t3_healthConnectRoundTrip() {
+        // Anything the permission screens did not grant is granted directly, so the
+        // data path is tested either way.
+        val missing = runBlocking { repo.health.state() }.missing
+        for (permission in missing) {
+            runCatching { instrumentation.uiAutomation.grantRuntimePermission(pkg, permission) }
+        }
+        note("Permissions the test had to grant itself: ${if (missing.isEmpty()) "none" else missing.toString()}")
+
+        val sample = sampleEntries()
+        runBlocking {
+            val state = repo.health.state()
+            check(state.canRead && state.canWrite) { "Health Connect access could not be granted: $state" }
+
+            for (entry in sample) {
+                repo.health.writeWeight(entry.kg, Instant.ofEpochMilli(entry.epochMs))
+            }
+            val result = repo.sync()
+            check(result is SyncResult.Done) { "Sync did not complete: $result" }
+
+            val stored = repo.entries.first()
+            check(stored.size == sample.size) { "Wrote ${sample.size} weigh-ins but read back ${stored.size}" }
+            check(stored.all { it.own }) { "Weigh-ins written by Delta were not recognised as its own" }
+            check(stored == stored.sortedBy { it.epochMs }) { "Weigh-ins did not come back oldest first" }
+            for ((wrote, read) in sample.zip(stored)) {
+                check(abs(wrote.kg - read.kg) < 0.001 && wrote.epochMs == read.epochMs) {
+                    "Wrote ${wrote.kg} kg at ${wrote.epochMs} but read ${read.kg} kg at ${read.epochMs}"
+                }
+            }
+
+            // Delete the oldest, check it is gone, then put it back for the screens that follow.
+            val oldest = stored.first()
+            check(repo.delete(oldest)) { "Deleting a weigh-in failed" }
+            check(repo.entries.first().size == sample.size - 1) { "A deleted weigh-in was still there" }
+            check(repo.logWeight(oldest.kg, Instant.ofEpochMilli(oldest.epochMs))) { "Logging a weigh-in failed" }
+            check(repo.entries.first().size == sample.size) { "A logged weigh-in did not appear" }
+
+            note(
+                "Health Connect round trip: wrote ${sample.size}, read ${stored.size} back unchanged, " +
+                    "deleted one, logged it again"
+            )
+        }
+    }
+
+    @Test
+    fun t4_mainScreens() {
+        setGoal()
         launch()
         waitForMainScreen()
-        shot("4-progress")
+        Thread.sleep(2_500)
+        shot("06-progress")
         swipeUp()
-        shot("5-progress-lower")
+        shot("07-progress-lower")
+        swipeUp()
+        shot("08-progress-trend")
+
+        // Log a weigh-in the way a person would.
+        device.findObject(By.desc("Log weight")).click()
+        waitFor("Log weight")
+        shot("09-log-weight")
+        tap("Save")
+        val saved = device.wait(Until.hasObject(By.text("Weigh-in saved")), 10_000) == true
+        shot("10-after-saving")
+        note("Logging a weigh-in through the screen confirmed it was saved: $saved")
 
         tap("History")
         waitFor(Pattern.compile(".*weigh-ins from Health Connect"))
-        shot("6-history")
+        shot("11-history")
 
         tap("Settings")
         waitFor("Target weight")
-        shot("7-settings")
+        shot("12-settings")
         swipeUp()
-        shot("8-settings-lower")
+        shot("13-settings-lower")
 
         // Changing theme restyles the whole app at once.
         tap("Neon")
-        shot("9-theme-neon")
+        shot("14-theme-neon")
         tap("Light")
-        shot("10-theme-light")
+        shot("15-theme-light")
+        tap("Graphite")
+        shot("16-theme-graphite")
         tap("Midnight")
+
+        if (!saved) throw AssertionError("Saving from the Log weight dialog was not confirmed")
     }
 
     @Test
-    fun t4_widgetsOnHomeScreen() {
-        seed()
+    fun t5_widgetsOnHomeScreen() {
+        setGoal()
         launch()
         waitForMainScreen()
         tap("Settings")
         waitFor("Target weight")
         repeat(3) { swipeUp() }
-        shot("11-settings-widgets")
+        shot("17-settings-widgets")
 
         val confirm = Pattern.compile("(?i)add to home ?screen|add automatically")
         val buttons = device.findObjects(By.text("Add")).size
         for (index in 0 until buttons) {
             val add = device.findObjects(By.text("Add")).getOrNull(index) ?: break
             add.click()
-            // The home screen app shows its own confirmation.
-            // The prompt's title can read the same as its button, so insist on something clickable.
+            // The home screen app shows its own confirmation. Its title can read the
+            // same as its button, so insist on something clickable.
             val accept = device.wait(Until.findObject(By.text(confirm).clickable(true)), 8_000)
                 ?: device.findObjects(By.text(confirm)).lastOrNull()
-            if (index == 0) shot("12-add-widget-prompt")
+            if (index == 0) shot("18-add-widget-prompt")
             accept?.click()
             device.wait(Until.hasObject(By.pkg(pkg).depth(0)), 5_000)
             Thread.sleep(1_000)
@@ -155,19 +247,38 @@ class SmokeTest {
 
         device.pressHome()
         Thread.sleep(6_000)
-        shot("13-home")
-        device.swipe(device.displayWidth * 4 / 5, device.displayHeight / 2, device.displayWidth / 5, device.displayHeight / 2, 12)
-        Thread.sleep(2_000)
-        shot("14-home-next-page")
+        shot("19-home")
 
         if (buttons == 0) throw AssertionError("No Add buttons: this home screen does not accept widgets from apps")
     }
 
-    /** Puts sample weigh-ins and a goal straight into the app's storage, skipping first-run set-up. */
-    private fun seed() = runBlocking {
-        val store = SettingsStore(context)
-        store.saveWeights(sampleEntries())
-        store.update {
+    /**
+     * Works through Health Connect's permission screens, allowing everything on
+     * offer. Returns whether those screens appeared at all.
+     */
+    private fun allowHealthAccess(): Boolean {
+        var appeared = false
+        for (step in 1..8) {
+            device.waitForIdle()
+            Thread.sleep(1_500)
+            if (device.currentPackageName == pkg) {
+                if (appeared) return true
+                continue
+            }
+            appeared = true
+            shot("03-health-connect-step-$step")
+            device.findObject(By.text(Pattern.compile("(?i)allow all")))?.click()
+            Thread.sleep(700)
+            val allow = device.findObject(By.text(Pattern.compile("(?i)allow")).clickable(true))
+                ?: device.findObject(By.text(Pattern.compile("(?i)allow")))
+            allow?.click()
+        }
+        return appeared
+    }
+
+    /** Finishes set-up directly: a goal, a start date and a target date. Weigh-ins come from Health Connect. */
+    private fun setGoal() = runBlocking {
+        SettingsStore(context).update {
             it.copy(
                 onboardingDone = true,
                 targetKg = 80.0,
@@ -184,12 +295,13 @@ class SmokeTest {
         val zone = ZoneId.systemDefault()
         val wobble = listOf(0.4, -0.3, 0.2, -0.5, 0.3, 0.1, -0.2, 0.5, -0.4, 0.0, 0.2)
         val entries = ArrayList<WeightEntry>()
-        for (day in 0..74) {
+        // Stops at yesterday, so that logging "today" through the screen adds a new day.
+        for (day in 0..73) {
             if (day % 6 == 4 && day <= 66) continue
             val base = 96.4 - 9.0 * (1 - exp(-day / 55.0)) / (1 - exp(-74 / 55.0)) + (if (day in 38..47) 0.5 else 0.0)
             val kg = ((base + wobble[day % wobble.size]) * 10).roundToInt() / 10.0
             val at = startDay.plusDays(day.toLong()).atTime(7, 10).atZone(zone).toInstant().toEpochMilli()
-            entries += WeightEntry(epochMs = at, kg = kg, own = day % 9 == 0, id = "sample-$day")
+            entries += WeightEntry(epochMs = at, kg = kg, own = true, id = "sample-$day")
         }
         return entries
     }
@@ -245,5 +357,9 @@ class SmokeTest {
         device.waitForIdle()
         Thread.sleep(800)
         device.takeScreenshot(File(out, "$name.png"))
+    }
+
+    private fun note(line: String) {
+        File(out, "notes.txt").appendText(line + "\n")
     }
 }
