@@ -56,7 +56,19 @@ object WidgetBitmaps {
             canvas.drawPath(clip, wash)
         }
         canvas.drawRoundRect(0.5f, 0.5f, widthDp - 0.5f, heightDp - 0.5f, radius, radius,
-            Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE; strokeWidth = 1f; color = colors.glass.edge })
+            Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                style = Paint.Style.STROKE; strokeWidth = 1f
+                shader = LinearGradient(0f, 0f, widthDp, heightDp,
+                    intArrayOf(colors.glass.edge, colors.glass.edgeFaint, colors.glass.edgeFaint, colors.glass.highlight),
+                    floatArrayOf(0f, 0.28f, 0.82f, 1f), Shader.TileMode.CLAMP)
+            })
+        if (settings.theme == ThemeStyle.EMBER && settings.widgetGlass != WidgetGlass.CLEAR) {
+            val light = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                shader = RadialGradient(widthDp * 0.2f, -heightDp * 0.25f, max(widthDp, heightDp),
+                    Palettes.fade(colors.accent2, opacity * 0.28f), Color.TRANSPARENT, Shader.TileMode.CLAMP)
+            }
+            canvas.drawPath(clip, light)
+        }
 
         // Draw tiny hosts in a larger logical coordinate space so content scales down together.
         val fit = min(1f, min(widthDp / 150f, heightDp / 82f))

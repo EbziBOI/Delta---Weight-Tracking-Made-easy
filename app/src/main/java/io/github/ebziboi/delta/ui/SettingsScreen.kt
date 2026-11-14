@@ -309,7 +309,9 @@ private fun SettingsDetail(
             "Appearance" -> {
                 GlassCard {
                     Caption("Theme")
-                    ChoiceRow(ThemeStyle.entries, settings.theme, { it.label }) { chosen -> vm.update { it.copy(theme = chosen) } }
+                    ChoiceRow(ThemeStyle.entries, settings.theme, { it.label }) { chosen -> vm.update { it.copy(theme = chosen,
+                        accent = if (chosen == ThemeStyle.EMBER) Accent.ORANGE else it.accent,
+                        typeStyle = if (chosen == ThemeStyle.EMBER) TypeStyle.MODERN else it.typeStyle) } }
                     Text(settings.theme.detail, color = Color(colors.textDim))
                 }
                 GlassCard {

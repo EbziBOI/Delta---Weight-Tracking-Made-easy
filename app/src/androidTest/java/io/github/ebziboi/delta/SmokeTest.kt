@@ -68,6 +68,7 @@ class SmokeTest {
     fun t1_widgetsDrawOnDevice() {
         val entries = SampleData.entries(startDay)
         val base = AppSettings(
+            theme = ThemeStyle.AURORA, accent = Accent.SKY,
             onboardingDone = true,
             targetKg = 80.0,
             startEpochDay = startDay.toEpochDay(),
@@ -94,7 +95,7 @@ class SmokeTest {
         )
         val matrix = ThemeStyle.entries.flatMap { theme -> WidgetGlass.entries.flatMap { glass ->
             listOf(false, true).map { night -> Look("matrix-${theme.name.lowercase()}-${glass.name.lowercase()}-${if (night) "night" else "day"}",
-                base.copy(theme = theme, widgetGlass = glass, widgetOpacityDark = glass.defaultDark, widgetOpacityLight = glass.defaultLight), night)
+                base.copy(theme = theme, accent = if (theme == ThemeStyle.EMBER) Accent.ORANGE else base.accent, widgetGlass = glass, widgetOpacityDark = glass.defaultDark, widgetOpacityLight = glass.defaultLight), night)
             }
         } }
         val density = context.resources.displayMetrics.density
@@ -279,7 +280,7 @@ class SmokeTest {
         shot("15-theme-light")
         tap("Graphite")
         shot("16-theme-graphite")
-        tap("Aurora")
+        tap(if (InstrumentationRegistry.getArguments().getString("delta.theme") == "EMBER") "Ember" else "Aurora")
         swipeUp()
         shot("17-appearance-lower")
         device.pressBack()
@@ -405,8 +406,9 @@ class SmokeTest {
                 targetKg = 80.0,
                 startEpochDay = startDay.toEpochDay(),
                 targetEpochDay = LocalDate.now().plusDays(95).toEpochDay(),
-                theme = ThemeStyle.AURORA,
-                accent = Accent.SKY,
+                theme = if (InstrumentationRegistry.getArguments().getString("delta.theme") == "EMBER") ThemeStyle.EMBER else ThemeStyle.AURORA,
+                accent = if (InstrumentationRegistry.getArguments().getString("delta.theme") == "EMBER") Accent.ORANGE else Accent.SKY,
+                typeStyle = TypeStyle.MODERN,
             )
         }
     }

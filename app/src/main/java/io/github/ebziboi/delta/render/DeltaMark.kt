@@ -1,5 +1,8 @@
 package io.github.ebziboi.delta.render
 
+import android.graphics.LinearGradient
+import android.graphics.Shader
+import android.graphics.Color
 import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.Path
@@ -86,6 +89,9 @@ object DeltaMark {
             strokeCap = Paint.Cap.ROUND
             strokeJoin = Paint.Join.ROUND
             color = colors.accent
+            shader = LinearGradient(APEX_X, APEX_Y, LEFT_X, BASE_Y,
+                intArrayOf(Palettes.mix(colors.accent, Color.WHITE, if (colors.isLight) 0.10f else 0.32f), colors.accent, colors.accent2),
+                floatArrayOf(0f, 0.48f, 1f), Shader.TileMode.CLAMP)
         }
         if (colors.glow) track.setShadowLayer(7f, 0f, 0f, colors.accent)
         if (progress >= 0.999f) {

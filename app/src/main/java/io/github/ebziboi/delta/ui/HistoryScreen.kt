@@ -118,12 +118,9 @@ private fun HistoryRow(
     onDelete: () -> Unit,
 ) {
     val colors = LocalDeltaColors.current
-    Surface(
+    GlassSurface(
         modifier = Modifier.fillMaxWidth(),
         shape = MaterialTheme.shapes.medium,
-        color = Color(colors.glass.fill),
-        contentColor = Color(colors.text),
-        border = BorderStroke(1.dp, Color(colors.glass.edge)),
     ) {
         Row(
             modifier = Modifier.padding(start = 16.dp, end = 6.dp, top = 10.dp, bottom = 10.dp),

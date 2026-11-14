@@ -22,6 +22,7 @@ enum class WeightUnit(val label: String) {
  * no longer exists falls back to the default.
  */
 enum class ThemeStyle(val label: String, val detail: String) {
+    EMBER("Ember", "Smoked glass with warm orange light"),
     AURORA("Aurora", "Deep glass lit by soft colour"),
     MIDNIGHT("Midnight", "Navy glass, cool and calm"),
     GRAPHITE("Graphite", "Neutral smoked glass"),
@@ -34,7 +35,7 @@ enum class ThemeStyle(val label: String, val detail: String) {
     val fixedLight: Boolean?
         get() = when (this) {
             LIGHT -> true
-            AURORA, MIDNIGHT, GRAPHITE, NEON -> false
+            EMBER, AURORA, MIDNIGHT, GRAPHITE, NEON -> false
             AUTO, DYNAMIC -> null
         }
 
@@ -103,9 +104,9 @@ data class AppSettings(
     /** Optional goal date. */
     val targetEpochDay: Long? = null,
     val unit: WeightUnit = WeightUnit.KG,
-    val theme: ThemeStyle = ThemeStyle.AURORA,
-    val accent: Accent = Accent.SKY,
-    val typeStyle: TypeStyle = TypeStyle.EDITORIAL,
+    val theme: ThemeStyle = ThemeStyle.EMBER,
+    val accent: Accent = Accent.ORANGE,
+    val typeStyle: TypeStyle = TypeStyle.MODERN,
     /** Slow drifting light behind the glass. Off also stops it when the phone asks for less motion. */
     val motion: Boolean = true,
     /** The graph on the Progress screen. */

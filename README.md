@@ -18,7 +18,7 @@ the gap to your target.
 - Five resizable widgets: progress, journey (graph and progress bar together),
   start/now/target, trend graph and pace
 - A glass look: translucent panes over soft washes of colour, in the app and on
-  the widgets. Themes Aurora, Midnight, Graphite, Neon, Light, Auto (light by day,
+  the widgets. Themes Ember, Aurora, Midnight, Graphite, Neon, Light, Auto (light by day,
   dark at night) and Material You, each with six accent colours
 - Widget glass can be solid, frosted or clear, with its own opacity for light and
   dark mode, and can follow the phone's dark mode

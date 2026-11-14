@@ -89,6 +89,7 @@ object Palettes {
         accent: Accent,
         night: Boolean = isNight(context),
     ): DrawColors = when (theme) {
+        ThemeStyle.EMBER -> ember(accent)
         ThemeStyle.AURORA -> aurora(accent)
         ThemeStyle.MIDNIGHT -> midnight(accent)
         ThemeStyle.GRAPHITE -> graphite(accent)
@@ -165,6 +166,29 @@ object Palettes {
         shadow = 0x59000000,
         scrim = 0,
     )
+
+    /** Warm light pools above a near-black canvas; surfaces remain neutral smoked glass. */
+    private fun ember(accent: Accent): DrawColors {
+        val warm = 0xFFFF7A12.toInt()
+        val red = 0xFFB82808.toInt()
+        return dark(
+            bg = 0xFF070606, bgTop = 0xFF281009, surface = 0xFF191311, surfaceHigh = 0xFF30221B,
+            outline = 0xFF594034, textDim = 0xFFC1B3AA,
+            accent = if (accent == Accent.ORANGE) 0xFFFF922E else accent.onDark,
+            partner = if (accent == Accent.ORANGE) 0xFFFF4A0A else accent.partnerDark,
+            glass = GlassTokens(
+                fill = 0xD90C0A09.toInt(), fillTop = 0xA62B201B.toInt(),
+                edge = 0x55F7CFAD, edgeFaint = 0x14F7CFAD, highlight = 0x26FFFFFF,
+                shadow = 0x99000000.toInt(), scrim = 0xF516100D.toInt(),
+            ),
+            aurora = listOf(
+                AuroraBlob(withAlpha(warm, 0xE0), x = 0.35f, y = -0.12f, radius = 0.64f),
+                AuroraBlob(withAlpha(red, 0x90), x = 1.18f, y = 0.28f, radius = 0.40f),
+                AuroraBlob(withAlpha(red, 0x64), x = -0.18f, y = 0.97f, radius = 0.36f),
+            ),
+            glow = false,
+        )
+    }
 
     private fun aurora(accent: Accent): DrawColors {
         val tint = accent.onDark.toInt()

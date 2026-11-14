@@ -8,14 +8,18 @@ import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.NavigationBar
@@ -33,6 +37,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
@@ -120,12 +125,16 @@ private fun MainScreen(
         snackbarHost = { SnackbarHost(snackbar) },
         bottomBar = {
             NavigationBar(
-                modifier = Modifier.hazeEffect(haze) {
+                modifier = Modifier.padding(horizontal = 16.dp).navigationBarsPadding().padding(bottom = 12.dp)
+                    .glass(RoundedCornerShape(30.dp), colors, elevated = true)
+                    .hazeEffect(haze) {
                     backgroundColor = Color(colors.bg)
-                    blurRadius = 24.dp
+                    blurRadius = 28.dp
+                    noiseFactor = 0.015f
                     tints = listOf(HazeTint(Color(colors.glass.fillTop)))
                     fallbackTint = HazeTint(Color(colors.glass.scrim))
                 },
+                windowInsets = WindowInsets(0),
                 containerColor = Color.Transparent, tonalElevation = 0.dp) {
                 TABS.forEachIndexed { index, item ->
                     NavigationBarItem(
@@ -152,21 +161,15 @@ private fun MainScreen(
         },
         floatingActionButton = {
             if (tab != 2) {
-                ExtendedFloatingActionButton(
-                    onClick = {
-                        // Logging writes to Health Connect, so ask for access first if it is known to be missing.
-                        if (health?.canWrite == false) requestAccess() else logging = true
-                    },
-                    // Screen readers take the button's name from the icon, not from the text beside it.
-                    icon = { Icon(Icons.Filled.Add, contentDescription = "Log weight") },
-                    text = { Text("Log weight") },
-                    containerColor = Color(colors.accent),
-                    contentColor = Color(colors.onAccent),
+                PrimaryButton(
+                    text = "Log weight", icon = io.github.ebziboi.delta.R.drawable.ic_add,
+                    modifier = Modifier.semantics { contentDescription = "Log weight" },
+                    onClick = { if (health?.canWrite == false) requestAccess() else logging = true },
                 )
             }
         },
     ) { padding ->
-        AuroraBackground(modifier = Modifier.hazeSource(haze)) {
+        AuroraBackground(modifier = Modifier.navigationBarsPadding().padding(bottom = 12.dp).clipToBounds().hazeSource(haze)) {
             when (tab) {
                 0 -> ProgressScreen(vm, settings, health, padding, requestAccess, onOpenSettings = { tab = 2 })
                 1 -> HistoryScreen(vm, settings, padding)

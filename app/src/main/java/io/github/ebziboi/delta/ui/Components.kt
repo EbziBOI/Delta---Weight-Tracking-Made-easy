@@ -128,19 +128,22 @@ fun Modifier.glass(
     shape: Shape,
     colors: DrawColors,
     glow: Color? = null,
-    elevated: Boolean = colors.isLight,
+    elevated: Boolean = true,
 ): Modifier {
     val g = colors.glass
     var result = this
     if (elevated && (g.shadow ushr 24) > 0) {
         result = result.dropShadow(
             shape,
-            Shadow(radius = 26.dp, color = Color(g.shadow), offset = DpOffset(0.dp, 10.dp)),
+            Shadow(radius = 24.dp, color = Color(g.shadow), offset = DpOffset(0.dp, 9.dp)),
         )
     }
     result = result
         .clip(shape)
-        .background(Brush.verticalGradient(listOf(Color(g.fillTop), Color(g.fill))))
+        .background(Brush.linearGradient(
+            listOf(Color(g.fillTop), Color(g.fill), Color(g.fill)),
+            start = Offset.Zero, end = Offset.Infinite,
+        ))
     if (glow != null) {
         result = result.drawBehind {
             drawCircle(
@@ -162,8 +165,8 @@ fun Modifier.glass(
             width = 1.dp,
             brush = Brush.linearGradient(
                 0f to Color(g.edge),
-                0.45f to Color(g.edgeFaint),
-                0.8f to Color(g.edgeFaint),
+                0.28f to Color(g.edgeFaint),
+                0.82f to Color(g.edgeFaint),
                 1f to Color(g.edge).copy(alpha = Color(g.edge).alpha * 0.55f),
                 start = Offset.Zero,
                 end = Offset.Infinite,
@@ -483,14 +486,14 @@ fun PrimaryButton(
     val accent = Color(colors.accent)
     val fill = if (enabled) {
         Modifier
-            .dropShadow(shape, Shadow(radius = 22.dp, color = accent.copy(alpha = 0.45f), offset = DpOffset(0.dp, 8.dp)))
+            .dropShadow(shape, Shadow(radius = 22.dp, color = accent.copy(alpha = 0.28f), offset = DpOffset(0.dp, 8.dp)))
             .clip(shape)
             .background(
                 Brush.horizontalGradient(
                     listOf(accent, Color(io.github.ebziboi.delta.render.Palettes.mix(colors.accent, colors.accent2, 0.55f))),
                 ),
             )
-            .innerShadow(shape, Shadow(radius = 2.dp, color = Color.White.copy(alpha = 0.45f), offset = DpOffset(0.dp, 1.dp)))
+            .innerShadow(shape, Shadow(radius = 2.dp, color = Color.White.copy(alpha = 0.30f), offset = DpOffset(0.dp, 1.dp)))
     } else {
         Modifier.glass(shape, colors, elevated = false)
     }
