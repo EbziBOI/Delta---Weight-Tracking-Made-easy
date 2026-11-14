@@ -1,0 +1,238 @@
+package io.github.ebziboi.delta
+
+import android.content.Context
+import android.content.Intent
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.test.platform.app.InstrumentationRegistry
+import androidx.test.uiautomator.By
+import androidx.test.uiautomator.UiDevice
+import androidx.test.uiautomator.Until
+import io.github.ebziboi.delta.data.Accent
+import io.github.ebziboi.delta.data.AppSettings
+import io.github.ebziboi.delta.data.ProgressCalculator
+import io.github.ebziboi.delta.data.SettingsStore
+import io.github.ebziboi.delta.data.ThemeStyle
+import io.github.ebziboi.delta.data.WeightEntry
+import io.github.ebziboi.delta.render.WidgetBitmaps
+import kotlinx.coroutines.runBlocking
+import org.junit.FixMethodOrder
+import org.junit.Test
+import org.junit.runner.RunWith
+import org.junit.runners.MethodSorters
+import java.io.File
+import java.time.LocalDate
+import java.time.ZoneId
+import java.util.regex.Pattern
+import kotlin.math.exp
+import kotlin.math.roundToInt
+
+/**
+ * Runs the app on a real Android system and photographs it: the widgets as
+ * drawn by the device, the first-run screens, the main screens with sample
+ * weigh-ins, and the widgets sitting on a home screen. The pictures are saved
+ * in the app's files folder for the build to collect.
+ *
+ * The numbers are sample data, never anyone's real weight.
+ */
+@RunWith(AndroidJUnit4::class)
+@FixMethodOrder(MethodSorters.NAME_ASCENDING)
+class SmokeTest {
+    private val instrumentation = InstrumentationRegistry.getInstrumentation()
+    private val context: Context = instrumentation.targetContext
+    private val device: UiDevice = UiDevice.getInstance(instrumentation)
+    private val pkg: String = context.packageName
+    private val out: File = File(context.filesDir, "smoke").apply { mkdirs() }
+
+    private val startDay: LocalDate = LocalDate.now().minusDays(74)
+
+    @Test
+    fun t1_widgetsDrawOnDevice() {
+        val entries = sampleEntries()
+        val base = AppSettings(onboardingDone = true, targetKg = 80.0, startEpochDay = startDay.toEpochDay())
+        val looks = listOf(
+            "midnight" to base,
+            "graphite" to base.copy(theme = ThemeStyle.GRAPHITE, accent = Accent.MINT),
+            "neon" to base.copy(theme = ThemeStyle.NEON, accent = Accent.LIME),
+            "light" to base.copy(theme = ThemeStyle.LIGHT, accent = Accent.VIOLET),
+            "material-you" to base.copy(theme = ThemeStyle.DYNAMIC),
+        )
+        val density = context.resources.displayMetrics.density
+        val gap = (16 * density).roundToInt()
+
+        for ((name, look) in looks) {
+            val snap = ProgressCalculator.compute(entries, look)
+            val progress = WidgetBitmaps.progress(context, 172f, 190f, snap, look)
+            val pace = WidgetBitmaps.pace(context, 172f, 190f, snap, look)
+            val summary = WidgetBitmaps.summary(context, 360f, 90f, snap, look)
+            val trend = WidgetBitmaps.trend(context, 360f, 190f, snap, look)
+
+            // One picture per theme, laid out like a home screen.
+            val width = summary.width + gap * 2
+            val height = gap * 4 + progress.height + summary.height + trend.height
+            val sheet = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+            val canvas = Canvas(sheet)
+            canvas.drawColor(if (look.theme == ThemeStyle.LIGHT) 0xFFC9D2E3.toInt() else 0xFF20232E.toInt())
+            var y = gap.toFloat()
+            canvas.drawBitmap(progress, gap.toFloat(), y, null)
+            canvas.drawBitmap(pace, (width - gap - pace.width).toFloat(), y, null)
+            y += progress.height + gap
+            canvas.drawBitmap(summary, gap.toFloat(), y, null)
+            y += summary.height + gap
+            canvas.drawBitmap(trend, gap.toFloat(), y, null)
+
+            File(out, "widgets-$name.png").outputStream().use {
+                sheet.compress(Bitmap.CompressFormat.PNG, 100, it)
+            }
+        }
+    }
+
+    @Test
+    fun t2_firstRun() {
+        launch()
+        waitFor("Get started")
+        shot("1-welcome")
+        tap("Get started")
+        waitFor("Connect Health Connect")
+        shot("2-connect")
+        tap("Skip for now")
+        waitFor("Set your goal")
+        shot("3-goal")
+    }
+
+    @Test
+    fun t3_mainScreens() {
+        seed()
+        launch()
+        waitFor("Log weight")
+        shot("4-progress")
+        swipeUp()
+        shot("5-progress-lower")
+
+        tap("History")
+        waitFor(Pattern.compile(".*weigh-ins from Health Connect"))
+        shot("6-history")
+
+        tap("Settings")
+        waitFor("Target weight")
+        shot("7-settings")
+        swipeUp()
+        shot("8-settings-lower")
+
+        // Changing theme restyles the whole app at once.
+        tap("Neon")
+        shot("9-theme-neon")
+        tap("Light")
+        shot("10-theme-light")
+        tap("Midnight")
+    }
+
+    @Test
+    fun t4_widgetsOnHomeScreen() {
+        seed()
+        launch()
+        waitFor("Log weight")
+        tap("Settings")
+        waitFor("Target weight")
+        repeat(3) { swipeUp() }
+        shot("11-settings-widgets")
+
+        val confirm = Pattern.compile("(?i)add to home ?screen|add automatically")
+        val buttons = device.findObjects(By.text("Add")).size
+        for (index in 0 until buttons) {
+            val add = device.findObjects(By.text("Add")).getOrNull(index) ?: break
+            add.click()
+            // The home screen app shows its own confirmation.
+            val accept = device.wait(Until.findObject(By.text(confirm)), 8_000)
+            if (index == 0) shot("12-add-widget-prompt")
+            accept?.click()
+            device.wait(Until.hasObject(By.pkg(pkg).depth(0)), 5_000)
+            Thread.sleep(1_000)
+        }
+
+        device.pressHome()
+        Thread.sleep(6_000)
+        shot("13-home")
+        device.swipe(device.displayWidth * 4 / 5, device.displayHeight / 2, device.displayWidth / 5, device.displayHeight / 2, 12)
+        Thread.sleep(2_000)
+        shot("14-home-next-page")
+
+        if (buttons == 0) throw AssertionError("No Add buttons: this home screen does not accept widgets from apps")
+    }
+
+    /** Puts sample weigh-ins and a goal straight into the app's storage, skipping first-run set-up. */
+    private fun seed() = runBlocking {
+        val store = SettingsStore(context)
+        store.saveWeights(sampleEntries())
+        store.update {
+            it.copy(
+                onboardingDone = true,
+                targetKg = 80.0,
+                startEpochDay = startDay.toEpochDay(),
+                targetEpochDay = LocalDate.now().plusDays(95).toEpochDay(),
+                theme = ThemeStyle.MIDNIGHT,
+                accent = Accent.SKY,
+            )
+        }
+    }
+
+    /** About eleven weeks of weigh-ins: quick at first, slower later, with the odd missed day. */
+    private fun sampleEntries(): List<WeightEntry> {
+        val zone = ZoneId.systemDefault()
+        val wobble = listOf(0.4, -0.3, 0.2, -0.5, 0.3, 0.1, -0.2, 0.5, -0.4, 0.0, 0.2)
+        val entries = ArrayList<WeightEntry>()
+        for (day in 0..74) {
+            if (day % 6 == 4 && day <= 66) continue
+            val base = 96.4 - 9.0 * (1 - exp(-day / 55.0)) / (1 - exp(-74 / 55.0)) + (if (day in 38..47) 0.5 else 0.0)
+            val kg = ((base + wobble[day % wobble.size]) * 10).roundToInt() / 10.0
+            val at = startDay.plusDays(day.toLong()).atTime(7, 10).atZone(zone).toInstant().toEpochMilli()
+            entries += WeightEntry(epochMs = at, kg = kg, own = day % 9 == 0, id = "sample-$day")
+        }
+        return entries
+    }
+
+    private fun launch() {
+        val intent = context.packageManager.getLaunchIntentForPackage(pkg)
+            ?: throw AssertionError("The app has no launcher activity")
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+        context.startActivity(intent)
+        device.wait(Until.hasObject(By.pkg(pkg).depth(0)), 15_000)
+    }
+
+    private fun waitFor(text: String) {
+        if (device.wait(Until.hasObject(By.text(text)), 15_000) != true) {
+            shot("failed-waiting-for-${text.replace(' ', '-')}")
+            throw AssertionError("\"$text\" never appeared")
+        }
+    }
+
+    private fun waitFor(pattern: Pattern) {
+        if (device.wait(Until.hasObject(By.text(pattern)), 15_000) != true) {
+            shot("failed-waiting-for-pattern")
+            throw AssertionError("Nothing matching \"$pattern\" appeared")
+        }
+    }
+
+    private fun tap(text: String) {
+        val target = device.wait(Until.findObject(By.text(text)), 15_000)
+        if (target == null) {
+            shot("failed-finding-${text.replace(' ', '-')}")
+            throw AssertionError("Could not find \"$text\" to tap")
+        }
+        target.click()
+        device.waitForIdle()
+    }
+
+    private fun swipeUp() {
+        val x = device.displayWidth / 2
+        device.swipe(x, device.displayHeight * 7 / 10, x, device.displayHeight * 3 / 10, 24)
+        device.waitForIdle()
+    }
+
+    private fun shot(name: String) {
+        device.waitForIdle()
+        Thread.sleep(800)
+        device.takeScreenshot(File(out, "$name.png"))
+    }
+}

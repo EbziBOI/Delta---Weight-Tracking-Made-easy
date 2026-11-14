@@ -1,5 +1,7 @@
 package io.github.ebziboi.delta.ui
 
+import android.appwidget.AppWidgetManager
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.os.Build
@@ -28,6 +30,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -45,6 +48,10 @@ import io.github.ebziboi.delta.data.HealthState
 import io.github.ebziboi.delta.data.ThemeStyle
 import io.github.ebziboi.delta.data.Units
 import io.github.ebziboi.delta.data.WeightUnit
+import io.github.ebziboi.delta.widget.PaceWidgetReceiver
+import io.github.ebziboi.delta.widget.ProgressWidgetReceiver
+import io.github.ebziboi.delta.widget.SummaryWidgetReceiver
+import io.github.ebziboi.delta.widget.TrendWidgetReceiver
 import java.time.LocalDate
 
 /** Goal, units, look and Health Connect, each in its own card. */
@@ -62,6 +69,8 @@ fun SettingsScreen(
     val syncing by vm.syncing.collectAsStateWithLifecycle()
     val unit = settings.unit
     var editing by remember { mutableStateOf("") }
+    // Asked once: the answer depends on the home screen app, which does not change while this is open.
+    val canPin = remember { canPinWidgets(context) }
 
     Column(
         modifier = Modifier
@@ -216,12 +225,32 @@ fun SettingsScreen(
         // Widgets and about
         DeltaCard {
             Caption("Widgets")
-            Text(
-                text = "Touch and hold an empty part of your home screen, choose Widgets, then Delta. " +
-                    "There are four: progress, start/now/target, trend and pace. Each can be resized.",
-                color = Color(colors.textDim),
-                fontSize = 14.sp,
-            )
+            if (canPin) {
+                for (choice in WIDGET_CHOICES) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(text = choice.title, fontSize = 15.sp)
+                            Text(text = choice.detail, color = Color(colors.textDim), fontSize = 12.sp)
+                        }
+                        OutlinedButton(onClick = { pinWidget(context, choice.receiver) }) { Text("Add") }
+                    }
+                }
+                Text(
+                    text = "Add puts the widget on your home screen. Touch and hold it there to resize it.",
+                    color = Color(colors.textDim),
+                    fontSize = 13.sp,
+                )
+            } else {
+                Text(
+                    text = "Touch and hold an empty part of your home screen, choose Widgets, then Delta. " +
+                        "There are four: progress, start/now/target, trend and pace. Each can be resized.",
+                    color = Color(colors.textDim),
+                    fontSize = 14.sp,
+                )
+            }
         }
         Text(
             text = "Delta ${versionName(context)}",
@@ -284,6 +313,27 @@ private fun AccessRow(title: String, granted: Boolean) {
             fontSize = 14.sp,
             fontWeight = FontWeight.Medium,
         )
+    }
+}
+
+private class WidgetChoice(val title: String, val detail: String, val receiver: Class<*>)
+
+private val WIDGET_CHOICES = listOf(
+    WidgetChoice("Progress", "The delta, filling as you close the gap", ProgressWidgetReceiver::class.java),
+    WidgetChoice("Start, now, target", "Three numbers over a progress bar", SummaryWidgetReceiver::class.java),
+    WidgetChoice("Trend", "Your weight graph with the target line", TrendWidgetReceiver::class.java),
+    WidgetChoice("Pace", "Weekly rate, projected date and streak", PaceWidgetReceiver::class.java),
+)
+
+/** Whether the home screen in use lets an app offer its widgets directly. */
+private fun canPinWidgets(context: Context): Boolean =
+    runCatching { AppWidgetManager.getInstance(context).isRequestPinAppWidgetSupported }.getOrDefault(false)
+
+/** Asks the home screen to add a widget; the home screen shows its own confirmation. */
+private fun pinWidget(context: Context, receiver: Class<*>) {
+    runCatching {
+        AppWidgetManager.getInstance(context)
+            .requestPinAppWidget(ComponentName(context, receiver), null, null)
     }
 }
 

@@ -23,6 +23,8 @@ android {
         targetSdk = 36
         versionCode = buildNumber
         versionName = "0.1.$buildNumber"
+
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     signingConfigs {
@@ -91,4 +93,9 @@ dependencies {
     implementation("androidx.health.connect:connect-client:1.1.0")
 
     implementation("androidx.glance:glance-appwidget:1.1.1")
+
+    // On-device smoke test: launches the app on an emulator and photographs it.
+    androidTestImplementation("androidx.test.ext:junit:1.2.1")
+    androidTestImplementation("androidx.test:runner:1.6.2")
+    androidTestImplementation("androidx.test.uiautomator:uiautomator:2.3.0")
 }
