@@ -42,8 +42,8 @@ fun Modifier.refractiveGlass(
         backgroundColor = Color(colors.bg)
         blurRadius = a.glassBlurRadius.dp
         noiseFactor = 0.01f
-        tints = listOf(HazeTint(glassTile(colors)))
-        fallbackTint = HazeTint(glassTile(colors))
+        tints = listOf(HazeTint(glassTile(colors, a)))
+        fallbackTint = HazeTint(glassTile(colors, a))
     }
 }
 

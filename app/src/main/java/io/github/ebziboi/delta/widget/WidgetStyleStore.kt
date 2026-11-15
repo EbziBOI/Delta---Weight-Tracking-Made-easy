@@ -34,9 +34,10 @@ data class WidgetStyle(
     /** How strongly the accent glows across the glass, 0 to 1; null follows the app. */
     val accentIntensity: Float? = null,
     val content: WidgetContent = WidgetContent(),
+    val timeRange: WidgetTimeRange = WidgetTimeRange.JOURNEY,
 ) : java.io.Serializable {
     fun apply(settings: AppSettings, appearance: AppAppearance): AppSettings {
-        if (useAppSettings) return settings
+        if (useAppSettings) return settings.copy(widgetTimeRange = timeRange)
         val style = backgroundStyle ?: appearance.backgroundStyle
         val image = backgroundImage ?: appearance.backgroundImageUri
         // A photo style without a photo falls back to the soft mesh rather than a blank pane.
@@ -50,13 +51,13 @@ data class WidgetStyle(
         return settings.copy(appearance = custom, widgetGlass = glass, widgetTheme = mode,
             widgetOpacityDark = opacityDark.coerceIn(0f, 1f), widgetOpacityLight = opacityLight.coerceIn(0f, 1f),
             widgetChart = chart ?: settings.widgetChart, showProjection = projection ?: settings.showProjection,
-            widgetContent = content, widgetBackgroundOverride = background)
+            widgetContent = content, widgetBackgroundOverride = background, widgetTimeRange = timeRange)
     }
     companion object {
         /** A widget's own style, starting from the defaults every new widget gets. */
         fun from(settings: AppSettings) = WidgetStyle(useAppSettings = false, glass = settings.widgetGlass,
             theme = settings.widgetTheme, opacityDark = settings.widgetOpacityDark, opacityLight = settings.widgetOpacityLight,
-            chart = settings.widgetChart, projection = settings.showProjection)
+            chart = settings.widgetChart, projection = settings.showProjection, timeRange = settings.widgetTimeRange)
     }
 }
 
@@ -93,6 +94,7 @@ class WidgetStyleStore(context: Context) {
         }
     }
     private fun encode(s: WidgetStyle) = JSONObject().apply {
+        put("range", s.timeRange.name)
         put("follow", s.useAppSettings); put("glass", s.glass.name); put("theme", s.theme.name)
         put("dark", s.opacityDark); put("light", s.opacityLight)
         s.cornerRadius?.let { put("radius", it) }; s.background?.let { put("background", it) }; s.accent?.let { put("accent", it) }
@@ -109,6 +111,7 @@ class WidgetStyleStore(context: Context) {
             if (it.isFinite()) it.coerceIn(0f, 1f) else fallback
         }
         WidgetStyle(useAppSettings = j.optBoolean("follow", true),
+            timeRange = WidgetTimeRange.entries.firstOrNull { it.name == j.optString("range") } ?: WidgetTimeRange.JOURNEY,
             glass = WidgetGlass.entries.firstOrNull { it.name == j.optString("glass") } ?: WidgetGlass.FROSTED,
             theme = WidgetTheme.entries.firstOrNull { it.name == j.optString("theme") } ?: WidgetTheme.APP,
             opacityDark = amount("dark", WidgetGlass.FROSTED.defaultDark), opacityLight = amount("light", WidgetGlass.FROSTED.defaultLight),

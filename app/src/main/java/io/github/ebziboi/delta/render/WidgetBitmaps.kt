@@ -164,7 +164,8 @@ object WidgetBitmaps {
         }
         fun bodyFat() {
             val readings = snap.bodyFat.sortedBy { it.epochMs }
-            label("BODY FAT", pad, pad + 8)
+            val chartReadings = settings.widgetTimeRange.bodyFat(snap)
+            label(if (settings.widgetTimeRange == WidgetTimeRange.JOURNEY) "BODY FAT" else "BODY FAT · ${settings.widgetTimeRange.label.uppercase()}", pad, pad + 8)
             val latest = readings.lastOrNull()
             text(latest?.let { BodyFat.format(it.percent) } ?: "—", pad, pad + 39, 30f, colors.accent, type.numberBold)
             if (latest == null) {
@@ -174,9 +175,9 @@ object WidgetBitmaps {
             val previous = readings.dropLast(1).lastOrNull()
             if (previous != null && w >= 230) text(String.format(Locale.getDefault(), "%+.1f pp", latest.percent - previous.percent), w - pad, pad + 35,
                 12f, colors.textDim, type.number, Paint.Align.RIGHT, room = w * 0.40f)
-            if (h >= 135 && readings.size >= 2) {
+            if (h >= 135) {
                 TrendChart.draw(c, RectF(pad, pad + 50, w - pad, h - 27),
-                    ChartSpec(readings.map { io.github.ebziboi.delta.data.TrendPoint(it.epochMs, it.percent, it.percent) },
+                    ChartSpec(chartReadings.map { io.github.ebziboi.delta.data.TrendPoint(it.epochMs, it.percent, it.percent) },
                         ChartStyle.CONNECTED, WeightUnit.KG, snap.targetBodyFat.takeIf { show.showTarget }, metric = ChartMetric.BODY_FAT), colors, type, 1f, true)
             }
             val footer = snap.targetBodyFat?.takeIf { show.showTarget }?.let { "Target ${BodyFat.format(it)} · " }.orEmpty() +
@@ -244,7 +245,7 @@ object WidgetBitmaps {
                 colors.accent, align = Paint.Align.RIGHT, room = (w - pad * 2) * 0.42f) }
             if (detailed) {
                 weekChange()?.let { text(weekLine()!!, pad, pad + 33, 10.5f, changeTint(it), type.body, room = (w - pad * 2) * 0.55f) }
-                goalLine()?.let { text(it, w - pad, pad + 31, 10f, colors.textDim, type.body, Paint.Align.RIGHT, (w - pad * 2) * 0.42f) }
+                (if (settings.widgetTimeRange == WidgetTimeRange.JOURNEY) goalLine() else settings.widgetTimeRange.label)?.let { text(it, w - pad, pad + 31, 10f, colors.textDim, type.body, Paint.Align.RIGHT, (w - pad * 2) * 0.42f) }
             }
             val footer = when {
                 !journey || compact -> 0f
@@ -254,7 +255,7 @@ object WidgetBitmaps {
                 else -> 0f
             }
             TrendChart.draw(c, RectF(pad - 3, header + pad, w - pad, h - pad - footer),
-                ChartSpec.journey(snap, settings.widgetChart, unit, settings.showProjection), colors, type, 1f,
+                ChartSpec.forWidget(snap, settings), colors, type, 1f,
                 labels = h >= 150 && w >= 240, contrastShadow = settings.widgetGlass != WidgetGlass.SOLID)
             if (journey) {
                 if (compact) {

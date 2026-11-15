@@ -68,7 +68,9 @@ class WidgetConfigurationActivity : ComponentActivity() {
         val store = WidgetStyleStore(this).also { this.store = it }
         lifecycleScope.launch {
             val initial = repo.widgetData.first()
-            val saved = store.style(widgetId).first()?.takeUnless { it.useAppSettings } ?: WidgetStyle.from(initial.second)
+            val previous = store.style(widgetId).first()
+            val saved = previous?.takeUnless { it.useAppSettings } ?: WidgetStyle.from(initial.second)
+                .copy(timeRange = previous?.timeRange ?: WidgetTimeRange.JOURNEY)
             setContent {
                 val data by repo.widgetData.collectAsStateWithLifecycle(initialValue = initial)
                 var draft by rememberSaveable { mutableStateOf(saved) }
@@ -207,6 +209,12 @@ private fun WidgetConfigurationScreen(
                     }
                     failure?.let { Text(it, color = Color(LocalDerivedTheme.current.danger)) }
 
+                    if (graphed || kind == WidgetKind.BODY_FAT) {
+                        Caption("Time range")
+                        ChoiceRow(WidgetTimeRange.entries, draft.timeRange, { it.label }) { onChange(draft.copy(timeRange = it)) }
+                        Text("Recent ranges change the graph. Journey includes your start, target and optional projection. Overall progress stays the same.",
+                            style = type.bodySmall, color = Color(colors.textDim))
+                    }
                     val dashboard = appearance.designStyle == DesignStyle.TUBIK
                     if (dashboard) {
                         Caption("Dashboard modules")
@@ -219,10 +227,12 @@ private fun WidgetConfigurationScreen(
                         }
                         Text(draft.glass.detail, color = Color(colors.textDim), style = type.bodySmall)
                         if (draft.glass != WidgetGlass.SOLID) {
+                            if (appearance.reduceTransparency) Text("Reduce transparency is enabled in Appearance. Turn it off to adjust widget opacity.",
+                                style = type.bodySmall, color = Color(colors.textDim))
                             SliderRow("Opacity in dark mode", draft.opacityDark, "${(draft.opacityDark * 100).roundToInt()}%",
-                                { previewNight = true; onChange(draft.copy(opacityDark = it)) }, {}, valueRange = 0f..1f)
+                                { previewNight = true; onChange(draft.copy(opacityDark = it)) }, {}, enabled = !appearance.reduceTransparency, valueRange = 0f..1f)
                             SliderRow("Opacity in light mode", draft.opacityLight, "${(draft.opacityLight * 100).roundToInt()}%",
-                                { previewNight = false; onChange(draft.copy(opacityLight = it)) }, {}, valueRange = 0f..1f)
+                                { previewNight = false; onChange(draft.copy(opacityLight = it)) }, {}, enabled = !appearance.reduceTransparency, valueRange = 0f..1f)
                         }
 
                     }
@@ -265,7 +275,7 @@ private fun WidgetConfigurationScreen(
                         WidgetKind.TREND, WidgetKind.JOURNEY -> {
                             SegmentedControl(ChartStyle.entries, draft.chart ?: effective.widgetChart, { it.label },
                                 Modifier.fillMaxWidth()) { onChange(draft.copy(chart = it)) }
-                            ToggleRow("Path to the goal", draft.projection ?: effective.showProjection,
+                            if (draft.timeRange == WidgetTimeRange.JOURNEY) ToggleRow("Path to the goal", draft.projection ?: effective.showProjection,
                                 { onChange(draft.copy(projection = it)) }, note = "A dashed line to your target at your current pace.")
                             ToggleRow("Target weight", content.showTarget, { on -> show { it.copy(showTarget = on) } })
                             if (kind == WidgetKind.JOURNEY) {

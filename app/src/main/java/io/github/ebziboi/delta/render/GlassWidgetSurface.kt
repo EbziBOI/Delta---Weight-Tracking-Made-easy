@@ -29,7 +29,7 @@ object GlassWidgetSurface {
         }
         val chosenOpacity = if (theme.isLight) settings.widgetOpacityLight else settings.widgetOpacityDark
         val opacity = if (a.reduceTransparency || settings.widgetGlass == WidgetGlass.SOLID) 1f else
-            (chosenOpacity * (a.glassOpacity / 0.12f)).let { if (it.isFinite()) it.coerceIn(0f, 1f) else 0.65f }
+            chosenOpacity.let { if (it.isFinite()) it.coerceIn(0f, 1f) else 0.65f }
         fun alpha(color: Int) = Palettes.withAlpha(color, (opacity * 255).roundToInt())
         val photo = if (a.backgroundStyle == BackgroundStyle.IMAGE) a.backgroundImageUri?.let(WidgetPhotos::load) else null
         val paint = Paint(Paint.ANTI_ALIAS_FLAG)

@@ -62,7 +62,8 @@ fun DeltaRoot(vm: AppViewModel = viewModel()) {
     // Keep the loading surface still until saved appearance preferences arrive.
     val settings = loaded ?: AppSettings(appearance = io.github.ebziboi.delta.data.AppAppearance(reduceMotion = true))
 
-    DeltaTheme(settings) {
+    val preview by vm.appearancePreview.collectAsStateWithLifecycle()
+    DeltaTheme(if (preview == null) settings else settings.copy(appearance = preview)) {
         val colors = LocalDeltaColors.current
         SystemBars(light = colors.isLight)
 

@@ -39,6 +39,9 @@ fun AppearanceControls(vm: AppViewModel, settings: AppSettings) {
     fun update(change: (AppAppearance) -> AppAppearance) {
         vm.update { current -> current.copy(appearance = change(AppearanceEngine.resolve(context, current)).normalized()) }
     }
+    fun preview(change: (AppAppearance) -> AppAppearance) = vm.previewAppearance(change(a))
+    fun commit(change: (AppAppearance) -> AppAppearance) = vm.saveAppearance(change(a))
+    DisposableEffect(vm) { onDispose { vm.previewAppearance(null) } }
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) scope.launch {
             importing = true; imageError = null
@@ -143,15 +146,20 @@ fun AppearanceControls(vm: AppViewModel, settings: AppSettings) {
     ContentSection {
         Caption("Accent colour")
         ColorSetting("Accent color", a.accent) { picking = "accent" }
-        if (a.designStyle == DesignStyle.GLASS) AppearanceSlider("Accent intensity", a.accentIntensity, 0f..1f, "${(a.accentIntensity * 100).roundToInt()}%") { v -> update { it.copy(accentIntensity = v) } }
+        if (a.designStyle == DesignStyle.GLASS) AppearanceSlider("Accent intensity", a.accentIntensity, 0f..1f, preview = { v -> preview { it.copy(accentIntensity = v) } }) { v -> commit { it.copy(accentIntensity = v) } }
     }
     ContentSection {
         Caption(if (a.designStyle == DesignStyle.TUBIK) "Shape and accessibility" else "Glass and shape")
         if (a.designStyle == DesignStyle.GLASS) {
-        AppearanceSlider("Glass blur", a.glassBlurRadius, 0f..48f, "${a.glassBlurRadius.roundToInt()} dp", !a.reduceTransparency) { v -> update { it.copy(glassBlurRadius = v) } }
-        AppearanceSlider("Glass transparency", 1f - a.glassOpacity, 0.05f..0.94f, "${((1 - a.glassOpacity) * 100).roundToInt()}%", !a.reduceTransparency) { v -> update { it.copy(glassOpacity = 1 - v) } }
+        GlassMaterialPreview()
+        AppearanceSlider("Glass blur", a.glassBlurRadius, 0f..48f, !a.reduceTransparency && android.os.Build.VERSION.SDK_INT >= 31,
+            preview = { v -> preview { it.copy(glassBlurRadius = v) } }) { v -> commit { it.copy(glassBlurRadius = v) } }
+        AppearanceSlider("Glass transparency", 1f - a.glassOpacity, 0.05f..0.94f, !a.reduceTransparency,
+            preview = { v -> preview { it.copy(glassOpacity = 1 - v) } }) { v -> commit { it.copy(glassOpacity = 1 - v) } }
+        if (android.os.Build.VERSION.SDK_INT < 31) Text("Blur requires Android 12 or later. Transparency still works here.", style = LocalDeltaType.current.bodySmall)
+        if (a.reduceTransparency) Text("Turn off Reduce transparency to adjust blur and transparency.", style = LocalDeltaType.current.bodySmall)
         }
-        AppearanceSlider("Corner radius", a.cornerRadius, 20f..32f, "${a.cornerRadius.roundToInt()} dp") { v -> update { it.copy(cornerRadius = v) } }
+        AppearanceSlider("Corner radius", a.cornerRadius, 20f..32f, preview = { v -> preview { it.copy(cornerRadius = v) } }) { v -> commit { it.copy(cornerRadius = v) } }
         ToggleRow("Reduce transparency", a.reduceTransparency, { enabled -> update { it.copy(reduceTransparency = enabled) } },
             note = "Use solid, elevated surfaces for easier reading.")
         ToggleRow("Reduce motion", a.reduceMotion || !settings.motion, { enabled ->
@@ -207,14 +215,15 @@ private fun ColorSetting(title: String, value: Int, onClick: () -> Unit) {
 }
 
 @Composable
-private fun AppearanceSlider(title: String, stored: Float, range: ClosedFloatingPointRange<Float>, label: String,
-                             enabled: Boolean = true, save: (Float) -> Unit) {
-    var value by remember(stored) { mutableStateOf(stored) }
-    val display = when {
-        title.contains("radius", true) || title.contains("blur", true) -> "${value.roundToInt()} dp"
-        else -> "${(value * 100).roundToInt()}%"
-    }
-    SliderRow(title, value, display, { value = it }, { save(value) }, enabled = enabled, valueRange = range)
+private fun AppearanceSlider(title: String, stored: Float, range: ClosedFloatingPointRange<Float>,
+                             enabled: Boolean = true, preview: (Float) -> Unit, save: (Float) -> Unit) {
+    var value by remember { mutableFloatStateOf(stored) }
+    var dragging by remember { mutableStateOf(false) }
+    LaunchedEffect(stored) { if (!dragging) value = stored }
+    val display = if (title.contains("radius", true) || title.contains("blur", true)) "${value.roundToInt()} dp"
+        else "${(value * 100).roundToInt()}%"
+    SliderRow(title, value, display, { dragging = true; value = it; preview(it) },
+        { dragging = false; save(value) }, enabled = enabled, valueRange = range)
 }
 
 private fun hex(value: Int) = "#%06X".format(value and 0xFFFFFF)

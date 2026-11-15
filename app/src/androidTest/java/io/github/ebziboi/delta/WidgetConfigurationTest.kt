@@ -117,8 +117,39 @@ class WidgetConfigurationTest {
         } finally { settings.update { original } }
     }
 
-    private fun placedProgressWidget(): Int {
-        val component = ComponentName(context, WidgetCatalog.receiver(WidgetKind.PROGRESS))
+    @Test fun graphRangePreviewsThenSavesOnlyThisWidget() = runBlocking {
+        val settings = SettingsStore(context)
+        val originalSettings = settings.settings.first()
+        val originalWeights = settings.weights.first()
+        val id = placedProgressWidget(WidgetKind.TREND)
+        val originalStyle = store.style(id).first()
+        try {
+            settings.saveWeights(SampleData.entries(java.time.LocalDate.now().minusDays(74)))
+            store.save(id, WidgetStyle.from(originalSettings))
+            open(id)
+            instrumentation.uiAutomation.clearCache()
+            assertTrue(device.wait(Until.hasObject(By.text("1 week")), 5000))
+            val before = preview("range-journey")
+            tap("1 week")
+            val after = preview("range-week")
+            assertFalse("Range must change the preview before saving", before.sameAs(after))
+            before.recycle(); after.recycle()
+            assertEquals(io.github.ebziboi.delta.data.WidgetTimeRange.JOURNEY, store.style(id).first()!!.timeRange)
+            tap("Save")
+            kotlinx.coroutines.withTimeout(15000) { store.style(id).first { it?.timeRange == io.github.ebziboi.delta.data.WidgetTimeRange.WEEK } }
+            open(id)
+            assertEquals(io.github.ebziboi.delta.data.WidgetTimeRange.WEEK, store.style(id).first()!!.timeRange)
+            tap("3 months"); tap("Cancel")
+            assertEquals(io.github.ebziboi.delta.data.WidgetTimeRange.WEEK, store.style(id).first()!!.timeRange)
+            assertEquals(originalSettings.copy(lastSyncMs = 0), settings.settings.first().copy(lastSyncMs = 0))
+        } finally {
+            if (originalStyle == null) store.delete(intArrayOf(id)) else store.save(id, originalStyle)
+            settings.saveWeights(originalWeights)
+        }
+    }
+
+    private fun placedProgressWidget(kind: WidgetKind = WidgetKind.PROGRESS): Int {
+        val component = ComponentName(context, WidgetCatalog.receiver(kind))
         if (manager.getAppWidgetIds(component).isEmpty()) {
             assertTrue(manager.requestPinAppWidget(component, null, null))
             val accept = device.wait(Until.findObject(By.text(Pattern.compile("(?i)add to home ?screen|add automatically|add")).clickable(true)), 10_000)

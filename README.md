@@ -30,6 +30,8 @@ background and blur when you switch back. The visual reference is
 - Measured body-fat percentages in Progress, History, goals, scale CSV imports,
   Health Connect and widgets; weight remains independent of missing body-fat data
 - Studio typography pairs bold geometric headings with editorial and mono accents
+- Per-widget graph ranges: 1 week, 1 month, 3 months, 1 year or the full journey
+- Live glass transparency and blur controls with an in-place material preview
 - A customizable glass design system shared by the app and widgets: independently
   choose background and accent colors, with automatic text and surface contrast
 - Backgrounds: solid, vertical gradient, radial gradient, mesh, or a photo picked

@@ -152,4 +152,6 @@ data class AppSettings(
     val widgetContent: WidgetContent = WidgetContent(),
     /** A placed widget may override the dashboard module color. Not a global preference. */
     val widgetBackgroundOverride: Int? = null,
+    /** A placed widget's chart window, applied by WidgetStyle rather than global preferences. */
+    val widgetTimeRange: WidgetTimeRange = WidgetTimeRange.JOURNEY,
 )

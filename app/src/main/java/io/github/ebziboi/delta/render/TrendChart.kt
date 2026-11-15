@@ -52,6 +52,17 @@ data class ChartSpec(
     val selectedPoint: TrendPoint? = null,
 ) {
     companion object {
+        fun forWidget(snap: ProgressSnapshot, settings: io.github.ebziboi.delta.data.AppSettings,
+                      now: Instant = Instant.now(), zone: ZoneId = ZoneId.systemDefault()): ChartSpec {
+            val journey = journey(snap, settings.widgetChart, settings.unit, settings.showProjection, zone)
+            val full = settings.widgetTimeRange == io.github.ebziboi.delta.data.WidgetTimeRange.JOURNEY
+            return journey.copy(points = settings.widgetTimeRange.weightPoints(snap, now, zone),
+                startKg = if (full) snap.startKg else null, fraction = if (full) snap.fraction else null,
+                projection = if (full) journey.projection else null,
+                targetKg = snap.targetKg.takeIf { settings.widgetContent.showTarget },
+                targetEpochMs = if (full) journey.targetEpochMs else null)
+        }
+
         /** The whole journey, as the Progress screen's "All" range and the widgets show it. */
         fun journey(
             snap: ProgressSnapshot,
@@ -118,7 +129,7 @@ object TrendChart {
             caption.textAlign = Paint.Align.CENTER
             caption.textSize = 12f * density
             val middle = area.centerY() - (caption.ascent() + caption.descent()) / 2f
-            canvas.drawText(if (spec.metric == ChartMetric.BODY_FAT) "Two body fat readings make a trend" else "Two weigh-ins make a trend", area.centerX(), middle, caption)
+            canvas.drawText(if (points.isEmpty()) "No readings in this range" else if (spec.metric == ChartMetric.BODY_FAT) "Two body fat readings make a trend" else "Two weigh-ins make a trend", area.centerX(), middle, caption)
             return null
         }
 

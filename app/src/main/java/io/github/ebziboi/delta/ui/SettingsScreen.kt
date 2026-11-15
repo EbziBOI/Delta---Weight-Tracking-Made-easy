@@ -337,7 +337,7 @@ private fun SettingsDetail(
                         if (canPinWidgets(context)) SecondaryButton("Add", onClick = { pinWidget(context, WidgetCatalog.receiver(kind)) })
                     }
                 }
-                Text("Touch and hold a widget on your home screen to resize it. You can also add all five from your home screen's widget picker.", color = Color(colors.textDim))
+                Text("Touch and hold a widget on your home screen to resize it. You can also add all six from your home screen's widget picker.", color = Color(colors.textDim))
             }
         }
     }

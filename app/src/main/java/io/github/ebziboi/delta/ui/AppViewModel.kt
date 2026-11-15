@@ -24,6 +24,24 @@ import java.time.Instant
 class AppViewModel(application: Application) : AndroidViewModel(application) {
     private val repo = (application as DeltaApp).repo
 
+    private val _appearancePreview = MutableStateFlow<io.github.ebziboi.delta.data.AppAppearance?>(null)
+    val appearancePreview = _appearancePreview.asStateFlow()
+
+    fun previewAppearance(value: io.github.ebziboi.delta.data.AppAppearance?) {
+        _appearancePreview.value = value?.normalized()
+    }
+
+    /** A drag updates the theme in memory; only the released value is persisted. */
+    fun saveAppearance(value: io.github.ebziboi.delta.data.AppAppearance) {
+        val chosen = value.normalized()
+        viewModelScope.launch {
+            try { repo.updateSettings { it.copy(appearance = chosen) } }
+            catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
+            catch (_: Exception) { _messages.tryEmit("Couldn't save that appearance. Please try again.") }
+            finally { if (_appearancePreview.value == chosen) _appearancePreview.value = null }
+        }
+    }
+
     /** Null until the saved settings have been read. */
     val settings: StateFlow<AppSettings?> =
         repo.settings.stateIn(viewModelScope, SharingStarted.Eagerly, null)

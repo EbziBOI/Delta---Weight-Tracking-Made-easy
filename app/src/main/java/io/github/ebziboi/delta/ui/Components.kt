@@ -60,6 +60,8 @@ import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
@@ -88,6 +90,7 @@ import androidx.compose.ui.graphics.shadow.Shadow
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
@@ -140,11 +143,12 @@ fun Modifier.glass(
     colors: DrawColors,
     glow: Color? = null,
     elevated: Boolean = true,
-): Modifier = clip(shape).background(if (LocalAppearance.current.designStyle == io.github.ebziboi.delta.data.DesignStyle.TUBIK) Color(colors.surfaceHigh) else glassTile(colors))
+): Modifier = clip(shape).background(if (LocalAppearance.current.designStyle == io.github.ebziboi.delta.data.DesignStyle.TUBIK) Color(colors.surfaceHigh) else glassTile(colors, LocalAppearance.current))
 
 /** The tile colour behind controls: the raised surface, see-through enough to hint at what is behind. */
-fun glassTile(colors: DrawColors): Color =
-    Color(colors.surfaceHigh).copy(alpha = if (colors.isLight) 0.86f else 0.78f)
+fun glassTile(colors: DrawColors, appearance: io.github.ebziboi.delta.data.AppAppearance): Color =
+    Color(colors.surfaceHigh).copy(alpha = if (appearance.reduceTransparency || appearance.designStyle == io.github.ebziboi.delta.data.DesignStyle.TUBIK)
+        1f else appearance.normalized().glassOpacity)
 
 /** Shrinks a little while pressed, so glass feels like it gives under the finger. */
 @Composable
@@ -924,6 +928,22 @@ fun SliderRow(
     enabled: Boolean = true,
     valueRange: ClosedFloatingPointRange<Float> = 0f..1f,
 ) {
+    // Forward to the latest handlers without replacing callback identities during a live drag.
+    val change by androidx.compose.runtime.rememberUpdatedState(onValueChange)
+    val finish by androidx.compose.runtime.rememberUpdatedState(onValueChangeFinished)
+    val interactions = remember { MutableInteractionSource() }
+    var changed by remember { mutableStateOf(false) }
+    val changeCallback = remember { { next: Float -> changed = true; change(next) } }
+    val finishCallback = remember { { if (changed) { changed = false; finish() } } }
+    // A cancelled drag still leaves a chosen value. Effect changes can cancel Material's
+    // gesture before its finish callback runs; observe touch completion as well, once only.
+    androidx.compose.runtime.LaunchedEffect(interactions) {
+        interactions.interactions.collect { event ->
+            if (event is androidx.compose.foundation.interaction.DragInteraction.Stop ||
+                event is androidx.compose.foundation.interaction.DragInteraction.Cancel ||
+                event is androidx.compose.foundation.interaction.PressInteraction.Release) finishCallback()
+        }
+    }
     val colors = LocalDeltaColors.current
     val type = LocalDeltaType.current
     Column(modifier = modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(2.dp)) {
@@ -937,8 +957,10 @@ fun SliderRow(
         }
         Slider(
             value = value,
-            onValueChange = onValueChange,
-            onValueChangeFinished = onValueChangeFinished,
+            onValueChange = changeCallback,
+            onValueChangeFinished = finishCallback,
+            interactionSource = interactions,
+            modifier = Modifier.semantics { contentDescription = title; stateDescription = valueText },
             enabled = enabled,
             valueRange = valueRange,
             colors = SliderDefaults.colors(
