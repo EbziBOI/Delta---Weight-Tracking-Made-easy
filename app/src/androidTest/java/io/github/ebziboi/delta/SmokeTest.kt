@@ -449,9 +449,11 @@ class SmokeTest {
         val candidates = device.findObjects(By.text(text))
         if (text in listOf("Progress", "History", "Settings"))
             return candidates.lastOrNull { it.visibleBounds.centerY() > device.displayHeight * 0.82f }
+        // Onboarding has no floating dock or log button; its actions can sit near the bottom.
+        val bottomLimit = if (device.hasObject(By.desc("Log weight"))) 0.82f else 0.94f
         return candidates.firstOrNull {
             val b = it.visibleBounds
-            b.height() > 12 && b.centerY() > 100 && b.centerY() < device.displayHeight * 0.82f
+            b.height() > 12 && b.centerY() > 100 && b.centerY() < device.displayHeight * bottomLimit
         }
     }
 
