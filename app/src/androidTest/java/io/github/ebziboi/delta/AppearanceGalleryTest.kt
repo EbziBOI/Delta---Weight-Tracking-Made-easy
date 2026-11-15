@@ -144,6 +144,14 @@ class AppearanceGalleryTest {
     }
 
     private fun tap(text: String) {
+        if (text == "Progress" || text == "History") {
+            instrumentation.uiAutomation.clearCache()
+            if (device.findObjects(By.text(text)).none { it.visibleBounds.centerY() > device.displayHeight * 0.8f }) {
+                val edgeX = device.displayWidth / 12
+                device.swipe(edgeX, device.displayHeight * 40 / 100, edgeX, device.displayHeight * 60 / 100, 65)
+                device.waitForIdle(1000); Thread.sleep(400)
+            }
+        }
         if (text == "Settings") { device.wait(Until.findObject(By.desc("Settings")), 10000)!!.click(); device.waitForIdle(1000); Thread.sleep(300); return }
         for (attempt in 0 until 12) {
             if (visibleTarget(text) != null) break

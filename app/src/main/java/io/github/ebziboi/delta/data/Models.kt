@@ -10,7 +10,7 @@ data class WeightEntry(
     val id: String,
 )
 
-enum class PercentageDesign(val label: String) { ADAPTIVE("Signature"), ORBIT("Orbit"), BLOOM("Bloom"), CONTOURS("Contours") }
+enum class PercentageDesign(val label: String) { ADAPTIVE("Signature"), ORBIT("Orbit"), BLOOM("Bloom"), CONTOURS("Contours"), RIBBON("Ribbon"), MOSAIC("Mosaic"), SUMMIT("Summit") }
 
 enum class WeightUnit(val label: String) {
     KG("kg"),

@@ -137,8 +137,8 @@ fun ListRow(modifier: Modifier = Modifier, onClick: (() -> Unit)? = null, conten
 
 @Composable
 fun GlassBottomNavBar(modifier: Modifier = Modifier, content: @Composable RowScope.() -> Unit) {
-    Box(Modifier.fillMaxWidth().navigationBarsPadding().padding(bottom = 10.dp), contentAlignment = Alignment.Center) {
-        NavigationBar(modifier.width(252.dp).height(68.dp).refractiveGlass(RoundedCornerShape(34.dp)),
+    Box(Modifier.fillMaxWidth().navigationBarsPadding().padding(bottom = 8.dp), contentAlignment = Alignment.Center) {
+        NavigationBar(modifier.width(216.dp).height(56.dp).refractiveGlass(RoundedCornerShape(28.dp)),
             windowInsets = WindowInsets(0), containerColor = Color.Transparent, tonalElevation = 0.dp, content = content)
     }
 }

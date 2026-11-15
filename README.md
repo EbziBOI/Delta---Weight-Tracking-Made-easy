@@ -30,9 +30,11 @@ background and blur when you switch back. The visual reference is
 - Measured body-fat percentages in Progress, History, goals, scale CSV imports,
   Health Connect and widgets; weight remains independent of missing body-fat data
 - Studio typography pairs bold geometric headings with editorial and mono accents
-- Signature, Orbit, Bloom and Contours percentage complications follow both design themes and scale into widgets
-- A compact Progress/History dock, top-right Settings beside refresh, and a body-composition dashboard
+- Signature, Orbit, Bloom, Contours, Ribbon, Mosaic and Summit percentage complications follow both design themes and scale into widgets
+- A smaller Progress/History dock that hides on downward scrolling and returns on upward scrolling, top-right Settings beside refresh, and a body-composition dashboard
 - A single Health Connect status pill opens its dedicated access and sync page
+- Short, equally sized top/bottom fades retain fully black ends while content scrolls behind the toolbar
+- A larger home percentage complication anchors the progress dashboard
 - Frameless adaptive launcher icons with smaller marks and full-bleed gradients
 - Per-widget graph ranges: 1 week, 1 month, 3 months, 1 year or the full journey
 - Live glass transparency and blur controls with an in-place material preview

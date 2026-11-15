@@ -191,6 +191,14 @@ class GlassAndRangeTest {
         throw AssertionError("Missing $selector")
     }
     private fun tap(text: String) {
+        if (text == "Progress" || text == "History") {
+            instrumentation.uiAutomation.clearCache()
+            if (device.findObjects(By.text(text)).none { it.visibleBounds.centerY() > device.displayHeight * 0.8f }) {
+                val edgeX = device.displayWidth / 12
+                device.swipe(edgeX, device.displayHeight * 40 / 100, edgeX, device.displayHeight * 60 / 100, 65)
+                device.waitForIdle(1000); Thread.sleep(400)
+            }
+        }
         if (text == "Settings") { device.wait(Until.findObject(By.desc("Settings")), 10000)!!.click(); device.waitForIdle(1000); Thread.sleep(300); return }
         instrumentation.uiAutomation.clearCache()
         var node = if (text in listOf("Settings", "History", "Progress")) device.findObjects(By.text(text)).last { it.visibleBounds.centerY() > device.displayHeight * 0.82f } else show(By.textStartsWith(text))

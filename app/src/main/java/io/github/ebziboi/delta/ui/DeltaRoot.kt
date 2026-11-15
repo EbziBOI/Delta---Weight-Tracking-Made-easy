@@ -1,5 +1,12 @@
 package io.github.ebziboi.delta.ui
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.ui.input.nestedscroll.*
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.sp
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -126,8 +133,22 @@ private fun MainScreen(
     var logging by remember { mutableStateOf(false) }
     val snap by vm.snapshot.collectAsStateWithLifecycle()
 
+    var dockVisible by remember(tab) { mutableStateOf(true) }
+    val threshold = with(LocalDensity.current) { 10.dp.toPx() }
+    val dockScroll = remember(tab, threshold) { object : NestedScrollConnection {
+        var travel = 0f
+        override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+            if (source == NestedScrollSource.UserInput && kotlin.math.abs(available.y) > kotlin.math.abs(available.x)) {
+                if (travel * available.y < 0) travel = 0f
+                travel += available.y
+                if (kotlin.math.abs(travel) >= threshold) { dockVisible = travel > 0; travel = 0f }
+            }
+            return Offset.Zero
+        }
+    } }
     BackHandler(enabled = tab == 2) { tab = 0 }
     Scaffold(
+        modifier = Modifier.nestedScroll(dockScroll),
         topBar = {
             Row(Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 20.dp, vertical = 4.dp), horizontalArrangement = Arrangement.End) {
                 GlassIconButton(io.github.ebziboi.delta.R.drawable.ic_sync, "Sync with Health Connect", { vm.refresh(announce = true) })
@@ -139,6 +160,9 @@ private fun MainScreen(
         contentColor = Color(colors.text),
         snackbarHost = { SnackbarHost(snackbar) },
         bottomBar = {
+            AnimatedVisibility(dockVisible,
+                enter = if (LocalMotion.current) slideInVertically { it } else androidx.compose.animation.EnterTransition.None,
+                exit = if (LocalMotion.current) slideOutVertically { it } else androidx.compose.animation.ExitTransition.None) {
             GlassBottomNavBar {
                 TABS.forEachIndexed { index, item ->
                     NavigationBarItem(
@@ -146,12 +170,12 @@ private fun MainScreen(
                         onClick = { tab = index },
                         icon = {
                             when (index) {
-                                0 -> Icon(androidx.compose.ui.res.painterResource(io.github.ebziboi.delta.R.drawable.ic_delta_mark), contentDescription = null)
-                                1 -> Icon(Icons.Filled.DateRange, contentDescription = null)
+                                0 -> Icon(androidx.compose.ui.res.painterResource(io.github.ebziboi.delta.R.drawable.ic_delta_mark), contentDescription = null, modifier = Modifier.size(20.dp))
+                                1 -> Icon(Icons.Filled.DateRange, contentDescription = null, modifier = Modifier.size(20.dp))
                                 else -> Icon(Icons.Filled.Settings, contentDescription = null)
                             }
                         },
-                        label = { Text(item.label) },
+                        label = { Text(item.label, fontSize = 11.sp) },
                         colors = NavigationBarItemDefaults.colors(
                             selectedIconColor = Color(if (LocalAppearance.current.designStyle == io.github.ebziboi.delta.data.DesignStyle.TUBIK) android.graphics.Color.BLACK else colors.accent),
                             selectedTextColor = Color(colors.accent),
@@ -162,6 +186,7 @@ private fun MainScreen(
                         ),
                     )
                 }
+            }
             }
         },
         floatingActionButton = {
@@ -209,14 +234,14 @@ private fun MainScreen(
 @Composable
 private fun androidx.compose.foundation.layout.BoxScope.EdgeShading() {
     val edge = Color.Black
-    val top = androidx.compose.foundation.layout.WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
-    val bottom = androidx.compose.foundation.layout.WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+    // Identical short fades, retaining fully black ends and the dense midpoint.
+    val length = 44.dp
     androidx.compose.foundation.layout.Box(
-        Modifier.align(androidx.compose.ui.Alignment.TopCenter).fillMaxWidth().height(top + 64.dp)
-            .background(androidx.compose.ui.graphics.Brush.verticalGradient(listOf(edge.copy(alpha = 1f), edge.copy(alpha = 0f)))),
+        Modifier.align(androidx.compose.ui.Alignment.TopCenter).fillMaxWidth().height(length)
+            .background(androidx.compose.ui.graphics.Brush.verticalGradient(listOf(edge, edge.copy(alpha = 0.88f), Color.Transparent))),
     )
     androidx.compose.foundation.layout.Box(
-        Modifier.align(androidx.compose.ui.Alignment.BottomCenter).fillMaxWidth().height(bottom + 210.dp)
+        Modifier.align(androidx.compose.ui.Alignment.BottomCenter).fillMaxWidth().height(length)
             .background(androidx.compose.ui.graphics.Brush.verticalGradient(listOf(Color.Transparent, edge.copy(alpha = 0.88f), edge))),
     )
 }

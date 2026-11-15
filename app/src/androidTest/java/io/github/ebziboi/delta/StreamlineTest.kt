@@ -52,6 +52,38 @@ class StreamlineTest {
             for (icon in LauncherIcons.all) assertNotNull(androidx.core.content.ContextCompat.getDrawable(context,icon.art))
         } finally { store.update { original } }
     }
+    @Test fun dockHidesOnScrollAndHeroHasRoomToLead() = runBlocking {
+        val original=store.settings.first(); val weights=store.weights.first()
+        try {
+            store.update { it.copy(onboardingDone=true,motion=false,targetKg=80.0,percentageDesign=PercentageDesign.SUMMIT,
+                appearance=DesignStyle.TUBIK.defaults().copy(reduceMotion=true)) }
+            store.saveWeights(SampleData.entries(LocalDate.now().minusDays(74)))
+            context.startActivity(Intent(context,MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK))
+            assertTrue(device.wait(Until.hasObject(By.descStartsWith("Summit:")),15000))
+            inst.uiAutomation.clearCache()
+            val hero=device.findObject(By.descStartsWith("Summit:")).visibleBounds
+            assertTrue("Home complication should be the focal element",hero.width()>device.displayWidth*.40f)
+            assertTrue(device.findObject(By.text("Progress")).parent.visibleBounds.width()<device.displayWidth*.7f)
+            device.takeScreenshot(File(out,"hero-geometric.png"))
+            val x=device.displayWidth/12
+            device.swipe(x,device.displayHeight*65/100,x,device.displayHeight*35/100,70)
+            assertTrue("Dock should hide while scrolling down",device.wait(Until.gone(By.text("History")),5000))
+            device.takeScreenshot(File(out,"dock-hidden.png"))
+            device.swipe(x,device.displayHeight*35/100,x,device.displayHeight*65/100,70)
+            assertTrue("Dock should return when scrolling up",device.wait(Until.hasObject(By.text("History")),5000))
+            inst.uiAutomation.clearCache()
+            device.findObjects(By.text("History")).last { it.visibleBounds.centerY()>device.displayHeight*.8f }.click()
+            device.waitForIdle(700)
+            device.swipe(x,device.displayHeight*65/100,x,device.displayHeight*40/100,70)
+            device.waitForIdle(700);inst.uiAutomation.clearCache()
+            val page=device.findObjects(By.scrollable(true)).firstOrNull()
+            assertNotNull(page)
+            assertTrue("History viewport must extend behind the toolbar",page!!.visibleBounds.top<device.displayHeight*.05f)
+            device.takeScreenshot(File(out,"history-short-fade.png"))
+        } finally { store.update { original };store.saveWeights(weights) }
+        Unit
+    }
+
     @Test fun compactNavigationAndHealthDetail() = runBlocking {
         val original=store.settings.first();val weights=store.weights.first()
         try {

@@ -73,8 +73,8 @@ fun ProgressScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(top = padding.calculateTopPadding())
             .verticalScroll(rememberScrollState())
+            .padding(top = padding.calculateTopPadding())
             .padding(horizontal = Spacing.screen),
         verticalArrangement = Arrangement.spacedBy(Spacing.stack),
     ) {
@@ -178,11 +178,11 @@ private fun HeroCard(snap: ProgressSnapshot, insights: Insights, unit: WeightUni
                     snap.currentMs?.let {
                         Text(Format.moment(it), color = Color(colors.textDim), style = type.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
-                    insights.weekChangeKg?.let { change -> ChangePill(change, "this week", snap.losing, unit) }
                 }
             }
-            PercentageComplication(snap.fraction, design, Modifier.size(118.dp))
+            PercentageComplication(snap.fraction, design, Modifier.size((androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp * 0.5f).coerceIn(144f, 208f).dp))
         }
+        insights.weekChangeKg?.let { change -> ChangePill(change, "this week", snap.losing, unit) }
         snap.bodyFat.lastOrNull()?.let { reading ->
             Text("Body fat ${io.github.ebziboi.delta.data.BodyFat.format(reading.percent)} · ${Format.moment(reading.epochMs)}",
                 style = type.bodySmall, color = Color(colors.textDim))

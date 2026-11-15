@@ -92,11 +92,11 @@ fun SettingsScreen(
     val canPin = remember { canPinWidgets(context) }
 
     Column(
-        // The top inset sits outside the scrolling area so content never slides under the status bar.
+        // Scroll the inset with the content so the viewport continues beneath the edge fade.
         modifier = Modifier
             .fillMaxSize()
-            .padding(top = padding.calculateTopPadding())
             .verticalScroll(rememberScrollState())
+            .padding(top = padding.calculateTopPadding())
             .padding(bottom = padding.calculateBottomPadding())
             .padding(horizontal = 16.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
@@ -273,8 +273,8 @@ private fun SettingsDetail(
     val context = LocalContext.current
     BackHandler(onBack = onBack)
     Column(
-        Modifier.fillMaxSize().padding(top = padding.calculateTopPadding())
-            .verticalScroll(rememberScrollState()).padding(horizontal = 16.dp)
+        Modifier.fillMaxSize().verticalScroll(rememberScrollState())
+            .padding(top = padding.calculateTopPadding()).padding(horizontal = 16.dp)
             .padding(bottom = padding.calculateBottomPadding() + 24.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
