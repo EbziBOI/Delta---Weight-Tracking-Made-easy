@@ -166,7 +166,7 @@ private fun MainScreen(
             AnimatedVisibility(dockVisible && metric == null,
                 enter = if (LocalMotion.current) slideInVertically { it } else androidx.compose.animation.EnterTransition.None,
                 exit = if (LocalMotion.current) slideOutVertically { it } else androidx.compose.animation.ExitTransition.None) {
-            GlassBottomNavBar {
+            GlassBottomNavBar(onLog = if (tab != 2) ({ if (health?.canWrite == false) requestAccess() else logging = true }) else null) {
                 TABS.forEachIndexed { index, item ->
                     NavigationBarItem(
                         selected = tab == index,
@@ -180,25 +180,16 @@ private fun MainScreen(
                         },
                         label = { Text(item.label, fontSize = 11.sp) },
                         colors = NavigationBarItemDefaults.colors(
-                            selectedIconColor = Color(if (LocalAppearance.current.designStyle == io.github.ebziboi.delta.data.DesignStyle.TUBIK) android.graphics.Color.BLACK else colors.accent),
+                            selectedIconColor = Color(colors.accent),
                             selectedTextColor = Color(colors.accent),
                             // No pill behind the selected tab: the accent colour alone shows which one is active.
-                            indicatorColor = if (LocalAppearance.current.designStyle == io.github.ebziboi.delta.data.DesignStyle.TUBIK) Color(io.github.ebziboi.delta.render.TubikTokens.CYAN) else Color.Transparent,
+                            indicatorColor = Color.Transparent,
                             unselectedIconColor = Color(colors.textDim),
                             unselectedTextColor = Color(colors.textDim),
                         ),
                     )
                 }
             }
-            }
-        },
-        floatingActionButton = {
-            if (tab != 2 && metric == null) {
-                AccentButton(
-                    text = "Log weight", icon = io.github.ebziboi.delta.R.drawable.ic_add,
-                    modifier = Modifier.semantics { contentDescription = "Log weight" },
-                    onClick = { if (health?.canWrite == false) requestAccess() else logging = true },
-                )
             }
         },
     ) { padding ->

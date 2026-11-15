@@ -83,9 +83,7 @@ private fun Welcome(onNext: () -> Unit) {
             textAlign = TextAlign.Center,
         )
         Spacer(Modifier.height(24.dp))
-        Button(onClick = onNext, modifier = Modifier.fillMaxWidth()) {
-            Text("Get started", modifier = Modifier.padding(vertical = 6.dp))
-        }
+        PrimaryButton("Get started", onNext, Modifier.fillMaxWidth())
     }
 }
 
@@ -128,17 +126,12 @@ private fun Connect(health: HealthState?, onConnect: () -> Unit, onNext: () -> U
             // Health Connect's second screen has two switches that are off by default,
             // and the one for past data is what brings in the history.
             Text(
-                text = "Health Connect asks in two steps. On the second, switch on both options: " +
-                    "past data is what reaches back to your start date.",
+                text = "" +
+                    "Enable past data to include your full history.",
                 color = Color(colors.textDim),
                 fontSize = 14.sp,
             )
-            Button(onClick = onConnect, modifier = Modifier.fillMaxWidth()) {
-                Text(
-                    text = if (health?.canRead == true) "Allow the rest" else "Connect",
-                    modifier = Modifier.padding(vertical = 6.dp),
-                )
-            }
+            PrimaryButton(if (health?.canRead == true) "Allow the rest" else "Connect",onConnect,Modifier.fillMaxWidth())
         }
         if (health?.canRead == true && !health.hasHistory) {
             Text(
@@ -150,9 +143,7 @@ private fun Connect(health: HealthState?, onConnect: () -> Unit, onNext: () -> U
     }
 
     if (health?.canRead == true) {
-        Button(onClick = onNext, modifier = Modifier.fillMaxWidth()) {
-            Text("Continue", modifier = Modifier.padding(vertical = 6.dp))
-        }
+        PrimaryButton("Continue",onNext,Modifier.fillMaxWidth())
     } else {
         TextButton(onClick = onNext, modifier = Modifier.fillMaxWidth()) { Text("Skip for now") }
     }
@@ -240,7 +231,7 @@ private fun Goal(vm: AppViewModel, settings: AppSettings, onBack: () -> Unit) {
     SettingRow("Body fat target", targetBodyFat?.let(io.github.ebziboi.delta.data.BodyFat::format) ?: "Optional",
         onClick = { editing = "body-fat" })
 
-    Button(
+    PrimaryButton("Finish",
         onClick = {
             vm.update {
                 it.copy(
@@ -254,9 +245,7 @@ private fun Goal(vm: AppViewModel, settings: AppSettings, onBack: () -> Unit) {
         },
         enabled = targetKg != null,
         modifier = Modifier.fillMaxWidth(),
-    ) {
-        Text("Finish", modifier = Modifier.padding(vertical = 6.dp))
-    }
+    )
     TextButton(onClick = onBack, modifier = Modifier.fillMaxWidth()) { Text("Back") }
 
     when (editing) {

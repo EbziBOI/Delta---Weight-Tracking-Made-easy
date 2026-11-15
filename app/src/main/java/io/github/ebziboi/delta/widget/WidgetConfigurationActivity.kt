@@ -212,20 +212,15 @@ private fun WidgetConfigurationScreen(
                     if (graphed || kind == WidgetKind.BODY_FAT) {
                         Caption("Time range")
                         ChoiceRow(WidgetTimeRange.entries, draft.timeRange, { it.label }) { onChange(draft.copy(timeRange = it)) }
-                        Text("Recent ranges change the graph. Journey includes your start, target and optional projection. Overall progress stays the same.",
-                            style = type.bodySmall, color = Color(colors.textDim))
                     }
                     val dashboard = appearance.designStyle == DesignStyle.TUBIK
                     if (dashboard) {
                         Caption("Dashboard modules")
-                        Text("Solid color modules follow the Tubik inspired design. Colors, content, photos and sizing can still be customized below.",
-                            color = Color(colors.textDim), style = type.bodySmall)
                     } else {
                         Caption("Glass")
                         SegmentedControl(WidgetGlass.entries, draft.glass, { it.label }, Modifier.fillMaxWidth()) {
                             onChange(draft.copy(glass = it, opacityDark = it.defaultDark, opacityLight = it.defaultLight))
                         }
-                        Text(draft.glass.detail, color = Color(colors.textDim), style = type.bodySmall)
                         if (draft.glass != WidgetGlass.SOLID) {
                             if (appearance.reduceTransparency) Text("Reduce transparency is enabled in Appearance. Turn it off to adjust widget opacity.",
                                 style = type.bodySmall, color = Color(colors.textDim))
@@ -269,14 +264,14 @@ private fun WidgetConfigurationScreen(
                         WidgetKind.BODY_FAT -> ToggleRow("Body fat target", content.showTarget, { on -> show { it.copy(showTarget = on) } })
                         WidgetKind.PROGRESS -> ToggleRow("How far there is to go", content.showDetail, { on -> show { it.copy(showDetail = on) } })
                         WidgetKind.SUMMARY -> ToggleRow("How far there is to go", content.showDetail, { on -> show { it.copy(showDetail = on) } },
-                            note = "On taller widgets, under the bar.")
+                            note = null)
                         WidgetKind.PACE -> ToggleRow("Ahead, on track or behind", content.showStatus, { on -> show { it.copy(showStatus = on) } },
                             note = "Needs a target date.")
                         WidgetKind.TREND, WidgetKind.JOURNEY -> {
                             SegmentedControl(ChartStyle.entries, draft.chart ?: effective.widgetChart, { it.label },
                                 Modifier.fillMaxWidth()) { onChange(draft.copy(chart = it)) }
                             if (draft.timeRange == WidgetTimeRange.JOURNEY) ToggleRow("Path to the goal", draft.projection ?: effective.showProjection,
-                                { onChange(draft.copy(projection = it)) }, note = "A dashed line to your target at your current pace.")
+                                { onChange(draft.copy(projection = it)) }, note = null)
                             ToggleRow("Target weight", content.showTarget, { on -> show { it.copy(showTarget = on) } })
                             if (kind == WidgetKind.JOURNEY) {
                                 ToggleRow("Progress bar", content.showBar, { on -> show { it.copy(showBar = on) } })
@@ -288,8 +283,6 @@ private fun WidgetConfigurationScreen(
                         onChange(draft.copy(background = null, accent = null, cornerRadius = null, backgroundStyle = null,
                             accentIntensity = null, content = WidgetContent()))
                     })
-                    Text("Only this widget changes. Your other widgets keep their own look.",
-                        color = Color(colors.textDim), style = type.bodySmall)
                 }
             }
         }

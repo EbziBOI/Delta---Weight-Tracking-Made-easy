@@ -152,7 +152,7 @@ fun SettingsScreen(
             SettingRow(
                 title = "Start date",
                 value = snapshot?.startDay?.let { Format.day(it) } ?: "—",
-                note = "Journey begins here",
+                note = null,
                 onClick = { editing = "startDate" },
             )
             SettingRow(
@@ -287,29 +287,23 @@ private fun SettingsDetail(
                 ContentSection {
                     Caption("In the app")
                     ChoiceRow(ChartStyle.entries, settings.appChart, { it.label }) { chosen -> vm.update { it.copy(appChart = chosen) } }
-                    Text(settings.appChart.detail, color = Color(colors.textDim))
                     if (snap != null) TrendChartView(
                         io.github.ebziboi.delta.render.ChartSpec.journey(snap, settings.appChart, settings.unit, settings.showProjection),
                         Modifier.fillMaxWidth().height(190.dp))
                 }
                 ContentSection {
                     ToggleRow("Path to the goal", settings.showProjection, { enabled -> vm.update { it.copy(showProjection = enabled) } },
-                        note = "A dashed line to your target at your current pace.")
-                    Text("Widgets have their own graph style: touch and hold one on your home screen and choose Settings.",
-                        color = Color(colors.textDim))
+                        note = null)
                 }
             }
             "Widgets" -> {
                 ContentSection {
                     Caption("Changing a widget's look")
-                    Text("Touch and hold a Delta widget on your home screen and choose Settings. " +
-                        "You'll see it over your own wallpaper while you change its glass, opacity, colours and graph, " +
-                        "and each widget keeps its own look.", color = Color(colors.textDim))
+                    Text("Hold a home-screen widget, then tap Settings.", color = Color(colors.textDim))
                 }
                 for (kind in WidgetKind.entries) {
                     ContentSection {
                         Text(kind.title, style = LocalDeltaType.current.title)
-                        Text(kind.detail, color = Color(colors.textDim))
                         if (snap != null) {
                             val image = remember(kind, snap, settings) {
                                 WidgetBitmaps.render(context, kind, 320f, if (kind == WidgetKind.SUMMARY) 105f else 180f, snap, settings, maxSidePx = 700f).asImageBitmap()
@@ -319,7 +313,6 @@ private fun SettingsDetail(
                         if (canPinWidgets(context)) SecondaryButton("Add", onClick = { pinWidget(context, WidgetCatalog.receiver(kind)) })
                     }
                 }
-                Text("Touch and hold a widget on your home screen to resize it. You can also add all six from your home screen's widget picker.", color = Color(colors.textDim))
             }
         }
     }
@@ -381,15 +374,13 @@ private fun HealthConnectDetails(vm: AppViewModel, settings: AppSettings, health
                     AccessRow("Read body fat", health.canReadBodyFat)
                     AccessRow("Write body fat", health.canWriteBodyFat)
                     if (health.missing.isNotEmpty()) {
-                        Button(onClick = onConnect) { Text("Allow access") }
+                        PrimaryButton("Allow access",onConnect)
                     }
                 }
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                OutlinedButton(onClick = { vm.refresh(announce = true) }, enabled = !syncing) {
-                    Text(if (syncing) "Syncing…" else "Sync now")
-                }
-                OutlinedButton(onClick = { openHealthConnect(context) }) { Text("Open Health Connect") }
+            androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp),verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                GlassButton(if (syncing) "Syncing…" else "Sync now", { vm.refresh(announce = true) }, enabled = !syncing)
+                GlassButton("Open Health Connect", { openHealthConnect(context) })
             }
             ScaleImportRow(vm)
             if (settings.lastSyncMs > 0L) {

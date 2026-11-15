@@ -78,12 +78,11 @@ fun AppearanceControls(vm: AppViewModel, settings: AppSettings) {
 
     ContentSection {
         Caption("Design system")
-        Text("Choose the whole interface", style = LocalDeltaType.current.title)
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             DesignStyle.entries.forEach { style ->
                 val active = a.designStyle == style
                 val ink = if (active) colors.onAccent else colors.text
-                Column(Modifier.weight(1f).heightIn(min = 120.dp).clip(RoundedCornerShape(20.dp))
+                Column(Modifier.weight(1f).heightIn(min = 76.dp).clip(RoundedCornerShape(20.dp))
                     .background(Color(if (active) colors.accent else colors.surfaceHigh))
                     .clickable(role = Role.RadioButton) {
                         vm.update { current -> current.withDesignStyle(style, AppearanceEngine.resolve(context, current)) }
@@ -95,20 +94,15 @@ fun AppearanceControls(vm: AppViewModel, settings: AppSettings) {
                 }
             }
         }
-        Text("Each design remembers its own colors and background.", style = LocalDeltaType.current.bodySmall, color = Color(colors.textDim))
     }
     if (a.designStyle == DesignStyle.TUBIK) ContentSection {
         Caption("Tubik inspired")
-        Text("An editorial dashboard", style = LocalDeltaType.current.title)
-        Text("Charcoal surfaces, sage progress, violet graphs and coral actions. Controls, navigation, history and widgets change with the design.",
-            color = Color(colors.textDim), style = LocalDeltaType.current.bodySmall)
         TextAction("Reset dashboard palette", {
             update { DesignStyle.TUBIK.defaults().copy(reduceMotion = it.reduceMotion, reduceTransparency = it.reduceTransparency) }
         })
     }
     if (a.designStyle == DesignStyle.GLASS) ContentSection {
         Caption("Presets")
-        Text("Choose a starting point, then make it yours.", style = LocalDeltaType.current.bodySmall, color = Color(colors.textDim))
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             for (preset in AppearancePreset.entries) {
                 val value = preset.appearance()
@@ -129,7 +123,6 @@ fun AppearanceControls(vm: AppViewModel, settings: AppSettings) {
     }
     ContentSection {
         Caption("Background")
-        Text("Your colors are balanced automatically to keep text readable.", style = LocalDeltaType.current.bodySmall, color = Color(colors.textDim))
         ColorSetting("Background color", a.backgroundBase) { picking = "base" }
         ChoiceRow(if (a.designStyle == DesignStyle.TUBIK) BackgroundStyle.entries.filter { it != BackgroundStyle.MESH } else BackgroundStyle.entries, a.backgroundStyle, { it.label }) { style -> update { it.copy(backgroundStyle = style) } }
         if (a.backgroundStyle in listOf(BackgroundStyle.VERTICAL_GRADIENT, BackgroundStyle.RADIAL_GRADIENT, BackgroundStyle.MESH)) {
@@ -161,15 +154,13 @@ fun AppearanceControls(vm: AppViewModel, settings: AppSettings) {
         }
         AppearanceSlider("Corner radius", a.cornerRadius, 20f..32f, preview = { v -> preview { it.copy(cornerRadius = v) } }) { v -> commit { it.copy(cornerRadius = v) } }
         ToggleRow("Reduce transparency", a.reduceTransparency, { enabled -> update { it.copy(reduceTransparency = enabled) } },
-            note = "Use solid, elevated surfaces for easier reading.")
+            note = null)
         ToggleRow("Reduce motion", a.reduceMotion || !settings.motion, { enabled ->
             vm.update { current -> current.copy(motion = !enabled, appearance = AppearanceEngine.resolve(context, current).copy(reduceMotion = enabled)) }
-        }, note = "Disable ambient movement, shimmer and decorative transitions.")
+        }, note = null)
     }
     ContentSection {
         Caption("Live preview")
-        Text("A theme that is yours", style = LocalDeltaType.current.title)
-        Text("Your background and accent shape every screen and widget.", color = Color(colors.textDim))
         StatusPill("Up to date", Color(colors.good))
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             AccentButton("Primary", onClick = {})
@@ -186,7 +177,6 @@ fun AppearanceControls(vm: AppViewModel, settings: AppSettings) {
         if (settings.progressDisplay == ProgressDisplay.PERIMETER) {
             ContentSection(Modifier.cardPerimeter(true,.64f),framed=true) {
                 Text("64% of your journey",style=LocalDeltaType.current.number)
-                Text("Progress follows the card’s curved perimeter.",style=LocalDeltaType.current.bodySmall)
             }
         }
         Caption("Percentage complications")
@@ -194,17 +184,14 @@ fun AppearanceControls(vm: AppViewModel, settings: AppSettings) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
             PercentageComplication(0.64f, settings.percentageDesign, Modifier.size(144.dp))
         }
-        Text("The selected design follows your theme and scales across Progress and widgets.", style = LocalDeltaType.current.bodySmall)
     }
     ContentSection {
         Caption("Typography")
         ChoiceRow(TypeStyle.entries, settings.typeStyle, { it.label }) { chosen -> vm.update { it.copy(typeStyle = chosen) } }
-        Text("Your progress, beautifully clear", style = LocalDeltaType.current.title)
         Text("82.4 kg", style = LocalDeltaType.current.number)
     }
     if (a.designStyle == DesignStyle.GLASS) ContentSection {
         Caption("Existing themes")
-        Text("Your earlier theme choices are still available.", style = LocalDeltaType.current.bodySmall, color = Color(colors.textDim))
         ChoiceRow(ThemeStyle.entries, settings.theme, { it.label }) { chosen -> vm.update { it.copy(theme = chosen, appearance = null, savedTubikAppearance = if (a.designStyle == DesignStyle.TUBIK) a else it.savedTubikAppearance) } }
         ChoiceRow(Accent.entries, settings.accent, { it.label }) { chosen ->
             vm.update { current -> current.copy(accent = chosen, appearance = AppearanceEngine.resolve(context, current)

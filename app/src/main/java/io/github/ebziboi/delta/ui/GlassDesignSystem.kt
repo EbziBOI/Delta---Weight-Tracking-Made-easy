@@ -34,7 +34,7 @@ fun Modifier.refractiveGlass(
 ): Modifier {
     val a = LocalAppearance.current
     val backdrop = LocalGlassBackdrop.current
-    if (a.designStyle == DesignStyle.TUBIK) return clip(shape).background(Color(colors.surfaceHigh))
+    if (a.designStyle == DesignStyle.TUBIK) return clip(shape).background(controlTile(colors))
     val live = Build.VERSION.SDK_INT >= 31 && a.glassBlurRadius > 0f && !a.reduceTransparency && backdrop != null
     if (!live) return glass(shape, colors)
     // Where the phone can blur, the tile is a frosted blur of what is behind it, tinted
@@ -46,6 +46,13 @@ fun Modifier.refractiveGlass(
         tints = listOf(HazeTint(glassTile(colors, a)))
         fallbackTint = HazeTint(glassTile(colors, a))
     }
+}
+
+@Composable
+fun controlTile(colors: DrawColors = LocalDeltaColors.current): Color {
+    val a = LocalAppearance.current
+    return if (a.designStyle == DesignStyle.TUBIK) Color(io.github.ebziboi.delta.render.Palettes.mix(colors.surfaceHigh,colors.accent2,.12f))
+        .copy(alpha = if(a.reduceTransparency) 1f else .86f) else glassTile(colors,a)
 }
 
 /**
@@ -145,10 +152,15 @@ fun ListRow(modifier: Modifier = Modifier, onClick: (() -> Unit)? = null, conten
 }
 
 @Composable
-fun GlassBottomNavBar(modifier: Modifier = Modifier, content: @Composable RowScope.() -> Unit) {
+fun GlassBottomNavBar(modifier: Modifier = Modifier, onLog: (() -> Unit)? = null, content: @Composable RowScope.() -> Unit) {
     Box(Modifier.fillMaxWidth().navigationBarsPadding().padding(bottom = 8.dp), contentAlignment = Alignment.Center) {
-        NavigationBar(modifier.width(216.dp).height(56.dp).refractiveGlass(RoundedCornerShape(28.dp)),
-            windowInsets = WindowInsets(0), containerColor = Color.Transparent, tonalElevation = 0.dp, content = content)
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.semantics { contentDescription = "Navigation dock" }) {
+            NavigationBar(modifier.width(216.dp).height(56.dp).refractiveGlass(RoundedCornerShape(28.dp)),
+                windowInsets = WindowInsets(0), containerColor = Color.Transparent, tonalElevation = 0.dp, content = content)
+            if (onLog != null) GlassIconButton(io.github.ebziboi.delta.R.drawable.ic_add, "Log weight", onLog,
+                size = 48.dp, tint = Color(LocalDeltaColors.current.accent))
+        }
     }
 }
 

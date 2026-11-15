@@ -69,7 +69,8 @@ class MetricDetailsTest {
                 val pagerArea=show(By.text("A clearer daily signal")).visibleBounds
                 device.swipe(device.displayWidth*8/10,pagerArea.centerY(),device.displayWidth*2/10,pagerArea.centerY(),45)
                 device.waitForIdle(700);Thread.sleep(400)
-                assertTrue("Swiping must switch the metric page",device.hasObject(By.text("Consistency, one day at a time")))
+                inst.uiAutomation.clearCache()
+                assertTrue("Swiping must switch the metric page",device.wait(Until.hasObject(By.text("Consistency, one day at a time")),5000))
                 shot("$theme-streak")
                 device.pressBack();tap("Goal by")
                 assertTrue(device.wait(Until.hasObject(By.text(java.util.regex.Pattern.compile("Your forecast",java.util.regex.Pattern.CASE_INSENSITIVE))),5000))

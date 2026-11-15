@@ -27,6 +27,7 @@ object WidgetBitmaps {
         context: Context, kind: WidgetKind, widthDp: Float, heightDp: Float,
         snap: ProgressSnapshot, settings: AppSettings,
         night: Boolean = Palettes.isNight(context), maxSidePx: Float = DEFAULT_MAX_SIDE_PX,
+        audit: MutableList<WidgetElement>? = null,
     ): Bitmap {
         require(widthDp.isFinite() && widthDp > 0 && heightDp.isFinite() && heightDp > 0)
         require(maxSidePx.isFinite() && maxSidePx >= 1)
@@ -46,10 +47,7 @@ object WidgetBitmaps {
         canvas.scale(scale, scale)
         GlassWidgetSurface.draw(canvas, widthDp, heightDp, theme, settings, WidgetCorners.radius(context, theme.appearance.cornerRadius))
 
-        // Draw tiny hosts in a larger logical coordinate space so content scales down together.
-        val fit = min(1f, min(widthDp / 150f, heightDp / 82f))
-        canvas.scale(fit, fit)
-        val painter = Painter(context, canvas, widthDp / fit, heightDp / fit, snap, settings, colors, type)
+        val painter = Painter(canvas, widthDp, heightDp, snap, settings, colors, type, audit)
         when (kind) {
             WidgetKind.BODY_FAT -> painter.bodyFat()
             WidgetKind.PROGRESS -> painter.progress()
@@ -62,263 +60,285 @@ object WidgetBitmaps {
     }
 
     private class Painter(
-        val context: Context, val c: Canvas, val w: Float, val h: Float,
-        val snap: ProgressSnapshot, val settings: AppSettings, val colors: DrawColors, val type: CanvasType,
+        val c: Canvas, val w: Float, val h: Float, val snap: ProgressSnapshot,
+        val settings: AppSettings, val colors: DrawColors, val type: CanvasType,
+        val audit: MutableList<WidgetElement>?,
     ) {
-        val pad = 14f
+        val pad = (min(w,h)*.08f).coerceIn(10f,18f)
         val unit get() = settings.unit
         val show get() = settings.widgetContent
-        fun text(value: String, x: Float, y: Float, size: Float = 12f, color: Int = colors.text,
-                 face: Typeface = type.number, align: Paint.Align = Paint.Align.LEFT, room: Float = w - pad * 2) {
-            val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.SUBPIXEL_TEXT_FLAG).apply {
-                textSize = size; this.color = color; typeface = face; textAlign = align; fontFeatureSettings = "tnum"
-                if (settings.widgetGlass != WidgetGlass.SOLID && (settings.appearance?.designStyle != DesignStyle.TUBIK || settings.appearance.backgroundStyle == BackgroundStyle.IMAGE)) setShadowLayer(2f, 0f, 1f, if (colors.isLight) Color.WHITE else Color.BLACK)
+        val data = WidgetData.from(snap)
+        val inner get() = w-pad*2
+        val compact get() = h < 105f
+        fun rect(left: Float, top: Float, right: Float, bottom: Float) = RectF(left,top,right,bottom)
+        fun line(role: String, value: String, area: RectF, size: Float = 12f, color: Int = colors.text,
+                 face: Typeface = type.number, align: Paint.Align = Paint.Align.LEFT, secondary: Boolean = false) {
+            if(area.width()<8 || area.height()<8) return
+            val ink=Paint(Paint.ANTI_ALIAS_FLAG or Paint.SUBPIXEL_TEXT_FLAG).apply {
+                textSize=size;this.color=color;typeface=face;textAlign=align;fontFeatureSettings="tnum"
             }
-            if (room <= 0) return
-            val measured = paint.measureText(value)
-            if (measured > room) paint.textSize *= room / measured
-            if (settings.widgetGlass != WidgetGlass.SOLID && (settings.appearance?.designStyle != DesignStyle.TUBIK || settings.appearance.backgroundStyle == BackgroundStyle.IMAGE)) {
-                // A crisp opposite-luminance halo keeps glyphs legible over unknown launcher wallpapers.
-                val halo = Paint(paint).apply {
-                    clearShadowLayer()
-                    this.color = ThemeContrast.on(color)
-                    style = Paint.Style.STROKE
-                    strokeJoin = Paint.Join.ROUND
-                    strokeWidth = 0.9f
+            val glyph=Rect()
+            ink.getTextBounds(value,0,value.length,glyph)
+            ink.textSize *= min(1f,area.height()/glyph.height().coerceAtLeast(1))
+            val floor=if(secondary) 9f else 10f
+            if(ink.measureText(value)>area.width()) {
+                var low=min(floor,ink.textSize)
+                var high=ink.textSize
+                repeat(12) {
+                    val candidate=(low+high)/2
+                    ink.textSize=candidate
+                    if(ink.measureText(value)<=area.width()-.5f) low=candidate else high=candidate
                 }
-                c.drawText(value, x, y, halo)
+                ink.textSize=low
             }
-            c.drawText(value, x, y, paint)
-        }
-        fun label(value: String, x: Float, y: Float, align: Paint.Align = Paint.Align.LEFT, room: Float = w - pad * 2) =
-            text(value, x, y, 9f, colors.textDim, type.label, align, room)
-        fun bar(left: Float, top: Float, right: Float, height: Float = 6f) {
-            val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = colors.surfaceHigh }
-            if (settings.appearance?.designStyle == DesignStyle.TUBIK) {
-                val count = 24; val gap = 1.5f
-                val width = ((right - left - gap * (count - 1)) / count).coerceAtLeast(0f)
-                repeat(count) { index ->
-                    paint.color = if ((index + 0.5f) / count <= (snap.fraction ?: 0f)) colors.accent else Palettes.fade(colors.text, 0.12f)
-                    val x = left + index * (width + gap)
-                    c.drawRect(x, top, x + width, top + height, paint)
-                }
-                return
+            var drawn=value
+            if(ink.measureText(drawn)>area.width()+.1f) {
+                // Drop optional prose before making its type smaller than the readable floor.
+                while(drawn.isNotEmpty() && ink.measureText(drawn+"…")>area.width()) drawn=drawn.dropLast(1)
+                drawn += "…"
             }
-            c.drawRoundRect(left, top, right, top + height, height / 2, height / 2, paint)
-            val fraction = snap.fraction ?: 0f
-            if (fraction > 0) {
-                paint.color = colors.accent
-                c.drawRoundRect(left, top, left + (right - left) * fraction.coerceIn(0f, 1f), top + height, height / 2, height / 2, paint)
+            ink.getTextBounds(drawn,0,drawn.length,glyph)
+            val baseline=area.centerY()-(glyph.top+glyph.bottom)/2f
+            val x=when(align) { Paint.Align.CENTER->area.centerX();Paint.Align.RIGHT->area.right;else->area.left }
+            val width=ink.measureText(drawn)
+            val left=when(align) { Paint.Align.CENTER->x-width/2;Paint.Align.RIGHT->x-width;else->x }
+            audit?.add(WidgetElement(role,RectF(left+glyph.left,baseline+glyph.top,left+glyph.right,baseline+glyph.bottom),drawn,ink.textSize))
+            if(settings.widgetGlass!=WidgetGlass.SOLID && (settings.appearance?.designStyle!=DesignStyle.TUBIK || settings.appearance.backgroundStyle==BackgroundStyle.IMAGE)) {
+                ink.setShadowLayer(1.5f,0f,.7f,ThemeContrast.on(color))
             }
+            c.drawText(drawn,x,baseline,ink)
         }
-        fun mark(left: Float, top: Float, size: Float) {
-            if (settings.percentageDesign != PercentageDesign.ADAPTIVE) {
-                PercentageArt.draw(c, RectF(left, top, left+size, top+size), snap.fraction, settings.percentageDesign, colors, type,
-                    settings.appearance?.designStyle == DesignStyle.TUBIK)
-                return
-            }
-            if (settings.appearance?.designStyle == DesignStyle.TUBIK) {
-                val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { strokeWidth = 0.8f; color = Palettes.fade(colors.text, 0.4f) }
-                val cx = left + size / 2; val cy = top + size / 2; val radius = size * 0.46f
-                repeat(60) { index ->
-                    val angle = (index * 6 - 90) * PI.toFloat() / 180
-                    val inner = radius - if (index % 5 == 0) 7f else 3f
-                    c.drawLine(cx + cos(angle) * inner, cy + sin(angle) * inner,
-                        cx + cos(angle) * radius, cy + sin(angle) * radius, paint)
-                }
-                val inset = size * 0.20f
-                val ring = RectF(left + inset, top + inset, left + size - inset, top + size - inset)
-                paint.style = Paint.Style.STROKE; paint.strokeWidth = size * 0.045f
-                paint.color = Palettes.fade(colors.text, 0.12f); c.drawOval(ring, paint)
-                paint.color = colors.accent; c.drawArc(ring, -90f, (snap.fraction ?: 0f).coerceIn(0f, 1f) * 360f, false, paint)
-                text(snap.fraction?.let { "${(it * 100).roundToInt()}%" } ?: "—", cx, cy + size * 0.06f,
-                    size = size * 0.18f, face = type.numberBold, align = Paint.Align.CENTER, room = size * 0.5f)
-                return
-            }
-            DeltaMark.draw(c, left, top, size, snap.fraction ?: 0f, colors, glyph = snap.fraction == null)
-            snap.fraction?.let { DeltaMark.drawLabel(c, left, top, size, "${(it * 100).roundToInt()}", "%", colors.text, type.numberBold,
-                shadowColor = if (settings.widgetGlass == WidgetGlass.SOLID) null else if (colors.isLight) Color.WHITE else Color.BLACK) }
-        }
-        /** Change over the last week of weigh-ins, from the latest back to the last one a week or more before. */
-        fun weekChange(): Double? {
-            val last = snap.points.lastOrNull() ?: return null
-            val before = snap.points.lastOrNull { it.epochMs <= last.epochMs - 7 * 86_400_000L } ?: return null
-            return last.kg - before.kg
-        }
-        /** Green towards the target, amber away from it, dim when there is no real change. */
-        fun changeTint(change: Double) = when {
-            kotlin.math.abs(change) < 0.05 -> colors.textDim
-            (change < 0) == snap.losing -> colors.good
-            else -> colors.warn
-        }
-        fun weekLine() = weekChange()?.let { "${Units.signed(it, unit)} this week" }
-        fun goalLine(): String? = when {
+        fun label(role:String,value:String,area:RectF,align:Paint.Align=Paint.Align.LEFT) =
+            line(role,value,area,9f,colors.textDim,type.label,align,true)
+        fun value() = snap.currentKg?.let { Units.weightShort(it,unit) } ?: "—"
+        fun remaining() = when {
             snap.reached -> "Target reached"
-            snap.projectedDay == null -> null
-            snap.projectedDay.year == LocalDate.now().year -> "Goal ${snap.projectedDay.format(shortDate)}"
-            else -> "Goal ${snap.projectedDay.format(DateTimeFormatter.ofPattern("MMM yyyy", Locale.ENGLISH))}"
+            snap.remainingKg != null -> "${Units.amount(snap.remainingKg,unit)} to go"
+            snap.targetKg == null -> "No target"
+            else -> "No weigh-ins"
         }
-
-        fun remaining(): String {
-            val remaining = when {
-            snap.reached -> "Target reached"
-            snap.remainingKg != null -> "${Units.amount(snap.remainingKg, unit)} to go"
-            else -> "Open Delta to set up"
-            }
-            return remaining + (snap.bodyFat.lastOrNull()?.let { " · ${BodyFat.format(it.percent)} fat" } ?: "")
+        fun date(time:Long?) = time?.let { java.time.Instant.ofEpochMilli(it).atZone(java.time.ZoneId.systemDefault()).toLocalDate().format(shortDate) } ?: "No readings"
+        fun tint(change:Double) = when { abs(change)<.05 -> colors.textDim; InsightsCalculator.towardGoal(change,snap.losing)->colors.good;else->colors.warn }
+        fun week() = data.weekChangeKg?.let { "${Units.signed(it,unit)} this week" }
+        fun goal(compactDate:Boolean=false) = when {
+            snap.reached -> "Reached"
+            snap.projectedDay != null -> snap.projectedDay.format(DateTimeFormatter.ofPattern(if(compactDate) "d MMM ’yy" else "d MMM yyyy",Locale.ENGLISH))
+            else -> "—"
         }
-        fun bodyFat() {
-            val readings = snap.bodyFat.sortedBy { it.epochMs }
-            val chartReadings = settings.widgetTimeRange.bodyFat(snap)
-            label(if (settings.widgetTimeRange == WidgetTimeRange.JOURNEY) "BODY FAT" else "BODY FAT · ${settings.widgetTimeRange.label.uppercase()}", pad, pad + 8)
-            val latest = readings.lastOrNull()
-            text(latest?.let { BodyFat.format(it.percent) } ?: "—", pad, pad + 39, 30f, colors.accent, type.numberBold)
-            if (latest == null) {
-                text("Log or sync a measurement", pad, h * 0.68f, 12f, colors.textDim, type.body)
-                return
-            }
-            val previous = readings.dropLast(1).lastOrNull()
-            if (previous != null && w >= 230) text(String.format(Locale.getDefault(), "%+.1f pp", latest.percent - previous.percent), w - pad, pad + 35,
-                12f, colors.textDim, type.number, Paint.Align.RIGHT, room = w * 0.40f)
-            if (h >= 135) {
-                TrendChart.draw(c, RectF(pad, pad + 50, w - pad, h - 27),
-                    ChartSpec(chartReadings.map { io.github.ebziboi.delta.data.TrendPoint(it.epochMs, it.percent, it.percent) },
-                        ChartStyle.CONNECTED, WeightUnit.KG, snap.targetBodyFat.takeIf { show.showTarget }, metric = ChartMetric.BODY_FAT), colors, type, 1f, true)
-            }
-            val footer = snap.targetBodyFat?.takeIf { show.showTarget }?.let { "Target ${BodyFat.format(it)} · " }.orEmpty() +
-                java.time.Instant.ofEpochMilli(latest.epochMs).atZone(java.time.ZoneId.systemDefault()).toLocalDate().format(shortDate)
-            text(footer, pad, h - pad, 10f, colors.textDim, type.body)
-        }
-
-        fun progress() {
-            if (w > h * 1.5f) {
-                val size = h - pad * 2
-                mark(pad, pad, size)
-                val left = pad + size + 12f
-                val room = w - left - pad
-                label("NOW", left, h / 2 - 20f, room = room)
-                text(snap.currentKg?.let { Units.weightShort(it, unit) } ?: "—", left, h / 2 + 6f, 24f, face = type.numberBold, room = room)
-                if (show.showDetail) text(remaining(), left, h / 2 + 25f, color = colors.textDim, face = type.body, room = room)
-                // With height to spare: the week's change and the projected goal date.
-                if (h >= 110) {
-                    val week = weekChange()
-                    val line = listOfNotNull(weekLine(), goalLine()).joinToString("  ·  ")
-                    if (line.isNotEmpty()) text(line, left, h / 2 + 42f, 10.5f,
-                        week?.let { changeTint(it) } ?: colors.textDim, type.body, room = room)
+        fun bar(area:RectF) {
+            if(area.width()<1 || area.height()<1) return
+            audit?.add(WidgetElement("bar",RectF(area)))
+            val ink=Paint(Paint.ANTI_ALIAS_FLAG)
+            if(settings.appearance?.designStyle==DesignStyle.TUBIK) {
+                val count=(area.width()/8f).toInt().coerceIn(8,32);val gap=2f
+                val cell=(area.width()-(count-1)*gap)/count
+                repeat(count) { i ->
+                    ink.color=if((i+.5f)/count <= (snap.fraction ?: 0f)) colors.accent else Palettes.fade(colors.text,.12f)
+                    val x=area.left+i*(cell+gap);c.drawRect(x,area.top,x+cell,area.bottom,ink)
                 }
             } else {
-                val week = weekChange().takeIf { h >= 150 }
-                val lines = (if (show.showDetail) 1 else 0) + (if (week != null) 1 else 0)
-                val footer = when (lines) { 0 -> pad * 2; 1 -> 52f; else -> 68f }
-                val size = min(w - pad * 2, h - footer)
-                mark((w - size) / 2, pad + (h - footer - size) / 2, size)
-                val bottom = h - pad
-                if (week != null) text(weekLine()!!, w / 2, bottom, 10.5f, changeTint(week), type.body, Paint.Align.CENTER)
-                if (show.showDetail) text(remaining(), w / 2, if (week != null) bottom - 17f else bottom, 12f,
-                    align = Paint.Align.CENTER, face = type.body)
+                ink.color=Palettes.fade(colors.text,.13f);c.drawRoundRect(area,area.height()/2,area.height()/2,ink)
+                val filled=RectF(area).apply { right=left+width()*(snap.fraction ?: 0f).coerceIn(0f,1f) }
+                if(filled.width()>0) { ink.color=colors.accent;c.drawRoundRect(filled,area.height()/2,area.height()/2,ink) }
+            }
+        }
+        fun mark(area:RectF) {
+            if(area.width()<40f) return
+            audit?.add(WidgetElement("complication",RectF(area)))
+            val size=min(area.width(),area.height())
+            if(settings.percentageDesign!=PercentageDesign.ADAPTIVE) {
+                PercentageArt.draw(c,area,snap.fraction,settings.percentageDesign,colors,type,settings.appearance?.designStyle==DesignStyle.TUBIK)
+            } else if(settings.appearance?.designStyle==DesignStyle.TUBIK) {
+                val ring=RectF(area).apply { inset(size*.12f,size*.12f) }
+                val ink=Paint(Paint.ANTI_ALIAS_FLAG).apply { style=Paint.Style.STROKE;strokeWidth=size*.045f;strokeCap=Paint.Cap.ROUND }
+                ink.color=Palettes.fade(colors.text,.12f);c.drawOval(ring,ink)
+                ink.color=colors.accent;c.drawArc(ring,-90f,(snap.fraction ?: 0f)*360,false,ink)
+                // The dial owns this region; its internal label is intentionally part of the art.
+                val saved=audit?.size
+                line("dial-label",snap.fraction?.let { "${(it*100).roundToInt()}%" } ?: "—",
+                    RectF(area.centerX()-size*.3f,area.centerY()-size*.13f,area.centerX()+size*.3f,area.centerY()+size*.13f),size*.22f,face=type.numberBold,align=Paint.Align.CENTER)
+                if(saved!=null) while(audit!!.size>saved) audit.removeAt(audit.lastIndex)
+            } else {
+                DeltaMark.draw(c,area.left,area.top,size,snap.fraction ?: 0f,colors,glyph=snap.fraction==null)
+                snap.fraction?.let { DeltaMark.drawLabel(c,area.left,area.top,size,"${(it*100).roundToInt()}","%",colors.text,type.numberBold,
+                    shadowColor=if(settings.widgetGlass==WidgetGlass.SOLID) null else ThemeContrast.on(colors.text)) }
+            }
+        }
+        fun chart(area:RectF,spec:ChartSpec,axes:Boolean) {
+            if(area.height()<22f || area.width()<35f) return
+            if(spec.points.size<2) {
+                line("chart-empty",if(spec.points.isEmpty()) "No readings" else "One reading",area,11f,colors.textDim,type.body,Paint.Align.CENTER,true)
+                return
+            }
+            audit?.add(WidgetElement("chart",RectF(area)))
+            TrendChart.draw(c,area,spec,colors,type,1f,axes,contrastShadow=settings.widgetGlass!=WidgetGlass.SOLID)
+        }
+        fun progress() {
+            if(compact || (w<260f && h<145f)) {
+                val split=w-pad-inner*.30f
+                label("title","NOW",rect(pad,pad,split-8,pad+12))
+                line("weight",value(),rect(pad,pad+14,split-8,h-pad-(if(h>=100 && show.showDetail) 20 else 0)),23f,face=type.numberBold)
+                line("percent",snap.fraction?.let { "${(it*100).roundToInt()}%" } ?: "—",rect(split,pad,w-pad,h-pad-(if(h>=100 && show.showDetail) 20 else 0)),25f,colors.accent,type.numberBold,Paint.Align.RIGHT)
+                if(h>=100 && show.showDetail) line("remaining",remaining(),rect(pad,h-pad-16,w-pad,h-pad),11f,colors.textDim,type.body,secondary=true)
+                return
+            }
+            if(w>=260f && w>=h*1.35f) {
+                val size=min(h-pad*2,inner*.36f).coerceAtMost(144f)
+                mark(rect(w-pad-size,(h-size)/2,w-pad,(h+size)/2))
+                val end=w-pad-size-14
+                label("title","NOW",rect(pad,pad,end,pad+13))
+                line("weight",value(),rect(pad,pad+19,end,pad+52),30f,face=type.numberBold)
+                if(show.showDetail) line("remaining",remaining(),rect(pad,pad+57,end,pad+75),12f,colors.textDim,type.body,secondary=true)
+                if(h>=145) line("date",date(snap.currentMs),rect(pad,h-pad-15,end,h-pad),10f,colors.textDim,type.body,secondary=true)
+            } else {
+                val valueH=30f
+                label("title","NOW",rect(pad,pad,w-pad,pad+12))
+                line("weight",value(),rect(pad,pad+14,w-pad,pad+14+valueH),24f,face=type.numberBold)
+                val bottom=h-pad-(if(show.showDetail) 19f else 0f)
+                val size=min(inner*.73f,bottom-(pad+valueH+20f)).coerceAtLeast(0f)
+                mark(rect((w-size)/2,pad+valueH+20,(w+size)/2,pad+valueH+20+size))
+                if(show.showDetail) line("remaining",remaining(),rect(pad,h-pad-16,w-pad,h-pad),11f,colors.textDim,type.body,Paint.Align.CENTER,true)
             }
         }
         fun summary() {
-            val center = h / 2
-            val positions = listOf(pad, w / 2, w - pad)
-            val aligns = listOf(Paint.Align.LEFT, Paint.Align.CENTER, Paint.Align.RIGHT)
-            val values = listOf(snap.startKg, snap.currentKg, snap.targetKg)
-            listOf("START", "NOW", "TARGET").forEachIndexed { i, title ->
-                label(title, positions[i], center - 18f, aligns[i], (w - pad * 2) / 3 - 6)
-                text(values[i]?.let { Units.weightShort(it, unit) } ?: "—", positions[i], center + 6f,
-                    if (i == 1) 21f else 17f, if (i == 1) colors.accent else colors.text,
-                    type.numberBold, aligns[i], (w - pad * 2) / 3 - 6)
-            }
-            bar(pad, center + 18, w - pad)
-            if (h >= 115) {
-                // A line of detail under the bar: what is left, how far along, and the week's change.
-                val third = (w - pad * 2) / 3 - 6
-                if (show.showDetail) text(remaining(), pad, center + 43, 11f, colors.textDim, type.body, room = third)
-                snap.fraction?.let { text("${(it * 100).roundToInt()}%", w / 2, center + 43, 11f, colors.accent,
-                    type.numberBold, Paint.Align.CENTER, third) }
-                weekChange()?.let { text(weekLine()!!, w - pad, center + 43, 11f, changeTint(it), type.body, Paint.Align.RIGHT, third) }
-            }
-        }
-        fun trend(journey: Boolean) {
-            val compact = h < 110
-            // A second header line (the week's change and the goal date) once there is room for it.
-            val detailed = !compact && h >= 150
-            val header = when { compact -> 27f; detailed -> 54f; else -> 38f }
-            text(snap.currentKg?.let { Units.weightShort(it, unit) } ?: "Weight trend", pad, pad + 15, 19f,
-                face = type.numberBold, room = (w - pad * 2) * 0.55f)
-            snap.targetKg?.takeIf { show.showTarget }?.let { text("Target ${Units.weightShort(it, unit)}", w - pad, pad + 13, 10f,
-                colors.accent, align = Paint.Align.RIGHT, room = (w - pad * 2) * 0.42f) }
-            if (detailed) {
-                weekChange()?.let { text(weekLine()!!, pad, pad + 33, 10.5f, changeTint(it), type.body, room = (w - pad * 2) * 0.55f) }
-                (if (settings.widgetTimeRange == WidgetTimeRange.JOURNEY) goalLine() else settings.widgetTimeRange.label)?.let { text(it, w - pad, pad + 31, 10f, colors.textDim, type.body, Paint.Align.RIGHT, (w - pad * 2) * 0.42f) }
-            }
-            val footer = when {
-                !journey || compact -> 0f
-                show.showBar && show.showDetail -> 37f
-                show.showBar -> 18f
-                show.showDetail -> 20f
-                else -> 0f
-            }
-            TrendChart.draw(c, RectF(pad - 3, header + pad, w - pad, h - pad - footer),
-                ChartSpec.forWidget(snap, settings), colors, type, 1f,
-                labels = h >= 150 && w >= 240, contrastShadow = settings.widgetGlass != WidgetGlass.SOLID)
-            if (journey) {
-                if (compact) {
-                    if (show.showBar) bar(pad, h - 9, w - pad, 3f)
-                } else {
-                    if (show.showBar) bar(pad, h - pad - (if (show.showDetail) 24 else 6), w - pad)
-                    if (show.showDetail) {
-                        val pace = snap.weeklyRateKg?.let { "  ·  ${Units.rate(it, unit)}" }.orEmpty()
-                        text(remaining() + pace, pad, h - pad, 11f, colors.textDim, room = (w - pad * 2) * 0.8f)
-                        text(snap.fraction?.let { "${(it * 100).roundToInt()}%" } ?: "—", w - pad, h - pad, 11f,
-                            colors.accent, type.numberBold, Paint.Align.RIGHT, (w - pad * 2) * 0.18f)
-                    }
+            if(h<78f && w>=240f) {
+                val values=listOf(snap.startKg,snap.currentKg,snap.targetKg)
+                val cell=inner/3
+                listOf("START","NOW","TARGET").forEachIndexed { i,title ->
+                    val x=pad+i*cell
+                    label("label-$i",title,rect(x,pad,x+cell-6,pad+10))
+                    line("value-$i",values[i]?.let { Units.weightShort(it,unit) } ?: "—",rect(x,pad+12,x+cell-6,h-pad),17f,
+                        if(i==1) colors.accent else colors.text,type.numberBold)
                 }
+                return
             }
-        }
-        fun pace() {
-            val goal = when {
-                snap.reached -> "Reached"
-                snap.targetKg == null -> "Set a target"
-                snap.projectedDay == null -> "—"
-                snap.projectedDay.year == LocalDate.now().year -> snap.projectedDay.format(shortDate)
-                else -> snap.projectedDay.format(DateTimeFormatter.ofPattern("d MMM yyyy", Locale.ENGLISH))
+            if(w<145f && h<100f) {
+                label("title","NOW",rect(pad,pad,w-pad,pad+11))
+                line("weight",value(),rect(pad,pad+12,w-pad,h-pad),22f,face=type.numberBold)
+                return
             }
-            val week = weekChange()
-            val cells = listOf(
-                Triple("WEEKLY", snap.weeklyRateKg?.let { Units.rate(it, unit) } ?: "—", colors.accent),
-                Triple("THIS WEEK", week?.let { Units.signed(it, unit) } ?: "—", week?.let { changeTint(it) } ?: colors.text),
-                Triple("GOAL BY", goal, colors.text),
-                Triple("STREAK", "${snap.streakDays} days", colors.text),
-            )
-            val wide = w > h * 1.8f
-            val status = snap.pace?.takeIf { show.showStatus }
-            if (wide) {
-                // A row of figures across the widget: four when it is wide enough, else the first three.
-                val shown = if (w >= 300) cells else cells.filter { it.first != "THIS WEEK" }
-                val column = (w - pad * 2) / shown.size
-                shown.forEachIndexed { i, (title, value, tint) ->
-                    val left = pad + i * column
-                    label(title, left, h / 2 - 7, room = column - 8)
-                    text(value, left, h / 2 + 16, 17f, tint, type.numberBold, room = column - 8)
+            val values=listOf(snap.startKg,snap.currentKg,snap.targetKg)
+            val titles=listOf("START","NOW","TARGET")
+            if(w<145f) {
+                val row=(h-pad*2)/3
+                titles.forEachIndexed { i,title ->
+                    val y=pad+i*row
+                    label("label-$i",title,rect(pad,y,w-pad,y+10))
+                    line("value-$i",values[i]?.let { Units.weightShort(it,unit) } ?: "—",rect(pad,y+12,w-pad,y+row-2),22f,
+                        if(i==1) colors.accent else colors.text,type.numberBold)
+                }
+                return
+            }
+            val extra=show.showDetail && h>=100f
+            val barTop=h-pad-(if(extra) 27f else 6f)
+            if(w>=260f && w>=h*2.3f) {
+                val cell=inner/3
+                val center=(pad+barTop)/2
+                titles.forEachIndexed { i,title ->
+                    val left=pad+i*cell
+                    label("label-$i",title,rect(left,center-21,left+cell-8,center-8))
+                    line("value-$i",values[i]?.let { Units.weightShort(it,unit) } ?: "—",rect(left,center-5,left+cell-8,center+23),if(i==1) 25f else 21f,
+                        if(i==1) colors.accent else colors.text,type.numberBold)
                 }
             } else {
-                // Two columns, two rows.
-                val footer = if (status != null) 18f else 0f
-                val rowHeight = (h - pad * 2 - footer) / 2
-                val column = (w - pad * 2) / 2
-                cells.forEachIndexed { i, (title, value, tint) ->
-                    val left = pad + (i % 2) * column
-                    val y = pad + (i / 2) * rowHeight + max(0f, (rowHeight - 40f) / 2)
-                    label(title, left, y + 8, room = column - 8)
-                    text(value, left, y + 31f, 17f, tint, type.numberBold, room = column - 8)
+                val row=(barTop-pad-6)/3
+                titles.forEachIndexed { i,title ->
+                    val top=pad+i*row
+                    label("label-$i",title,rect(pad,top,pad+inner*.30f,top+row-2))
+                    line("value-$i",values[i]?.let { Units.weightShort(it,unit) } ?: "—",rect(pad+inner*.34f,top,w-pad,top+row-2),if(row>40) 30f else 18f,
+                        if(i==1) colors.accent else colors.text,type.numberBold,Paint.Align.RIGHT)
                 }
             }
-            if (!wide) status?.let {
-                val title = when (it) { Pace.AHEAD -> "Ahead"; Pace.ON_TRACK -> "On track"; Pace.BEHIND -> "Behind" }
-                text(title, w - pad, h - 7, 9f, if (it == Pace.BEHIND) colors.warn else colors.good,
-                    type.label, Paint.Align.RIGHT)
+            bar(rect(pad,barTop,w-pad,barTop+5))
+            if(extra) line("remaining",remaining(),rect(pad,h-pad-16,w-pad,h-pad),11f,colors.textDim,type.body,secondary=true)
+        }
+        fun trend(journey:Boolean) {
+            val title=if(journey) "JOURNEY" else "WEIGHT"
+            if(h<135f && w>=260f) {
+                val leftEnd=pad+inner*.41f
+                label("title",title,rect(pad,pad,leftEnd,pad+11))
+                line("weight",value(),rect(pad,pad+14,leftEnd,min(h-pad,pad+42)),23f,face=type.numberBold)
+                val graphLeft=pad+inner*.47f
+                val barSpace=if(journey && show.showBar && h>=70) 14 else 0
+                val graphTop=if(h<70) pad else pad+20
+                if(h>=70) label("date",date(snap.currentMs),rect(graphLeft,pad,w-pad,pad+12),Paint.Align.RIGHT)
+                chart(rect(graphLeft,graphTop,w-pad,h-pad-barSpace),ChartSpec.forWidget(snap,settings),false)
+                if(journey && show.showBar && h>=70) bar(rect(pad,h-pad-5,w-pad,h-pad))
+                if(h>=100 && journey && show.showDetail) line("remaining",remaining(),rect(pad,pad+50,leftEnd,pad+67),11f,colors.textDim,type.body,secondary=true)
+                else if(h>=90 && !journey) label("range",settings.widgetTimeRange.label,rect(pad,h-pad-12,leftEnd,h-pad))
+                return
             }
+            val titleEnd=if(w>=260f) w-pad-inner*.34f else w-pad
+            label("title",title+(if(w in 145f..259f) " · ${date(snap.currentMs)}" else ""),rect(pad,pad,titleEnd,pad+11))
+            line("weight",value(),rect(pad,pad+13,titleEnd,min(h-pad,pad+38)),23f,face=type.numberBold)
+            if(w>=260f) label("date",date(snap.currentMs),rect(titleEnd+8,pad,w-pad,pad+13),Paint.Align.RIGHT)
+            if(h<80) return
+            val short=h<150f
+            val footer=if(journey && show.showBar) (if(show.showDetail && !short) 30f else 13f) else if(short) 0f else 15f
+            chart(rect(pad,pad+(if(short) 42 else 47),w-pad,h-pad-footer),ChartSpec.forWidget(snap,settings),axes=w>=260f && h>=170)
+            if(journey && show.showBar) bar(rect(pad,h-pad-(if(show.showDetail && !short) 23 else 5),w-pad,h-pad-(if(show.showDetail && !short) 18 else 0)))
+            if(journey && show.showDetail && !short) line("remaining",remaining(),rect(pad,h-pad-15,w-pad,h-pad),11f,colors.textDim,type.body,secondary=true)
+            else if(!short) label("range",settings.widgetTimeRange.label,rect(pad,h-pad-12,w-pad,h-pad))
+        }
+        fun pace() {
+            val cells=listOf(Triple("WEEKLY RATE",snap.weeklyRateKg?.let { Units.signed(it,unit) } ?: "—",colors.accent),
+                Triple("THIS WEEK",data.weekChangeKg?.let { Units.signed(it,unit) } ?: "—",data.weekChangeKg?.let(::tint) ?: colors.text),
+                Triple("GOAL BY",goal(w<260f || h<140f),colors.text),Triple("STREAK","${snap.streakDays} ${if(snap.streakDays==1) "day" else "days"}",colors.text))
+            if(compact && w<300f) {
+                label("title",cells[0].first,rect(pad,pad,w-pad,pad+12))
+                line("rate",cells[0].second,rect(pad,pad+15,w-pad,h-pad),25f,colors.accent,type.numberBold)
+                return
+            }
+            if(w<150f) {
+                val status=snap.pace?.takeIf {show.showStatus && h>=200}
+                val row=(h-pad*2-(if(status!=null) 18 else 0))/4
+                cells.forEachIndexed {i,(title,value,tint)->
+                    val y=pad+i*row+(row-32).coerceAtLeast(0f)/2
+                    label("label-$i",title,rect(pad,y,w-pad,y+10))
+                    line("value-$i",value,rect(pad,y+12,w-pad,min(pad+(i+1)*row-2,y+34)),22f,tint,type.numberBold)
+                }
+                status?.let {label("status",when(it) {Pace.AHEAD->"Ahead";Pace.ON_TRACK->"On track";Pace.BEHIND->"Behind"},rect(pad,h-pad-12,w-pad,h-pad))}
+                return
+            }
+            val wide=w>=300f && h<140f
+            val status=snap.pace?.takeIf { show.showStatus && !wide && h>=155 }
+            val usable=h-pad*2-(if(status!=null) 20 else 0)
+            cells.forEachIndexed { i,(title,value,tint) ->
+                val cellW=if(wide) inner/4 else inner/2
+                val cellH=if(wide) usable else usable/2
+                val x=pad+(if(wide) i else i%2)*cellW
+                val y=pad+(if(wide) 0 else i/2)*cellH
+                val top=y+(cellH-39).coerceAtLeast(0f)/2
+                label("label-$i",title,rect(x,top,x+cellW-8,top+12))
+                line("value-$i",value,rect(x,top+15,x+cellW-8,min(y+cellH-3,top+48)),min(30f,cellW*.29f),tint,type.numberBold)
+            }
+            status?.let { label("status",when(it) { Pace.AHEAD->"Ahead";Pace.ON_TRACK->"On track";Pace.BEHIND->"Behind" },rect(pad,h-pad-12,w-pad,h-pad),Paint.Align.RIGHT) }
+        }
+        fun bodyFat() {
+            val latest=data.bodyFat.lastOrNull()
+            label("title","BODY FAT"+(if(settings.widgetTimeRange!=WidgetTimeRange.JOURNEY) " · ${settings.widgetTimeRange.label.uppercase()}" else ""),rect(pad,pad,w-pad,pad+12))
+            val valueEnd=if(w>=260f) w-pad-inner*(if(h<135f) .59f else .36f) else w-pad
+            line("body-fat",latest?.let { BodyFat.format(it.percent) } ?: "—",rect(pad,pad+14,valueEnd,min(h-pad,pad+43)),29f,colors.accent,type.numberBold)
+            if(latest==null) {
+                if(h>=105) line("empty","No measurements",rect(pad,h-pad-18,w-pad,h-pad),12f,colors.textDim,type.body,secondary=true)
+                return
+            }
+            if(h in 80f..134.99f && w>=260f) {
+                chart(rect(pad+inner*.47f,pad,w-pad,h-pad-20),
+                    ChartSpec(settings.widgetTimeRange.bodyFat(snap).map {TrendPoint(it.epochMs,it.percent,it.percent)},ChartStyle.CONNECTED,WeightUnit.KG,
+                        snap.targetBodyFat.takeIf {show.showTarget},metric=ChartMetric.BODY_FAT),false)
+                label("date",date(latest.epochMs),rect(pad,h-pad-12,w-pad,h-pad))
+                return
+            }
+            if(compact) return
+            if(w>=260f) data.bodyFat.dropLast(1).lastOrNull()?.let { previous ->
+                line("change",String.format(Locale.getDefault(),"%+.1f pp",latest.percent-previous.percent),rect(valueEnd+10,pad+17,w-pad,pad+41),14f,colors.textDim,type.number,Paint.Align.RIGHT)
+            }
+            val points=settings.widgetTimeRange.bodyFat(snap).map { TrendPoint(it.epochMs,it.percent,it.percent) }
+            val area=rect(pad,pad+(if(h<135f) 45 else 50),w-pad,h-pad-(if(h<135f) 18 else 22))
+            chart(area,ChartSpec(points,ChartStyle.CONNECTED,WeightUnit.KG,snap.targetBodyFat.takeIf {show.showTarget},metric=ChartMetric.BODY_FAT),w>=260f && area.height()>=70)
+            val footer=if(show.showTarget && snap.targetBodyFat!=null && w>=260f) "Target ${BodyFat.format(snap.targetBodyFat)} · ${date(latest.epochMs)}" else date(latest.epochMs)
+            label("date",footer,rect(pad,h-pad-13,w-pad,h-pad))
         }
     }
 }

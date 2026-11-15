@@ -40,8 +40,7 @@ fun BodyFatSection(readings: List<BodyFatEntry>, target: Double?, canWrite: Bool
             val cutoff = when (range) { "1M" -> System.currentTimeMillis() - 30L * 86_400_000; "3M" -> System.currentTimeMillis() - 90L * 86_400_000; "Journey" -> journeyStart ?: Long.MIN_VALUE; else -> Long.MIN_VALUE }
             val points = readings.filter { it.epochMs >= cutoff }.sortedBy { it.epochMs }.map { TrendPoint(it.epochMs, it.percent, it.percent) }
             InteractiveChart(ChartSpec(points, ChartStyle.CONNECTED, WeightUnit.KG, target, metric = ChartMetric.BODY_FAT), Modifier.height(190.dp))
-        } else Text("Log a percentage or connect a body-fat source in Health Connect. Missing readings are never estimated.",
-            style = LocalDeltaType.current.bodySmall, color = Color(c.textDim))
+        }
         GlassButton(if (canWrite) "Log body fat" else "Allow body fat access", { if (canWrite) logging = true else onAccess() })
     }
     if (logging) PercentDialog("Log body fat", latest?.percent, { logging = false }) { value, at ->
@@ -62,7 +61,6 @@ fun PercentDialog(title: String, initial: Double?, onDismiss: () -> Unit, showDa
         androidx.compose.material3.OutlinedTextField(text, { text = it }, label = { Text("Body fat %") },
             suffix = { Text("%") }, isError = text.isNotBlank() && value == null, singleLine = true,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), modifier = Modifier.fillMaxWidth())
-        Text("Enter a measured percentage greater than 0 and at most 100.", style = LocalDeltaType.current.bodySmall)
         if (showDate) TextAction(Format.day(day), { picking = true })
     }
     if (picking) DateDialog(day, { picking = false }, { day = it.coerceAtMost(LocalDate.now()); picking = false })

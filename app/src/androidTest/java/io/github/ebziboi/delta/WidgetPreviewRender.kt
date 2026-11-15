@@ -52,7 +52,7 @@ class WidgetPreviewRender {
             WidgetKind.BODY_FAT to (350f to 180f),
             WidgetKind.PROGRESS to (170f to 170f),
             WidgetKind.JOURNEY to (350f to 180f),
-            WidgetKind.SUMMARY to (350f to 92f),
+            WidgetKind.SUMMARY to (350f to 100f),
             WidgetKind.TREND to (350f to 180f),
             WidgetKind.PACE to (170f to 170f),
         )

@@ -97,8 +97,6 @@ fun ProgressScreen(
             if (snap.targetKg == null) {
                 ContentSection(Modifier.entrance(1)) {
                     Text("Set a target weight", style = LocalDeltaType.current.title)
-                    Text("With a target, Delta shows how far you have to go and when you'll get there.",
-                        color = Color(LocalDeltaColors.current.textDim), style = LocalDeltaType.current.body)
                     PrimaryButton("Open settings", onOpenSettings)
                 }
             }
@@ -111,8 +109,7 @@ fun ProgressScreen(
             if (insights.recent.isNotEmpty()) RecentCard(insights, snap.losing, unit, Modifier.entrance(4))
         }
 
-        // Room to scroll the last card clear of the floating bar and the Log weight button.
-        Spacer(Modifier.height(padding.calculateBottomPadding() + 88.dp))
+        Spacer(Modifier.height(padding.calculateBottomPadding() + 24.dp))
     }
 }
 
@@ -152,7 +149,7 @@ private fun ConnectCard(health: HealthState, onConnect: () -> Unit) {
         Text("Connect Health Connect", style = LocalDeltaType.current.title)
         Text(
             text = when (health.availability) {
-                HealthAvailability.AVAILABLE -> "Delta reads your weigh-ins from Health Connect. Allow access to see your progress."
+                HealthAvailability.AVAILABLE -> "Sync your measurements from Health Connect."
                 HealthAvailability.NEEDS_UPDATE -> "Health Connect needs an update before Delta can read your weight."
                 HealthAvailability.UNAVAILABLE -> "Health Connect isn't available on this phone."
             },
@@ -167,47 +164,52 @@ private fun ConnectCard(health: HealthState, onConnect: () -> Unit) {
 private fun HeroCard(snap: ProgressSnapshot, insights: Insights, unit: WeightUnit, modifier: Modifier, settings: AppSettings) {
     val colors = LocalDeltaColors.current
     val type = LocalDeltaType.current
-    ContentSection(modifier.cardPerimeter(settings.progressDisplay == ProgressDisplay.PERIMETER,snap.fraction), accent = Color(colors.accent), spacing = 14.dp, tone = ModuleTone.SAGE,framed=true) {
-        val colors = LocalDeltaColors.current
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Caption("Now")
-                val current = snap.currentKg
-                if (current == null) {
-                    Text("No weigh-ins yet", style = type.title)
-                    Text("Log a weight, or sync to pull in your history.", color = Color(colors.textDim), style = type.bodySmall)
-                } else {
-                    HeroWeight(current, unit, type.numberLarge.copy(fontSize = type.numberLarge.fontSize * 1.9f, lineHeight = type.numberLarge.fontSize * 2f))
-                    snap.currentMs?.let {
-                        Text(Format.moment(it), color = Color(colors.textDim), style = type.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+    val withArt = settings.progressDisplay in listOf(ProgressDisplay.COMPLICATION, ProgressDisplay.BOTH) && snap.fraction != null
+    ContentSection(modifier.cardPerimeter(settings.progressDisplay == ProgressDisplay.PERIMETER,snap.fraction),
+        accent = Color(colors.accent), spacing = 10.dp, tone = ModuleTone.SAGE, framed = true) {
+        val panel = LocalDeltaColors.current
+        androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxWidth()) {
+            val artSize = (maxWidth * .40f).coerceIn(104.dp, 148.dp)
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                    Caption("Now")
+                    if (snap.currentKg == null) Text("No weigh-ins yet", style = type.title)
+                    else {
+                        HeroWeight(snap.currentKg, unit, type.numberLarge.copy(fontSize = 44.sp, lineHeight = 48.sp))
+                        snap.currentMs?.let {
+                            Text(Format.moment(it), color = Color(panel.textDim), style = type.bodySmall,
+                                maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        }
+                        insights.weekChangeKg?.let { change ->
+                            val tint = if (abs(change) < .05) panel.textDim else if (InsightsCalculator.towardGoal(change,snap.losing)) panel.good else panel.warn
+                            Text("${Units.signed(change,unit)} this week", color = Color(tint), style = type.bodySmall)
+                        }
                     }
                 }
+                if (withArt) PercentageComplication(snap.fraction, settings.percentageDesign, Modifier.size(artSize))
             }
-            if(settings.progressDisplay in listOf(ProgressDisplay.COMPLICATION,ProgressDisplay.BOTH)) PercentageComplication(snap.fraction, settings.percentageDesign, Modifier.size((androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp * 0.5f).coerceIn(144f, 208f).dp))
         }
-        insights.weekChangeKg?.let { change -> ChangePill(change, "this week", snap.losing, unit) }
         snap.bodyFat.lastOrNull()?.let { reading ->
-            Text("Body fat ${io.github.ebziboi.delta.data.BodyFat.format(reading.percent)} · ${Format.moment(reading.epochMs)}",
-                style = type.bodySmall, color = Color(colors.textDim))
+            Text("Body fat ${io.github.ebziboi.delta.data.BodyFat.format(reading.percent)}", style = type.bodySmall, color = Color(panel.textDim))
         }
         if (snap.targetKg != null && snap.startKg != null) {
-            if(settings.progressDisplay in listOf(ProgressDisplay.BAR,ProgressDisplay.BOTH)) ProgressRail(snap.fraction,barStyle=settings.progressBarStyle)
-            Row {
-                Column(Modifier.weight(1f)) {
+            if (settings.progressDisplay in listOf(ProgressDisplay.BAR,ProgressDisplay.BOTH)) ProgressRail(snap.fraction,barStyle=settings.progressBarStyle)
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Column {
                     Caption("Start")
-                    Text(Units.weightShort(snap.startKg, unit), style = type.numberSmall, color = Color(colors.text))
+                    Text(Units.weightShort(snap.startKg, unit), style = type.numberSmall)
                 }
                 Column(horizontalAlignment = Alignment.End) {
                     Caption("Target")
-                    Text(Units.weightShort(snap.targetKg, unit), style = type.numberSmall, color = Color(colors.accent))
+                    Text(Units.weightShort(snap.targetKg, unit), style = type.numberSmall, color = Color(panel.accent))
                 }
             }
             val summary = buildList {
                 snap.changeKg?.let { add("${Units.amount(it, unit)} ${if (it <= 0) "lost" else "gained"}") }
                 if (snap.reached) add("Target reached") else snap.remainingKg?.let { add("${Units.amount(it, unit)} to go") }
-                snap.fraction?.let { add("${(it * 100).roundToInt()}%") }
+                if (!withArt) snap.fraction?.let { add("${(it * 100).roundToInt()}%") }
             }.joinToString("  ·  ")
-            Text(summary, style = type.bodyStrong, color = Color(colors.text))
+            Text(summary, style = type.bodySmall, color = Color(panel.textDim))
         }
     }
 }

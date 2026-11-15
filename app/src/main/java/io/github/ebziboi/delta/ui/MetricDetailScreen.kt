@@ -95,12 +95,12 @@ private fun MetricCalendar(metric: DetailMetric, entries: List<WeightEntry>, set
         ContentSection {
             Text(when(metric) { DetailMetric.RATE -> "How your pace is changing";DetailMetric.AVERAGE -> "A clearer daily signal";else -> "Consistency, one day at a time" },style=type.title)
             Text(when(metric) {
-                DetailMetric.RATE -> "The rate is fitted to the recent 28 days, using only readings recorded by the selected day. When data is sparse, it uses up to 56 days, then your journey. At least six days of measurements are needed."
-                DetailMetric.AVERAGE -> "The average covers the selected day and the six days before it. Each recorded day counts equally, so several readings on one day cannot dominate the result."
-                else -> "Your streak counts consecutive days with a weigh-in. Yesterday’s streak stays active until the end of today. A missing completed day breaks the run."
+                DetailMetric.RATE -> "28-day fitted rate, using readings available on this date. Sparse data uses a longer window."
+                DetailMetric.AVERAGE -> "Average of the last seven calendar days. Each recorded day counts equally."
+                else -> "Consecutive days with a weigh-in. Yesterday’s run stays active until today ends."
             },style=type.body,color=Color(c.textDim))
             Text(selected.kg?.let { "Selected day: ${Units.weight(it,settings.unit)} · ${selected.readings} ${if(selected.readings==1) "reading" else "readings"}" }
-                ?: "No weigh-in on this day. Missing measurements are left empty.",style=type.bodyStrong)
+                ?: "No weigh-in on this day.",style=type.bodyStrong)
         }
         ContentSection {
             Caption("This week")
@@ -137,7 +137,6 @@ private fun ForecastDetail(snap: ProgressSnapshot, entries: List<WeightEntry>, s
     ContentSection(tone=ModuleTone.VIOLET) {
         Text("The path ahead",style=type.title)
         InteractiveChart(ChartSpec.journey(snap,settings.appChart,settings.unit,true).copy(showFullProjection=true),Modifier.fillMaxWidth().height(280.dp))
-        Text("Recorded measurements and the projected path to your target.",style=type.bodySmall,color=Color(c.textDim))
     }
     ContentSection {
         Text("Recent signals",style=type.title)
@@ -156,6 +155,6 @@ private fun ForecastDetail(snap: ProgressSnapshot, entries: List<WeightEntry>, s
         if(age!=null && age>1) Text("Your latest reading is $age days old, so the forecast may lag behind recent changes.",style=type.body)
         val times=entries.filter { Instant.ofEpochMilli(it.epochMs).atZone(zone).toLocalDate()>=today.minusDays(27) }.map { Instant.ofEpochMilli(it.epochMs).atZone(zone).hour }
         if(times.isNotEmpty() && times.max()-times.min()>=6) Text("Your recent measurements span different times of day. That can add variation unrelated to the underlying trend.",style=type.body)
-        Text("The projection extends your measured trend; it cannot identify the cause of a change or promise a completion date.",style=type.bodySmall,color=Color(c.textDim))
+        Text("Estimate based on your recorded trend.",style=type.bodySmall,color=Color(c.textDim))
     }
 }

@@ -355,7 +355,7 @@ fun GlassIconButton(
         modifier = modifier
             .size(size)
             .pressScale(source, 0.92f)
-            .glass(CircleShape, colors, elevated = false)
+            .refractiveGlass(CircleShape, colors, elevated = false)
             .clickable(
                 interactionSource = source,
                 indication = ripple(color = tint),
@@ -389,7 +389,7 @@ fun PrimaryButton(
     val intensity = LocalAppearance.current.accentIntensity
     val dashboard = LocalAppearance.current.designStyle == io.github.ebziboi.delta.data.DesignStyle.TUBIK
     val fill = if (enabled && dashboard) {
-        Modifier.clip(shape).background(accent)
+        Modifier.clip(shape).background(accent.copy(alpha = if(LocalAppearance.current.reduceTransparency) 1f else .82f))
     } else if (enabled) {
         Modifier
             .dropShadow(shape, Shadow(radius = 22.dp, color = accent.copy(alpha = 0.28f * intensity), offset = DpOffset(0.dp, 8.dp)))
@@ -403,7 +403,9 @@ fun PrimaryButton(
     } else {
         Modifier.glass(shape, colors, elevated = false)
     }
-    val ink = if (enabled) Color(colors.onAccent) else Color(colors.textFaint)
+    val ink = if (enabled && dashboard) Color(io.github.ebziboi.delta.render.ThemeContrast.on(
+        io.github.ebziboi.delta.render.Palettes.mix(colors.bg, colors.accent, if(LocalAppearance.current.reduceTransparency) 1f else .82f)))
+        else if (enabled) Color(colors.onAccent) else Color(colors.textFaint)
     Row(
         modifier = modifier
             .heightIn(min = 54.dp)
@@ -792,7 +794,7 @@ fun <T> ChoiceRow(
                     .clip(shape)
                     .background(Color(colors.accent))
             } else {
-                Modifier.glass(shape, colors, elevated = false)
+                Modifier.refractiveGlass(shape, colors, elevated = false)
             }
             Text(
                 text = label(option),
