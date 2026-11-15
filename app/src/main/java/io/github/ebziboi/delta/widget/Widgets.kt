@@ -31,10 +31,10 @@ class JourneyWidget : BitmapWidget() { override val kind = WidgetKind.JOURNEY }
 abstract class DeltaWidgetReceiver : GlanceAppWidgetReceiver() {
     override fun onDeleted(context: Context, appWidgetIds: IntArray) {
         super.onDeleted(context, appWidgetIds)
-        runBlocking { WidgetStyleStore(context).delete(appWidgetIds) }
+        runCatching { runBlocking { WidgetStyleStore(context).delete(appWidgetIds) } }
     }
     override fun onRestored(context: Context, oldWidgetIds: IntArray, newWidgetIds: IntArray) {
-        runBlocking { WidgetStyleStore(context).restore(oldWidgetIds, newWidgetIds) }
+        runCatching { runBlocking { WidgetStyleStore(context).restore(oldWidgetIds, newWidgetIds) } }
         super.onRestored(context, oldWidgetIds, newWidgetIds)
     }
 

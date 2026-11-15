@@ -20,8 +20,16 @@ import java.io.IOException
 
 // Settings and the weigh-in cache live in separate files so that changing a
 // setting never rewrites the history, and the other way round.
-private val Context.settingsStore: DataStore<Preferences> by preferencesDataStore(name = "delta_settings")
-private val Context.weightStore: DataStore<Preferences> by preferencesDataStore(name = "delta_weights")
+// A file damaged on disk is replaced rather than failing every later write: settings fall back to
+// their defaults and the weigh-in copy is simply read again from Health Connect.
+private val Context.settingsStore: DataStore<Preferences> by preferencesDataStore(
+    name = "delta_settings",
+    corruptionHandler = androidx.datastore.core.handlers.ReplaceFileCorruptionHandler { emptyPreferences() },
+)
+private val Context.weightStore: DataStore<Preferences> by preferencesDataStore(
+    name = "delta_weights",
+    corruptionHandler = androidx.datastore.core.handlers.ReplaceFileCorruptionHandler { emptyPreferences() },
+)
 
 /**
  * What Delta keeps on the phone: the user's choices, and a copy of the

@@ -52,15 +52,19 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
      */
     fun refresh(announce: Boolean = false) {
         viewModelScope.launch {
-            _health.value = repo.health.state()
+            _health.value = runCatching { repo.health.state() }.getOrDefault(_health.value)
             if (_syncing.value) return@launch
             _syncing.value = true
             val result = try {
                 repo.sync()
+            } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                throw cancelled
+            } catch (error: Exception) {
+                SyncResult.Failed(error.message ?: error.javaClass.simpleName)
             } finally {
                 _syncing.value = false
             }
-            _health.value = repo.health.state()
+            _health.value = runCatching { repo.health.state() }.getOrDefault(_health.value)
             if (announce) {
                 _messages.tryEmit(
                     when (result) {
@@ -94,7 +98,25 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    private val _lastCrash = MutableStateFlow(io.github.ebziboi.delta.CrashRecorder.last(application))
+
+    /** Details of the last time Delta stopped unexpectedly, until the user shares or dismisses them. */
+    val lastCrash: StateFlow<String?> = _lastCrash.asStateFlow()
+
+    fun dismissCrash() {
+        io.github.ebziboi.delta.CrashRecorder.clear(getApplication())
+        _lastCrash.value = null
+    }
+
     fun update(transform: (AppSettings) -> AppSettings) {
-        viewModelScope.launch { repo.updateSettings(transform) }
+        viewModelScope.launch {
+            try {
+                repo.updateSettings(transform)
+            } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                throw cancelled
+            } catch (error: Exception) {
+                _messages.tryEmit("Couldn't save that setting. Please try again.")
+            }
+        }
     }
 }

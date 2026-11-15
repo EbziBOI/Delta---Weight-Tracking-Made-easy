@@ -225,11 +225,15 @@ object TrendChart {
         fill.lineTo(x(points.last().epochMs), plot.bottom)
         fill.lineTo(x(firstMs), plot.bottom)
         fill.close()
+        // The wash hangs just below the line and fades out within a short drop, so a graph
+        // whose scale runs down to a distant target does not fill with a solid slab.
+        val washTop = points.minOf { y(value(it)) }
+        val washBottom = minOf(plot.bottom, washTop + 110f * density)
         val wash = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             style = Paint.Style.FILL
             shader = LinearGradient(
-                0f, plot.top, 0f, plot.bottom,
-                Palettes.withAlpha(colors.accent, 0x55), Palettes.withAlpha(colors.accent, 0x00),
+                0f, washTop, 0f, maxOf(washBottom, washTop + 1f),
+                Palettes.withAlpha(colors.accent, 0x48), Palettes.withAlpha(colors.accent, 0x00),
                 Shader.TileMode.CLAMP,
             )
         }

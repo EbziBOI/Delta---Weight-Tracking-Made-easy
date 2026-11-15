@@ -97,6 +97,20 @@ class WidgetConfigurationTest {
             device.pressHome()
         }
     }
+    /** The editor keeps unsaved changes in its saved state, so leaving it for another app must not crash. */
+    @Test fun editorSurvivesGoingToTheBackground() = runBlocking {
+        val component = ComponentName(context, WidgetCatalog.receiver(WidgetKind.PROGRESS))
+        val id = manager.getAppWidgetIds(component).firstOrNull() ?: return@runBlocking
+        open(id)
+        tap("Clear")
+        device.pressHome()
+        Thread.sleep(2_500)
+        device.pressRecentApps()
+        Thread.sleep(1_000)
+        device.pressHome()
+        assertTrue("The app process must still be alive", (context.applicationContext as DeltaApp).repo != null)
+    }
+
     private fun open(id: Int) {
         context.startActivity(Intent(AppWidgetManager.ACTION_APPWIDGET_CONFIGURE)
             .setComponent(manager.getAppWidgetInfo(id).configure)

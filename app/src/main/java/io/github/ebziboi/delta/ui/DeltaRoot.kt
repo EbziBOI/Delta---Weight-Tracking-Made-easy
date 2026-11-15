@@ -5,7 +5,6 @@ import androidx.activity.SystemBarStyle
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.semantics.semantics
@@ -33,9 +32,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.draw.drawWithContent
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
@@ -160,11 +156,9 @@ private fun MainScreen(
             }
         },
     ) { padding ->
-        androidx.compose.foundation.layout.Box(Modifier.fillMaxSize().navigationBarsPadding().padding(bottom = 12.dp).clipToBounds().drawWithContent {
-            drawContent()
-            drawRect(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.94f)),
-                startY = (size.height - 180.dp.toPx()).coerceAtLeast(0f), endY = size.height))
-        }) {
+        // Screens run the full height, so content scrolls on behind the floating glass bar
+        // (their padding keeps the last item clear of it) instead of stopping at a hard edge.
+        androidx.compose.foundation.layout.Box(Modifier.fillMaxSize()) {
             when (tab) {
                 0 -> ProgressScreen(vm, settings, health, padding, requestAccess, onOpenSettings = { tab = 2 })
                 1 -> HistoryScreen(vm, settings, padding)

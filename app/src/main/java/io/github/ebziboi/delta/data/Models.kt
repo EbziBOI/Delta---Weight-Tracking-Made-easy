@@ -111,7 +111,7 @@ data class WidgetContent(
     /** Ahead, on track or behind, on the Pace widget. */
     val showStatus: Boolean = true,
     val text: TextContrast = TextContrast.AUTO,
-)
+) : java.io.Serializable
 
 data class AppSettings(
     val onboardingDone: Boolean = false,

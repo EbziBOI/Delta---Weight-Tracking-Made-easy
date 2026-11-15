@@ -1,7 +1,6 @@
 package io.github.ebziboi.delta.ui
 
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -13,12 +12,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -29,22 +22,35 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import io.github.ebziboi.delta.R
 import io.github.ebziboi.delta.data.AppSettings
 import io.github.ebziboi.delta.data.HealthAvailability
 import io.github.ebziboi.delta.data.HealthState
+import io.github.ebziboi.delta.data.Insights
+import io.github.ebziboi.delta.data.InsightsCalculator
 import io.github.ebziboi.delta.data.Pace
 import io.github.ebziboi.delta.data.ProgressSnapshot
 import io.github.ebziboi.delta.data.Units
 import io.github.ebziboi.delta.data.WeightUnit
+import io.github.ebziboi.delta.render.ChartSpec
 import java.time.LocalDate
+import java.time.LocalTime
+import java.time.format.DateTimeFormatter
+import java.util.Locale
+import kotlin.math.abs
+import kotlin.math.roundToInt
 
 private val RANGES = listOf("1M", "3M", "All")
+private val EYEBROW: DateTimeFormatter = DateTimeFormatter.ofPattern("EEE d MMM", Locale.ENGLISH)
 
-/** The home tab: the live delta, the numbers that matter, the pace and the graph. */
+/**
+ * The home tab, built so the first screen answers the questions that matter
+ * without scrolling: where you are, how far you have come and have to go, and
+ * which way things are heading. The graph, observations and recent weigh-ins follow.
+ */
 @Composable
 fun ProgressScreen(
     vm: AppViewModel,
@@ -54,238 +60,291 @@ fun ProgressScreen(
     onConnect: () -> Unit,
     onOpenSettings: () -> Unit,
 ) {
-    val colors = LocalDeltaColors.current
     val snapshot by vm.snapshot.collectAsStateWithLifecycle()
+    val entries by vm.entries.collectAsStateWithLifecycle()
     val syncing by vm.syncing.collectAsStateWithLifecycle()
     val unit = settings.unit
+    val snap = snapshot
+    val insights = remember(entries, snap) { snap?.let { InsightsCalculator.compute(entries, it) } }
 
     Column(
-        // The top inset sits outside the scrolling area so content never slides under the status bar.
         modifier = Modifier
             .fillMaxSize()
             .padding(top = padding.calculateTopPadding())
             .verticalScroll(rememberScrollState())
-            .padding(bottom = padding.calculateBottomPadding())
-            .padding(horizontal = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp),
+            .padding(horizontal = Spacing.screen),
+        verticalArrangement = Arrangement.spacedBy(Spacing.stack),
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(text = "Delta", style = LocalDeltaType.current.display)
-            Spacer(Modifier.weight(1f))
-            if (syncing) {
-                ProgressRing(
-                    modifier = Modifier
-                        .padding(12.dp)
-                        .size(22.dp),
-                )
-            } else {
-                IconButton(onClick = { vm.refresh(announce = true) }) {
-                    Icon(Icons.Filled.Refresh, contentDescription = "Sync with Health Connect")
+        ScreenHeader(
+            title = greeting(),
+            eyebrow = LocalDate.now().format(EYEBROW),
+            trailing = {
+                if (syncing) {
+                    ProgressRing(modifier = Modifier.padding(10.dp).size(24.dp))
+                } else {
+                    GlassIconButton(R.drawable.ic_sync, "Sync with Health Connect", { vm.refresh(announce = true) })
                 }
-            }
-        }
+            },
+        )
 
-        if (health != null && !health.connected) {
-            DeltaCard {
-                Text(text = "Connect Health Connect", fontWeight = FontWeight.Bold, fontSize = 17.sp)
-                Text(
-                    text = when (health.availability) {
-                        HealthAvailability.AVAILABLE ->
-                            "Delta reads your weigh-ins from Health Connect. Allow access to see your progress."
-                        HealthAvailability.NEEDS_UPDATE ->
-                            "Health Connect needs an update before Delta can read your weight."
-                        HealthAvailability.UNAVAILABLE ->
-                            "Health Connect isn't available on this phone."
-                    },
-                    color = Color(colors.textDim),
-                )
-                if (health.availability == HealthAvailability.AVAILABLE) {
-                    Button(onClick = onConnect) { Text("Allow access") }
-                }
-            }
-        }
+        val crash by vm.lastCrash.collectAsStateWithLifecycle()
+        crash?.let { details -> CrashCard(details, onDismiss = vm::dismissCrash) }
 
-        val snap = snapshot
-        if (snap != null) {
-            Hero(snap, unit)
+        if (health != null && !health.connected) ConnectCard(health, onConnect)
 
+        if (snap != null && insights != null) {
+            HeroCard(snap, insights, unit, Modifier.entrance(0))
             if (snap.targetKg == null) {
-                DeltaCard {
-                    Text(text = "Set a target weight", fontWeight = FontWeight.Bold, fontSize = 17.sp)
-                    Text(
-                        text = "With a target, the delta fills in as you close the gap.",
-                        color = Color(colors.textDim),
-                    )
-                    Button(onClick = onOpenSettings) { Text("Open settings") }
+                GlassCard(Modifier.entrance(1)) {
+                    Text("Set a target weight", style = LocalDeltaType.current.title)
+                    Text("With a target, Delta shows how far you have to go and when you'll get there.",
+                        color = Color(LocalDeltaColors.current.textDim), style = LocalDeltaType.current.body)
+                    PrimaryButton("Open settings", onOpenSettings)
                 }
             }
-
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                StatTile(
-                    label = "Start",
-                    value = snap.startKg?.let { Units.weightShort(it, unit) } ?: "—",
-                    note = Format.day(snap.startDay),
-                    modifier = Modifier.weight(1f),
-                )
-                StatTile(
-                    label = if ((snap.changeKg ?: 0.0) > 0.0) "Gained" else "Lost",
-                    value = snap.changeKg?.let { Units.amount(it, unit) } ?: "—",
-                    note = "${snap.weighIns} weigh-ins",
-                    modifier = Modifier.weight(1f),
-                )
-                StatTile(
-                    label = "To go",
-                    value = when {
-                        snap.reached -> "Done"
-                        else -> snap.remainingKg?.let { Units.amount(it, unit) } ?: "—"
-                    },
-                    note = snap.targetKg?.let { "Target ${Units.weightShort(it, unit)}" },
-                    valueColor = Color(colors.accent),
-                    modifier = Modifier.weight(1f),
-                )
-            }
-
-            PaceCard(snap, unit)
-            TrendCard(snap, unit, settings)
+            KeyFigures(snap, insights, unit, Modifier.entrance(1))
+            TrendCard(snap, unit, settings, Modifier.entrance(2))
+            InsightsCard(snap, insights, unit, Modifier.entrance(3))
+            if (insights.recent.isNotEmpty()) RecentCard(insights, snap.losing, unit, Modifier.entrance(4))
         }
 
-        // Room for the Log weight button to float without covering the last card.
-        Spacer(Modifier.height(88.dp))
+        // Room to scroll the last card clear of the floating bar and the Log weight button.
+        Spacer(Modifier.height(padding.calculateBottomPadding() + 88.dp))
     }
 }
 
+private fun greeting(): String = when (LocalTime.now().hour) {
+    in 5..11 -> "Good morning"
+    in 12..17 -> "Good afternoon"
+    else -> "Good evening"
+}
+
+/** Offers to share what went wrong the last time Delta stopped, so it can be fixed. */
 @Composable
-private fun Hero(snap: ProgressSnapshot, unit: WeightUnit) {
+private fun CrashCard(details: String, onDismiss: () -> Unit) {
     val colors = LocalDeltaColors.current
-    Column(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(2.dp),
-    ) {
-        Box(contentAlignment = Alignment.Center) {
-            DeltaTrack(fraction = snap.fraction, modifier = Modifier.size(232.dp))
-        }
-        Spacer(Modifier.height(6.dp))
-        val current = snap.currentKg
-        if (current != null) {
-            Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text(
-                    text = Units.weightValue(current, unit),
-                    style = LocalDeltaType.current.hero,
-                )
-                Text(
-                    text = Units.suffix(unit),
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = Color(colors.textDim),
-                    modifier = Modifier.padding(bottom = 9.dp),
-                )
-            }
-            snap.currentMs?.let {
-                Text(text = "Last weigh-in  ·  ${Format.moment(it)}", color = Color(colors.textDim), fontSize = 13.sp)
-            }
-        } else {
-            Text(text = "No weigh-ins yet", fontSize = 22.sp, fontWeight = FontWeight.Bold)
-            Text(
-                text = "Log a weight, or sync to pull in your history.",
-                color = Color(colors.textDim),
-                fontSize = 13.sp,
-            )
+    val context = androidx.compose.ui.platform.LocalContext.current
+    GlassCard(glow = Color(colors.warn)) {
+        Text("Delta closed unexpectedly", style = LocalDeltaType.current.title)
+        Text("The details stay on your phone. Sharing them helps find and fix the cause.",
+            color = Color(colors.textDim), style = LocalDeltaType.current.body)
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            PrimaryButton("Share details", {
+                val send = android.content.Intent(android.content.Intent.ACTION_SEND)
+                    .setType("text/plain")
+                    .putExtra(android.content.Intent.EXTRA_SUBJECT, "Delta crash details")
+                    .putExtra(android.content.Intent.EXTRA_TEXT, details)
+                runCatching { context.startActivity(android.content.Intent.createChooser(send, "Share crash details")) }
+                onDismiss()
+            })
+            SecondaryButton("Dismiss", onDismiss)
         }
     }
 }
 
 @Composable
-private fun PaceCard(snap: ProgressSnapshot, unit: WeightUnit) {
+private fun ConnectCard(health: HealthState, onConnect: () -> Unit) {
     val colors = LocalDeltaColors.current
-    val today = LocalDate.now()
-    DeltaCard {
+    GlassCard(glow = Color(colors.warn)) {
+        Text("Connect Health Connect", style = LocalDeltaType.current.title)
+        Text(
+            text = when (health.availability) {
+                HealthAvailability.AVAILABLE -> "Delta reads your weigh-ins from Health Connect. Allow access to see your progress."
+                HealthAvailability.NEEDS_UPDATE -> "Health Connect needs an update before Delta can read your weight."
+                HealthAvailability.UNAVAILABLE -> "Health Connect isn't available on this phone."
+            },
+            color = Color(colors.textDim), style = LocalDeltaType.current.body,
+        )
+        if (health.availability == HealthAvailability.AVAILABLE) PrimaryButton("Allow access", onConnect)
+    }
+}
+
+/** Where you are now, the week's change, the delta, and the journey from start to target. */
+@Composable
+private fun HeroCard(snap: ProgressSnapshot, insights: Insights, unit: WeightUnit, modifier: Modifier) {
+    val colors = LocalDeltaColors.current
+    val type = LocalDeltaType.current
+    GlassCard(modifier, glow = Color(colors.accent), spacing = 14.dp) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(text = "Pace", fontWeight = FontWeight.Bold, fontSize = 17.sp)
-            Spacer(Modifier.weight(1f))
-            val pace = snap.pace
-            if (pace != null) {
-                val (label, tint) = when (pace) {
-                    Pace.AHEAD -> "Ahead of schedule" to colors.good
-                    Pace.ON_TRACK -> "On track" to colors.good
-                    Pace.BEHIND -> "Behind schedule" to colors.warn
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Caption("Now")
+                val current = snap.currentKg
+                if (current == null) {
+                    Text("No weigh-ins yet", style = type.title)
+                    Text("Log a weight, or sync to pull in your history.", color = Color(colors.textDim), style = type.bodySmall)
+                } else {
+                    ValueWithUnit(Units.weightValue(current, unit), Units.suffix(unit),
+                        style = type.numberLarge.copy(fontSize = type.numberLarge.fontSize * 1.9f, lineHeight = type.numberLarge.fontSize * 2f))
+                    snap.currentMs?.let {
+                        Text(Format.moment(it), color = Color(colors.textDim), style = type.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
+                    insights.weekChangeKg?.let { change -> ChangePill(change, "this week", snap.losing, unit) }
                 }
-                Text(text = label, color = Color(tint), fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
             }
+            DeltaTrack(fraction = snap.fraction, modifier = Modifier.size(118.dp))
         }
+        if (snap.targetKg != null && snap.startKg != null) {
+            ProgressRail(snap.fraction)
+            Row {
+                Column(Modifier.weight(1f)) {
+                    Caption("Start")
+                    Text(Units.weightShort(snap.startKg, unit), style = type.numberSmall, color = Color(colors.text))
+                }
+                Column(horizontalAlignment = Alignment.End) {
+                    Caption("Target")
+                    Text(Units.weightShort(snap.targetKg, unit), style = type.numberSmall, color = Color(colors.accent))
+                }
+            }
+            val summary = buildList {
+                snap.changeKg?.let { add("${Units.amount(it, unit)} ${if (it <= 0) "lost" else "gained"}") }
+                if (snap.reached) add("Target reached") else snap.remainingKg?.let { add("${Units.amount(it, unit)} to go") }
+                snap.fraction?.let { add("${(it * 100).roundToInt()}%") }
+            }.joinToString("  ·  ")
+            Text(summary, style = type.bodyStrong, color = Color(colors.text))
+        }
+    }
+}
 
-        val rate = snap.weeklyRateKg
-        SettingRow(
-            title = "Weekly rate",
-            value = rate?.let { Units.rate(it, unit) } ?: "—",
-            note = if (rate == null) "Needs a week of weigh-ins" else "Trend over recent weeks",
-        )
-        SettingRow(
-            title = "Projected goal date",
-            value = when {
-                snap.reached -> "Reached"
-                snap.targetKg == null -> "—"
-                else -> snap.projectedDay?.let { Format.day(it) } ?: "—"
-            },
-            note = when {
-                snap.reached || snap.targetKg == null -> null
-                snap.projectedDay == null && rate != null -> "The trend isn't heading for the target right now"
-                else -> "If the current rate holds"
-            },
-        )
-        val targetDay = snap.targetDay
-        if (targetDay != null && !snap.reached) {
-            val required = snap.requiredRateKg
-            SettingRow(
-                title = "Needed for ${Format.day(targetDay)}",
-                value = required?.let { Units.rate(it, unit) } ?: "—",
-                note = if (targetDay.isAfter(today)) null else "That date has passed",
-            )
+/** A change with a sign and a colour: green towards the target, amber away from it. */
+@Composable
+private fun ChangePill(changeKg: Double, label: String, losing: Boolean, unit: WeightUnit) {
+    val colors = LocalDeltaColors.current
+    val tint = when {
+        abs(changeKg) < 0.05 -> colors.textDim
+        InsightsCalculator.towardGoal(changeKg, losing) -> colors.good
+        else -> colors.warn
+    }
+    val icon = when {
+        abs(changeKg) < 0.05 -> R.drawable.ic_trending_flat
+        changeKg < 0 -> R.drawable.ic_trending_down
+        else -> R.drawable.ic_trending_up
+    }
+    Pill("${Units.signed(changeKg, unit)} $label", Color(tint), icon = icon)
+}
+
+/** The four numbers worth checking every day, in a two-by-two grid. */
+@Composable
+private fun KeyFigures(snap: ProgressSnapshot, insights: Insights, unit: WeightUnit, modifier: Modifier) {
+    val colors = LocalDeltaColors.current
+    val rate = snap.weeklyRateKg
+    val rateTint = when {
+        rate == null || abs(rate) < 0.02 -> Color.Unspecified
+        InsightsCalculator.towardGoal(rate, snap.losing) -> Color(colors.good)
+        else -> Color(colors.warn)
+    }
+    val goal = when {
+        snap.reached -> "Reached"
+        snap.targetKg == null -> "No target"
+        else -> snap.projectedDay?.let { Format.day(it) } ?: "Not yet"
+    }
+    val goalNote = when (snap.pace) {
+        Pace.AHEAD -> "Ahead of your date"
+        Pace.ON_TRACK -> "On track for your date"
+        Pace.BEHIND -> "Behind your date"
+        null -> if (snap.projectedDay != null) "At the current rate" else "Trend isn't heading there"
+    }
+    val average = insights.average7Kg
+    val previous = insights.averagePrevious7Kg
+    val averageNote = if (average != null && previous != null) "${Units.signed(average - previous, unit)} vs last week" else "Last 7 days"
+    val streak = snap.streakDays
+
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            StatTile("Weekly rate", rate?.let { Units.rate(it, unit) } ?: "—", Modifier.weight(1f),
+                valueColor = rateTint, note = if (rate == null) "Needs a week of data" else "Recent trend", icon = R.drawable.ic_speed)
+            StatTile("Goal by", goal, Modifier.weight(1f), note = goalNote, icon = R.drawable.ic_flag)
         }
-        SettingRow(
-            title = "Weigh-in streak",
-            value = when (snap.streakDays) {
-                0 -> "—"
-                1 -> "1 day"
-                else -> "${snap.streakDays} days"
-            },
-        )
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            StatTile("7-day average", average?.let { Units.weightShort(it, unit) } ?: "—", Modifier.weight(1f),
+                note = averageNote, icon = R.drawable.ic_insights)
+            StatTile("Streak", when (streak) { 0 -> "—"; 1 -> "1 day"; else -> "$streak days" }, Modifier.weight(1f),
+                note = "${insights.daysWeighedThisWeek} of the last 7 days", icon = R.drawable.ic_local_fire_department)
+        }
     }
 }
 
 @Composable
-private fun TrendCard(snap: ProgressSnapshot, unit: WeightUnit, settings: AppSettings) {
+private fun TrendCard(snap: ProgressSnapshot, unit: WeightUnit, settings: AppSettings, modifier: Modifier) {
     var range by rememberSaveable { mutableStateOf("All") }
     val points = remember(snap.points, range) {
-        val days = when (range) {
-            "1M" -> 30L
-            "3M" -> 90L
-            else -> null
-        }
-        if (days == null) {
-            snap.points
-        } else {
+        val days = when (range) { "1M" -> 30L; "3M" -> 90L; else -> null }
+        if (days == null) snap.points else {
             val cutoff = System.currentTimeMillis() - days * 86_400_000L
             snap.points.filter { it.epochMs >= cutoff }
         }
     }
-
-    DeltaCard {
+    GlassCard(modifier) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(text = "Trend", fontWeight = FontWeight.Bold, fontSize = 17.sp)
-            Spacer(Modifier.weight(1f))
-            ChoiceRow(options = RANGES, selected = range, label = { it }, onSelect = { range = it })
+            Text("Trend", style = LocalDeltaType.current.title, modifier = Modifier.weight(1f))
+            SegmentedControl(RANGES, range, { it }) { range = it }
         }
+        val whole = range == "All"
         TrendChartView(
-            spec = io.github.ebziboi.delta.render.ChartSpec.journey(snap, settings.appChart, unit, settings.showProjection).copy(points = points, startKg = if (range == "All") snap.startKg else null, fraction = if (range == "All") snap.fraction else null),
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(230.dp),
+            spec = ChartSpec.journey(snap, settings.appChart, unit, settings.showProjection)
+                .copy(points = points, startKg = if (whole) snap.startKg else null, fraction = if (whole) snap.fraction else null),
+            modifier = Modifier.fillMaxWidth().height(230.dp),
         )
+    }
+}
+
+/** Plain-English observations drawn from the numbers. */
+@Composable
+private fun InsightsCard(snap: ProgressSnapshot, insights: Insights, unit: WeightUnit, modifier: Modifier) {
+    val lines = buildList {
+        insights.monthChangeKg?.let { change ->
+            val verb = if (change <= 0) "down" else "up"
+            add(R.drawable.ic_calendar_month to "You're ${Units.amount(change, unit)} $verb on a month ago.")
+        }
+        if (insights.lowestKg != null && insights.lowestMs != null) {
+            val day = java.time.Instant.ofEpochMilli(insights.lowestMs).atZone(java.time.ZoneId.systemDefault()).toLocalDate()
+            add(R.drawable.ic_south_east to "Lowest since you started: ${Units.weightShort(insights.lowestKg, unit)} on ${Format.day(day)}.")
+        }
+        val target = snap.targetDay
+        val required = snap.requiredRateKg
+        if (target != null && required != null && !snap.reached) {
+            add(R.drawable.ic_event to "To reach your target by ${Format.day(target)} you need ${Units.rate(required, unit)}.")
+        }
+        insights.daysSinceLastWeighIn?.takeIf { it >= 2 }?.let {
+            add(R.drawable.ic_schedule to "Your last weigh-in was $it days ago. A quick one keeps the trend accurate.")
+        }
+        add(R.drawable.ic_today to "Day ${insights.daysSinceStart + 1} of your journey, with ${snap.weighIns} weigh-ins so far.")
+    }
+    if (lines.isEmpty()) return
+    val colors = LocalDeltaColors.current
+    GlassCard(modifier) {
+        Text("Insights", style = LocalDeltaType.current.title)
+        for ((icon, line) in lines) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                IconBadge(icon)
+                Text(line, style = LocalDeltaType.current.body, color = Color(colors.text), modifier = Modifier.weight(1f))
+            }
+        }
+    }
+}
+
+/** The last few weigh-ins with how each moved from the one before. */
+@Composable
+private fun RecentCard(insights: Insights, losing: Boolean, unit: WeightUnit, modifier: Modifier) {
+    val colors = LocalDeltaColors.current
+    val type = LocalDeltaType.current
+    GlassCard(modifier, spacing = 10.dp) {
+        Text("Recent weigh-ins", style = type.title)
+        insights.recent.forEachIndexed { index, reading ->
+            if (index > 0) GlassDivider()
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text(Units.weight(reading.kg, unit), style = type.number, color = Color(colors.text))
+                    Text(Format.moment(reading.epochMs), style = type.bodySmall, color = Color(colors.textDim))
+                }
+                reading.changeKg?.let { change ->
+                    val tint = when {
+                        abs(change) < 0.05 -> colors.textDim
+                        InsightsCalculator.towardGoal(change, losing) -> colors.good
+                        else -> colors.warn
+                    }
+                    Text(Units.signed(change, unit), style = type.numberSmall, color = Color(tint))
+                }
+            }
+        }
     }
 }

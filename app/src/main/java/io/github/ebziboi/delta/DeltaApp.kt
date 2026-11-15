@@ -11,6 +11,7 @@ class DeltaApp : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        CrashRecorder.install(this)
         SyncWorker.schedule(this)
     }
 }
