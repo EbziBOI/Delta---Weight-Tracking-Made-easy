@@ -54,7 +54,14 @@ open the project in Android Studio or run:
 
 Signing keys are never stored in this repository. The workflow reads the key
 from the repository secrets `DELTA_KEYSTORE_B64` and `DELTA_KEYSTORE_PASSWORD`;
-without them it signs with a throwaway key.
+release publication stops when those secrets are missing. Run `bash ci/setup-signing.sh`
+once to create a permanent key and configure them. Keep the generated `.signing/`
+folder backed up privately: future updates must use the same key.
+
+Builds 13 and 14 used different throwaway signing keys, so Android cannot install
+one over the other. A build made with the permanent key needs a one-time fresh
+installation if the currently installed app used a throwaway key. Uninstalling
+can remove local settings and cached data; record your goal and start date first.
 
 ## How it is put together
 

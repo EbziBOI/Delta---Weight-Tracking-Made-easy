@@ -98,5 +98,6 @@ past (the first use is a journey that began in September).
 
 Android installs an update over an existing app only if both are signed with the
 same key. The key is kept in repository secrets (`DELTA_KEYSTORE_B64`,
-`DELTA_KEYSTORE_PASSWORD`) and never committed. A build without those secrets is
-signed with a throwaway key and cannot update an earlier install.
+`DELTA_KEYSTORE_PASSWORD`) and never committed. Release publication fails if those secrets are missing, so a throwaway key can
+never silently break updates. Run `bash ci/setup-signing.sh` once to create and
+configure the permanent signing key.

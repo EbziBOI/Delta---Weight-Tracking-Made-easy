@@ -10,3 +10,6 @@ captures/
 # Signing keys never go in the repo
 *.jks
 *.keystore
+
+# Permanent APK signing material stays local; CI uses encrypted repository secrets.
+.signing/

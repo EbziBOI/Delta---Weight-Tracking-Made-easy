@@ -34,8 +34,8 @@ jobs:
 
       # Android only installs an update over an existing app when both are signed
       # with the same key. The key lives in repository secrets, never in the repo.
-      # Without the secrets the build still works, but is signed with a throwaway
-      # key, so installing it means uninstalling the previous build first.
+      # Release builds must never use a new key on each run: Android would reject updates.
+      # Run ci/setup-signing.sh once to configure the repository secrets.
       - name: Prepare signing key
         env:
           KEYSTORE_B64: ${{ secrets.DELTA_KEYSTORE_B64 }}
@@ -52,14 +52,11 @@ jobs:
             fi
             echo "Signed with the stored key: this build installs over earlier ones." >> "$GITHUB_STEP_SUMMARY"
           else
-            KEYSTORE_PASSWORD="throwaway-$GITHUB_RUN_ID"
-            keytool -genkeypair -keystore "$KEYSTORE" -alias delta -keyalg EC -groupname secp256r1 \
-              -validity 10000 -storepass "$KEYSTORE_PASSWORD" -keypass "$KEYSTORE_PASSWORD" \
-              -dname "CN=Delta throwaway build"
-            echo "::warning::No signing secrets set. Signed with a throwaway key, so this build cannot update an earlier install."
-            echo "Signed with a throwaway key: uninstall the previous build before installing this one." >> "$GITHUB_STEP_SUMMARY"
+            echo "::error::Release signing secrets are missing. Run ci/setup-signing.sh and configure DELTA_KEYSTORE_B64 and DELTA_KEYSTORE_PASSWORD before publishing an APK."
+            exit 1
           fi
           echo "DELTA_KEYSTORE_FILE=$KEYSTORE" >> "$GITHUB_ENV"
+          echo "::add-mask::$KEYSTORE_PASSWORD"
           echo "DELTA_KEYSTORE_PASSWORD=$KEYSTORE_PASSWORD" >> "$GITHUB_ENV"
 
       - name: Build
