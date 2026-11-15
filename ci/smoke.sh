@@ -17,13 +17,13 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 adb install -r app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
 adb logcat -c
 
-adb shell am instrument -w -e class "$PKG.RenderContractTest,$PKG.SmokeTest,$PKG.WidgetPreviewRender" "$PKG.test/androidx.test.runner.AndroidJUnitRunner" \
+adb shell am instrument -w -e class "$PKG.AppearanceTest,$PKG.AppearanceGalleryTest,$PKG.RenderContractTest,$PKG.SmokeTest,$PKG.WidgetConfigurationTest,$PKG.WidgetPreviewRender" "$PKG.test/androidx.test.runner.AndroidJUnitRunner" \
   | tee "$OUT/instrument.txt"
 
 adb logcat -d > "$OUT/logcat.txt" || true
 
 # The test saves its pictures in the app's private files; a debug build lets us copy them out.
-adb exec-out run-as "$PKG" tar -cf - -C files smoke | tar -xf - -C "$OUT" || true
+adb exec-out run-as "$PKG" tar -cf - -C files smoke appearance-gallery widget-configuration | tar -xf - -C "$OUT" || true
 ls -la "$OUT" "$OUT/smoke" || true
 
 echo "----- notes from the test -----"

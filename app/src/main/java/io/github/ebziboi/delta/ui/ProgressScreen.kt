@@ -78,11 +78,10 @@ fun ProgressScreen(
             Text(text = "Delta", style = LocalDeltaType.current.display)
             Spacer(Modifier.weight(1f))
             if (syncing) {
-                CircularProgressIndicator(
+                ProgressRing(
                     modifier = Modifier
                         .padding(12.dp)
                         .size(22.dp),
-                    strokeWidth = 2.dp,
                 )
             } else {
                 IconButton(onClick = { vm.refresh(announce = true) }) {

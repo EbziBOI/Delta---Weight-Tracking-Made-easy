@@ -105,7 +105,7 @@ object Palettes {
      * phone switches, without Delta having to run.
      */
     fun widgetFollowsSystem(settings: AppSettings): Boolean = when (settings.widgetTheme) {
-        WidgetTheme.APP -> settings.theme.followsSystem
+        WidgetTheme.APP -> settings.appearance == null && settings.theme.followsSystem
         WidgetTheme.SYSTEM -> true
         WidgetTheme.LIGHT, WidgetTheme.DARK -> false
     }
@@ -115,7 +115,8 @@ object Palettes {
      * that follows its own fixed theme ignores [night].
      */
     fun widgetIsLight(settings: AppSettings, night: Boolean): Boolean = when (settings.widgetTheme) {
-        WidgetTheme.APP -> settings.theme.fixedLight ?: !night
+        WidgetTheme.APP -> settings.appearance?.let { ThemeContrast.on(it.backgroundBase) == android.graphics.Color.BLACK }
+            ?: (settings.theme.fixedLight ?: !night)
         WidgetTheme.SYSTEM -> !night
         WidgetTheme.LIGHT -> true
         WidgetTheme.DARK -> false
@@ -127,14 +128,7 @@ object Palettes {
      * Neon app gets Neon widgets in dark mode and light glass by day.
      */
     fun forWidget(context: Context, settings: AppSettings, night: Boolean): DrawColors {
-        val light = widgetIsLight(settings, night)
-        val theme = settings.theme
-        return when {
-            theme.followsSystem -> resolve(context, theme, settings.accent, night = !light)
-            theme.fixedLight == light -> resolve(context, theme, settings.accent)
-            light -> light(settings.accent)
-            else -> aurora(settings.accent)
-        }
+        return AppearanceEngine.forWidget(context, settings, night).drawColors()
     }
 
     fun withAlpha(color: Int, alpha: Int): Int = (color and 0x00FFFFFF) or (alpha.coerceIn(0, 255) shl 24)

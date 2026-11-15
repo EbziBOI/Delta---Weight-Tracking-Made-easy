@@ -95,7 +95,7 @@ fun WeightDialog(
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 if (unit == WeightUnit.ST_LB) {
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        OutlinedTextField(
+                        GlassTextField(
                             value = stonesField,
                             onValueChange = { stonesField = it },
                             modifier = Modifier
@@ -105,7 +105,7 @@ fun WeightDialog(
                             suffix = { Text("st") },
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         )
-                        OutlinedTextField(
+                        GlassTextField(
                             value = mainField,
                             onValueChange = { mainField = it },
                             modifier = Modifier.weight(1f),
@@ -115,7 +115,7 @@ fun WeightDialog(
                         )
                     }
                 } else {
-                    OutlinedTextField(
+                    GlassTextField(
                         value = mainField,
                         onValueChange = { mainField = it },
                         modifier = Modifier

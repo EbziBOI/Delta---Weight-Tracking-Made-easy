@@ -17,14 +17,20 @@ the gap to your target.
 - Weekly rate, projected goal date, on-track check and weigh-in streak
 - Five resizable widgets: progress, journey (graph and progress bar together),
   start/now/target, trend graph and pace
-- A glass look: translucent panes over soft washes of colour, in the app and on
-  the widgets. Themes Ember, Aurora, Midnight, Graphite, Neon, Light, Auto (light by day,
-  dark at night) and Material You, each with six accent colours
-- Widget glass can be solid, frosted or clear, with its own opacity for light and
-  dark mode, and can follow the phone's dark mode
-- The graph can be a smoothed trend line or connected dots, chosen separately for
-  the app and the widgets, with an optional dashed path to your goal
-- Three type pairings (Editorial, Modern, Technical) from bundled open-licence fonts
+- A customizable glass design system shared by the app and widgets: independently
+  choose background and accent colors, with automatic text and surface contrast
+- Backgrounds: solid, vertical gradient, radial gradient, mesh, or a photo picked
+  from your device; custom hex/HSV color controls and Ember, Ice, Violet, Mint,
+  Rose and Mono presets. Earlier theme choices remain available
+- Adjustable glow intensity, backdrop blur, glass transparency and corner radius,
+  with reduced-motion and reduced-transparency options
+- Widget glass can be solid, frosted or clear, with its own light/dark opacity
+  and theme mode; widgets use static shading and respect the app's accessibility settings
+- Touch and hold a placed widget, then choose Settings to customize it with a live
+  preview. Save applies only to that widget; Cancel keeps its previous look
+- Three bundled type pairings: Editorial, Modern and Technical
+- Graphs can use a smoothed trend or connected dots, separately in the app and
+  widgets, with an optional dashed path to your goal
 - kg, lb or stone and pounds
 - Log a weigh-in in the app and it is written back to Health Connect
 

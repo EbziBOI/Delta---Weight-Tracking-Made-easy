@@ -122,4 +122,6 @@ data class AppSettings(
     /** Opacity of widget glass, 0 to 1, when the widget is light. Ignored for solid widgets. */
     val widgetOpacityLight: Float = WidgetGlass.FROSTED.defaultLight,
     val lastSyncMs: Long = 0L,
+    /** Null preserves a saved legacy theme until appearance controls are first changed. */
+    val appearance: AppAppearance? = null,
 )

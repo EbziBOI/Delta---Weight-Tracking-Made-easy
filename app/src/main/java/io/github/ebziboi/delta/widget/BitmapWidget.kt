@@ -12,6 +12,12 @@ import androidx.glance.GlanceModifier
 import androidx.glance.LocalSize
 import androidx.glance.action.actionStartActivity
 import androidx.glance.action.clickable
+import androidx.glance.appwidget.appWidgetBackground
+import androidx.glance.appwidget.cornerRadius
+import androidx.compose.ui.unit.dp
+import io.github.ebziboi.delta.render.WidgetCorners
+import androidx.glance.appwidget.GlanceAppWidgetManager
+import io.github.ebziboi.delta.render.AppearanceEngine
 import androidx.glance.appwidget.AndroidRemoteViews
 import androidx.glance.appwidget.GlanceAppWidget
 import androidx.glance.appwidget.SizeMode
@@ -34,13 +40,18 @@ abstract class BitmapWidget : GlanceAppWidget() {
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         val repo = (context.applicationContext as DeltaApp).repo
         val initial = repo.widgetData.first()
+        val styleFlow = WidgetStyleStore(context).style(GlanceAppWidgetManager(context).getAppWidgetId(id))
+        val initialStyle = styleFlow.first()
         provideContent {
             val data by repo.widgetData.collectAsState(initial = initial)
+            val style by styleFlow.collectAsState(initial = initialStyle)
+            val effective = style?.apply(data.second, AppearanceEngine.resolve(context, data.second)) ?: data.second
             val size = LocalSize.current
-            val views = remember(data, size) {
-                views(context, kind, size.width.value.coerceAtLeast(1f), size.height.value.coerceAtLeast(1f), data.first, data.second)
+            val views = remember(data, effective, size) {
+                views(context, kind, size.width.value.coerceAtLeast(1f), size.height.value.coerceAtLeast(1f), data.first, effective)
             }
-            AndroidRemoteViews(remoteViews = views, modifier = GlanceModifier.fillMaxSize().clickable(actionStartActivity<MainActivity>()))
+            AndroidRemoteViews(remoteViews = views, modifier = GlanceModifier.fillMaxSize().appWidgetBackground()
+                .cornerRadius(WidgetCorners.radius(context, AppearanceEngine.resolve(context, effective).cornerRadius).dp).clickable(actionStartActivity<MainActivity>()))
         }
     }
 

@@ -118,46 +118,37 @@ private fun HistoryRow(
     onDelete: () -> Unit,
 ) {
     val colors = LocalDeltaColors.current
-    GlassSurface(
-        modifier = Modifier.fillMaxWidth(),
-        shape = MaterialTheme.shapes.medium,
-    ) {
-        Row(
-            modifier = Modifier.padding(start = 16.dp, end = 6.dp, top = 10.dp, bottom = 10.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(text = Units.weight(entry.kg, unit), style = LocalDeltaType.current.number)
-                Text(text = Format.moment(entry.epochMs), color = Color(colors.textDim), fontSize = 13.sp)
+    GlassListItem {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(text = Units.weight(entry.kg, unit), style = LocalDeltaType.current.number)
+            Text(text = Format.moment(entry.epochMs), color = Color(colors.textDim), fontSize = 13.sp)
+        }
+        if (previous != null) {
+            val change = entry.kg - previous.kg
+            // A change in the direction of the goal is good news; the other way is not.
+            val tint = when {
+                abs(change) < 0.05 -> colors.textDim
+                (change < 0) == losing -> colors.good
+                else -> colors.warn
             }
-            if (previous != null) {
-                val change = entry.kg - previous.kg
-                // A change in the direction of the goal is good news; the other way is not.
-                val tint = when {
-                    abs(change) < 0.05 -> colors.textDim
-                    (change < 0) == losing -> colors.good
-                    else -> colors.warn
-                }
-                Text(
-                    text = Units.signed(change, unit),
-                    color = Color(tint),
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Medium,
+            Text(
+                text = Units.signed(change, unit),
+                color = Color(tint),
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Medium,
+            )
+        }
+        if (entry.own) {
+            IconButton(onClick = onDelete) {
+                Icon(
+                    Icons.Filled.Delete,
+                    contentDescription = "Delete weigh-in",
+                    tint = Color(colors.textDim),
                 )
             }
-            if (entry.own) {
-                IconButton(onClick = onDelete) {
-                    Icon(
-                        Icons.Filled.Delete,
-                        contentDescription = "Delete weigh-in",
-                        tint = Color(colors.textDim),
-                    )
-                }
-            } else {
-                // Rows from other apps have no delete button; this keeps their text off the edge.
-                Spacer(Modifier.width(10.dp))
-            }
+        } else {
+            // Rows from other apps have no delete button; this keeps their text off the edge.
+            Spacer(Modifier.width(10.dp))
         }
     }
 }

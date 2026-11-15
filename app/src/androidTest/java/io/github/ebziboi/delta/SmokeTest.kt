@@ -272,7 +272,7 @@ class SmokeTest {
 
         // Changing theme restyles the whole app at once.
         tap("Appearance")
-        waitFor("Aurora")
+        waitFor("PRESETS")
         shot("13-appearance")
         tap("Neon")
         shot("14-theme-neon")
@@ -406,6 +406,9 @@ class SmokeTest {
                 targetKg = 80.0,
                 startEpochDay = startDay.toEpochDay(),
                 targetEpochDay = LocalDate.now().plusDays(95).toEpochDay(),
+                appearance = InstrumentationRegistry.getArguments().getString("delta.preset")?.let { name ->
+                    io.github.ebziboi.delta.data.AppearancePreset.entries.firstOrNull { p -> p.name == name }?.appearance()
+                },
                 theme = if (InstrumentationRegistry.getArguments().getString("delta.theme") == "EMBER") ThemeStyle.EMBER else ThemeStyle.AURORA,
                 accent = if (InstrumentationRegistry.getArguments().getString("delta.theme") == "EMBER") Accent.ORANGE else Accent.SKY,
                 typeStyle = TypeStyle.MODERN,
@@ -442,24 +445,37 @@ class SmokeTest {
         throw AssertionError("\"$what\" never appeared")
     }
 
-    private fun tap(text: String) {
-        if (!device.hasObject(By.text(text))) {
-            for (attempt in 0 until 8) {
-                swipeUp()
-                if (device.hasObject(By.text(text))) break
-            }
+    private fun visibleTarget(text: String): androidx.test.uiautomator.UiObject2? {
+        val candidates = device.findObjects(By.text(text))
+        if (text in listOf("Progress", "History", "Settings"))
+            return candidates.lastOrNull { it.visibleBounds.centerY() > device.displayHeight * 0.82f }
+        return candidates.firstOrNull {
+            val b = it.visibleBounds
+            b.height() > 12 && b.centerY() > 100 && b.centerY() < device.displayHeight * 0.82f
         }
-        waitFor(text)
+    }
+
+    private fun tap(text: String) {
+        for (attempt in 0 until 12) {
+            if (visibleTarget(text) != null) break
+            scrollPage()
+        }
+        if (visibleTarget(text) == null) for (attempt in 0 until 16) {
+            if (visibleTarget(text) != null) break
+            scrollPage(false)
+        }
         repeat(3) {
             try {
-                device.findObject(By.text(text))?.click()
-                device.waitForIdle()
+                val target = visibleTarget(text) ?: throw StaleObjectException()
+                var clickable = target
+                while (!clickable.isClickable && clickable.parent != null) clickable = clickable.parent
+                (if (clickable.isClickable) clickable else target).click()
+                device.waitForIdle(1_000)
+                Thread.sleep(300)
                 return
-            } catch (stale: StaleObjectException) {
-                Thread.sleep(400)
-            }
+            } catch (_: StaleObjectException) { Thread.sleep(400) }
         }
-        throw AssertionError("Could not tap \"$text\"")
+        throw AssertionError("Could not tap $text")
     }
 
     /**
@@ -474,11 +490,17 @@ class SmokeTest {
         }
     }
 
-    private fun swipeUp() {
-        val x = device.displayWidth / 2
-        device.swipe(x, device.displayHeight * 7 / 10, x, device.displayHeight * 3 / 10, 24)
-        device.waitForIdle()
+    private fun scrollPage(forward: Boolean = true) {
+        // Short overlapping swipes avoid sliders and don't skip controls behind the floating dock.
+        val x = device.displayWidth * 7 / 100
+        val lower = device.displayHeight * 7 / 10
+        val upper = device.displayHeight * 4 / 10
+        device.swipe(x, if (forward) lower else upper, x, if (forward) upper else lower, 24)
+        device.waitForIdle(1_000)
+        Thread.sleep(300)
     }
+
+    private fun swipeUp() = scrollPage()
 
     private fun shot(name: String) {
         device.waitForIdle()

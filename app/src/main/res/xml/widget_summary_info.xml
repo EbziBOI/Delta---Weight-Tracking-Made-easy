@@ -12,4 +12,6 @@
     android:targetCellHeight="1"
     android:targetCellWidth="4"
     android:updatePeriodMillis="1800000"
+    android:configure="io.github.ebziboi.delta.widget.WidgetConfigurationActivity"
+    android:widgetFeatures="reconfigurable|configuration_optional"
     android:widgetCategory="home_screen" />

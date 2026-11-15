@@ -22,6 +22,12 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import io.github.ebziboi.delta.data.AppAppearance
+import io.github.ebziboi.delta.render.AppearanceEngine
+import io.github.ebziboi.delta.render.DerivedTheme
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.ui.graphics.toArgb
 import io.github.ebziboi.delta.data.AppSettings
 import io.github.ebziboi.delta.render.CanvasType
 import io.github.ebziboi.delta.render.DeltaFonts
@@ -45,45 +51,69 @@ val LocalCanvasType = staticCompositionLocalOf<CanvasType> {
  */
 val LocalMotion = staticCompositionLocalOf { true }
 
-/** Corner radii. Glass reads best with generous, consistent curves. */
+val LocalAppearance = staticCompositionLocalOf { AppAppearance() }
+val LocalDerivedTheme = staticCompositionLocalOf { DerivedTheme.derive(AppAppearance()) }
+
+/** Geometry follows the active appearance, including dialogs and list rows. */
 object Radii {
-    val card = 28.dp
-    val tile = 22.dp
-    val control = 16.dp
+    val card: androidx.compose.ui.unit.Dp @Composable get() = LocalAppearance.current.cornerRadius.dp
+    val tile: androidx.compose.ui.unit.Dp @Composable get() = (LocalAppearance.current.cornerRadius * 0.85f).dp
+    val control: androidx.compose.ui.unit.Dp @Composable get() = (LocalAppearance.current.cornerRadius * 0.65f).dp
     val pill = 999.dp
 }
-
-private val DeltaShapes = Shapes(
-    extraSmall = RoundedCornerShape(10.dp),
-    small = RoundedCornerShape(14.dp),
-    medium = RoundedCornerShape(Radii.tile),
-    large = RoundedCornerShape(Radii.card),
-    extraLarge = RoundedCornerShape(32.dp),
-)
 
 @Composable
 fun DeltaTheme(settings: AppSettings, content: @Composable () -> Unit) {
     val context = LocalContext.current
+    var systemMotion by remember { mutableStateOf(systemAllowsMotion(context)) }
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { systemMotion = systemAllowsMotion(context) }
     // Reading the configuration means Auto and Material You follow the system light/dark switch.
     val night = (LocalConfiguration.current.uiMode and Configuration.UI_MODE_NIGHT_MASK) ==
         Configuration.UI_MODE_NIGHT_YES
-    val palette = remember(settings.theme, settings.accent, night) {
-        Palettes.resolve(context, settings.theme, settings.accent, night)
+    val configuration = LocalConfiguration.current
+    val derived = remember(settings.appearance, settings.theme, settings.accent, settings.motion, configuration) {
+        AppearanceEngine.forApp(context, settings, night)
     }
-    val scheme = remember(palette) { palette.toColorScheme() }
+    val appearance = derived.appearance
+    val target = derived.drawColors()
+    val motion = settings.motion && !appearance.reduceMotion && systemMotion
+    @Composable fun color(value: Int): Int {
+        val animated = animateColorAsState(Color(value), tween(if (motion) 280 else 0), label = "theme-color").value.toArgb()
+        return if (motion) animated else value
+    }
+    val background = color(target.bg)
+    val surface = color(target.surface)
+    val raised = color(target.surfaceHigh)
+    val accent = io.github.ebziboi.delta.render.ThemeContrast.readable(color(target.accent), surface, 4.5)
+    val onAccent = io.github.ebziboi.delta.render.ThemeContrast.on(accent)
+    val palette = target.copy(bg = background, bgTop = color(target.bgTop), surface = surface,
+        surfaceHigh = raised, accent = accent,
+        accent2 = io.github.ebziboi.delta.render.ThemeContrast.readable(color(target.accent2), onAccent),
+        onAccent = onAccent,
+        text = io.github.ebziboi.delta.render.ThemeContrast.readable(color(target.text), raised),
+        textDim = io.github.ebziboi.delta.render.ThemeContrast.readable(color(target.textDim), raised),
+        textFaint = io.github.ebziboi.delta.render.ThemeContrast.readable(color(target.textFaint), raised))
+    val scheme = palette.toColorScheme(derived.danger)
+    val shapes = remember(appearance.cornerRadius) { Shapes(
+        extraSmall = RoundedCornerShape((appearance.cornerRadius * 0.4f).dp),
+        small = RoundedCornerShape((appearance.cornerRadius * 0.6f).dp),
+        medium = RoundedCornerShape((appearance.cornerRadius * 0.85f).dp),
+        large = RoundedCornerShape(appearance.cornerRadius.dp),
+        extraLarge = RoundedCornerShape((appearance.cornerRadius + 4).dp),
+    ) }
     val type = remember(settings.typeStyle) { deltaType(settings.typeStyle) }
     val typography = remember(type) { type.toMaterial() }
     val canvasType = remember(settings.typeStyle) { DeltaFonts.canvas(context, settings.typeStyle) }
-    var systemMotion by remember { mutableStateOf(systemAllowsMotion(context)) }
-    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { systemMotion = systemAllowsMotion(context) }
 
     CompositionLocalProvider(
         LocalDeltaColors provides palette,
+        LocalAppearance provides appearance,
+        LocalDerivedTheme provides derived,
         LocalDeltaType provides type,
         LocalCanvasType provides canvasType,
-        LocalMotion provides (settings.motion && systemMotion),
+        LocalMotion provides motion,
     ) {
-        MaterialTheme(colorScheme = scheme, shapes = DeltaShapes, typography = typography, content = content)
+        MaterialTheme(colorScheme = scheme, shapes = shapes, typography = typography, content = content)
     }
 }
 
@@ -98,7 +128,7 @@ private fun systemAllowsMotion(context: Context): Boolean =
  * the app. Containers that hold text over other content (dialogs, sheets, the
  * date picker) use the near-opaque glass scrim so they stay readable.
  */
-private fun DrawColors.toColorScheme(): ColorScheme {
+private fun DrawColors.toColorScheme(danger: Int): ColorScheme {
     val accentColor = Color(accent)
     val onAccentColor = Color(onAccent)
     val background = Color(bg)
@@ -133,7 +163,8 @@ private fun DrawColors.toColorScheme(): ColorScheme {
             inversePrimary = accentColor,
             outline = line,
             outlineVariant = line,
-            error = Color(warn),
+            error = Color(danger),
+            onError = Color(io.github.ebziboi.delta.render.ThemeContrast.on(danger)),
             surfaceContainerLowest = background,
             surfaceContainerLow = sheet,
             surfaceContainer = card,
@@ -164,7 +195,8 @@ private fun DrawColors.toColorScheme(): ColorScheme {
             inversePrimary = accentColor,
             outline = line,
             outlineVariant = line,
-            error = Color(warn),
+            error = Color(danger),
+            onError = Color(io.github.ebziboi.delta.render.ThemeContrast.on(danger)),
             surfaceContainerLowest = background,
             surfaceContainerLow = sheet,
             surfaceContainer = card,

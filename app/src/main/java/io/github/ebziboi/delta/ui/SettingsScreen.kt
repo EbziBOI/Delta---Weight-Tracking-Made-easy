@@ -306,28 +306,7 @@ private fun SettingsDetail(
         TextAction("Back", onClick = onBack, modifier = Modifier.padding(top = 12.dp))
         ScreenHeader(title = title)
         when (title) {
-            "Appearance" -> {
-                GlassCard {
-                    Caption("Theme")
-                    ChoiceRow(ThemeStyle.entries, settings.theme, { it.label }) { chosen -> vm.update { it.copy(theme = chosen,
-                        accent = if (chosen == ThemeStyle.EMBER) Accent.ORANGE else it.accent,
-                        typeStyle = if (chosen == ThemeStyle.EMBER) TypeStyle.MODERN else it.typeStyle) } }
-                    Text(settings.theme.detail, color = Color(colors.textDim))
-                }
-                GlassCard {
-                    Caption("Accent colour")
-                    if (settings.theme == ThemeStyle.DYNAMIC) Text("Material You takes its colours from your wallpaper.")
-                    else ChoiceRow(Accent.entries, settings.accent, { it.label }) { chosen -> vm.update { it.copy(accent = chosen) } }
-                }
-                GlassCard {
-                    Caption("Typography")
-                    ChoiceRow(TypeStyle.entries, settings.typeStyle, { it.label }) { chosen -> vm.update { it.copy(typeStyle = chosen) } }
-                    Text("Your progress, beautifully clear", style = LocalDeltaType.current.title)
-                    Text("82.4 kg", style = LocalDeltaType.current.number)
-                    ToggleRow("Motion", settings.motion, { enabled -> vm.update { it.copy(motion = enabled) } },
-                        note = "Slow-moving light and gentle entrances. Follows the phone's animation setting.")
-                }
-            }
+            "Appearance" -> AppearanceControls(vm, settings)
             "Graphs" -> {
                 GlassCard {
                     Caption("In the app")

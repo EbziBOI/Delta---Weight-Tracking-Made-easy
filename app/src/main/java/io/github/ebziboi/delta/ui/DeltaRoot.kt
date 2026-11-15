@@ -1,9 +1,5 @@
 package io.github.ebziboi.delta.ui
 
-import dev.chrisbanes.haze.HazeState
-import dev.chrisbanes.haze.HazeTint
-import dev.chrisbanes.haze.hazeEffect
-import dev.chrisbanes.haze.hazeSource
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -37,6 +33,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -59,8 +57,8 @@ import io.github.ebziboi.delta.data.HealthState
 @Composable
 fun DeltaRoot(vm: AppViewModel = viewModel()) {
     val loaded by vm.settings.collectAsStateWithLifecycle()
-    // Until the saved settings arrive the window background shows, which matches the default theme.
-    val settings = loaded ?: return
+    // Keep the loading surface still until saved appearance preferences arrive.
+    val settings = loaded ?: AppSettings(appearance = io.github.ebziboi.delta.data.AppAppearance(reduceMotion = true))
 
     DeltaTheme(settings) {
         val colors = LocalDeltaColors.current
@@ -92,10 +90,15 @@ fun DeltaRoot(vm: AppViewModel = viewModel()) {
             color = Color(colors.bg),
             contentColor = Color(colors.text),
         ) {
-            if (settings.onboardingDone) {
-                MainScreen(vm, settings, health, snackbar, requestAccess)
-            } else {
-                AuroraBackground { OnboardingScreen(vm, settings, health, requestAccess) }
+            GlassBackground {
+                when {
+                    loaded == null -> androidx.compose.foundation.layout.Column(Modifier.fillMaxSize().padding(24.dp)) {
+                        androidx.compose.foundation.layout.Spacer(Modifier.size(56.dp))
+                        ShimmerPlaceholder()
+                    }
+                    settings.onboardingDone -> MainScreen(vm, settings, health, snackbar, requestAccess)
+                    else -> OnboardingScreen(vm, settings, health, requestAccess)
+                }
             }
         }
     }
@@ -114,7 +117,6 @@ private fun MainScreen(
     requestAccess: () -> Unit,
 ) {
     val colors = LocalDeltaColors.current
-    val haze = remember { HazeState() }
     var tab by rememberSaveable { mutableStateOf(0) }
     var logging by remember { mutableStateOf(false) }
     val snap by vm.snapshot.collectAsStateWithLifecycle()
@@ -124,18 +126,7 @@ private fun MainScreen(
         contentColor = Color(colors.text),
         snackbarHost = { SnackbarHost(snackbar) },
         bottomBar = {
-            NavigationBar(
-                modifier = Modifier.padding(horizontal = 16.dp).navigationBarsPadding().padding(bottom = 12.dp)
-                    .glass(RoundedCornerShape(30.dp), colors, elevated = true)
-                    .hazeEffect(haze) {
-                    backgroundColor = Color(colors.bg)
-                    blurRadius = 28.dp
-                    noiseFactor = 0.015f
-                    tints = listOf(HazeTint(Color(colors.glass.fillTop)))
-                    fallbackTint = HazeTint(Color(colors.glass.scrim))
-                },
-                windowInsets = WindowInsets(0),
-                containerColor = Color.Transparent, tonalElevation = 0.dp) {
+            GlassBottomNavBar {
                 TABS.forEachIndexed { index, item ->
                     NavigationBarItem(
                         selected = tab == index,
@@ -161,7 +152,7 @@ private fun MainScreen(
         },
         floatingActionButton = {
             if (tab != 2) {
-                PrimaryButton(
+                AccentButton(
                     text = "Log weight", icon = io.github.ebziboi.delta.R.drawable.ic_add,
                     modifier = Modifier.semantics { contentDescription = "Log weight" },
                     onClick = { if (health?.canWrite == false) requestAccess() else logging = true },
@@ -169,7 +160,11 @@ private fun MainScreen(
             }
         },
     ) { padding ->
-        AuroraBackground(modifier = Modifier.navigationBarsPadding().padding(bottom = 12.dp).clipToBounds().hazeSource(haze)) {
+        androidx.compose.foundation.layout.Box(Modifier.fillMaxSize().navigationBarsPadding().padding(bottom = 12.dp).clipToBounds().drawWithContent {
+            drawContent()
+            drawRect(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.94f)),
+                startY = (size.height - 180.dp.toPx()).coerceAtLeast(0f), endY = size.height))
+        }) {
             when (tab) {
                 0 -> ProgressScreen(vm, settings, health, padding, requestAccess, onOpenSettings = { tab = 2 })
                 1 -> HistoryScreen(vm, settings, padding)
@@ -213,7 +208,7 @@ private fun DeltaIcon() {
 
 /** Dark themes want light status-bar icons and light themes dark ones. */
 @Composable
-private fun SystemBars(light: Boolean) {
+internal fun SystemBars(light: Boolean) {
     val activity = LocalActivity.current as? ComponentActivity ?: return
     LaunchedEffect(light) {
         val clear = android.graphics.Color.TRANSPARENT

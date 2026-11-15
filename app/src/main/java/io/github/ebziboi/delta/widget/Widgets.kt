@@ -16,6 +16,7 @@ import androidx.glance.appwidget.updateAll
 import io.github.ebziboi.delta.data.SyncWorker
 import io.github.ebziboi.delta.render.WidgetKind
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.runBlocking
 
 class ProgressWidget : BitmapWidget() { override val kind = WidgetKind.PROGRESS }
 class SummaryWidget : BitmapWidget() { override val kind = WidgetKind.SUMMARY }
@@ -28,6 +29,15 @@ class JourneyWidget : BitmapWidget() { override val kind = WidgetKind.JOURNEY }
  * redrawing, that is taken as the cue to fetch the latest weigh-ins.
  */
 abstract class DeltaWidgetReceiver : GlanceAppWidgetReceiver() {
+    override fun onDeleted(context: Context, appWidgetIds: IntArray) {
+        super.onDeleted(context, appWidgetIds)
+        runBlocking { WidgetStyleStore(context).delete(appWidgetIds) }
+    }
+    override fun onRestored(context: Context, oldWidgetIds: IntArray, newWidgetIds: IntArray) {
+        runBlocking { WidgetStyleStore(context).restore(oldWidgetIds, newWidgetIds) }
+        super.onRestored(context, oldWidgetIds, newWidgetIds)
+    }
+
     override fun onUpdate(context: Context, appWidgetManager: AppWidgetManager, appWidgetIds: IntArray) {
         super.onUpdate(context, appWidgetManager, appWidgetIds)
         runCatching { SyncWorker.requestNow(context) }
@@ -56,6 +66,16 @@ class JourneyWidgetReceiver : DeltaWidgetReceiver() {
 
 /** Which receiver serves each kind of widget, for adding one from inside the app. */
 object WidgetCatalog {
+    fun widget(kind: WidgetKind): BitmapWidget = when (kind) {
+        WidgetKind.PROGRESS -> ProgressWidget()
+        WidgetKind.JOURNEY -> JourneyWidget()
+        WidgetKind.SUMMARY -> SummaryWidget()
+        WidgetKind.TREND -> TrendWidget()
+        WidgetKind.PACE -> PaceWidget()
+    }
+
+    fun kind(providerClassName: String): WidgetKind? = WidgetKind.entries.firstOrNull { receiver(it).name == providerClassName }
+
     fun receiver(kind: WidgetKind): Class<out android.appwidget.AppWidgetProvider> = when (kind) {
         WidgetKind.PROGRESS -> ProgressWidgetReceiver::class.java
         WidgetKind.JOURNEY -> JourneyWidgetReceiver::class.java
@@ -66,6 +86,11 @@ object WidgetCatalog {
 }
 
 object WidgetUpdater {
+    suspend fun updateOne(context: Context, widgetId: Int, kind: WidgetKind) = withContext(Dispatchers.Default) {
+        val id = androidx.glance.appwidget.GlanceAppWidgetManager(context).getGlanceIdBy(widgetId)
+        WidgetCatalog.widget(kind).update(context, id)
+    }
+
     private val previewLock = Mutex()
     private var lastPreviewAttempt = 0L
 

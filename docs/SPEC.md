@@ -24,9 +24,10 @@ past (the first use is a journey that began in September).
 | Units | kg, lb, or stone and pounds, switchable in settings |
 | Health Connect | Read and write |
 | Storage | Single user, on the phone. Android's built-in backup plus a manual export; no account, no server |
-| Look | Glass, in the spirit of iOS 26 and One UI: translucent panes with bright rims over deep backgrounds lit by soft washes of the accent colour. Heavily customisable: themes (Ember, Aurora, Midnight, Graphite, Neon, Light, Auto, Material You) and six accents, applied to widgets too |
+| Look | A shared, themeable glass control panel: independent background/accent colors, derived accessible roles, solid/vertical/radial/mesh/photo backgrounds, adjustable glow/blur/opacity/radius, reduced motion and reduced transparency. Ember, Ice, Violet, Mint, Rose and Mono presets; earlier themes remain available |
 | Type | Bundled open-licence fonts in three pairings. Editorial: Instrument Serif headings, Space Grotesk figures, JetBrains Mono labels, Manrope text. Modern (the default) and Technical swap the headings and figures |
 | Widgets | Drawn as images by Delta, so they match the app exactly. Glass is solid, frosted or clear, with separate opacity in light and dark mode. Widgets can follow the app's theme or the phone's dark mode; from Android 12 the home screen holds a light and a dark image and switches itself |
+| Widget settings | Launcher long-press Settings with live preview, Save/Cancel and independent per-widget appearance; global defaults remain available |
 | Food data | Open Food Facts |
 | Photo logging | AI vision with the user's own API key; Claude, Gemini or OpenAI chosen in settings |
 | Icon | The "Echo" delta: a typographic Δ inside one delta-shaped progress track. The launcher icon is fixed; in the app and widgets the track is live |

@@ -51,6 +51,7 @@ class SettingsStore(context: Context) {
         val WIDGET_OPACITY_LIGHT = floatPreferencesKey("widget_opacity_light")
         val LAST_SYNC = longPreferencesKey("last_sync")
         val WEIGHTS = stringPreferencesKey("weights")
+        val APPEARANCE = stringPreferencesKey("appearance_v1")
     }
 
     val settings: Flow<AppSettings> = appContext.settingsStore.data
@@ -94,6 +95,7 @@ class SettingsStore(context: Context) {
             widgetOpacityDark = opacity(prefs[Keys.WIDGET_OPACITY_DARK], glass.defaultDark),
             widgetOpacityLight = opacity(prefs[Keys.WIDGET_OPACITY_LIGHT], glass.defaultLight),
             lastSyncMs = prefs[Keys.LAST_SYNC] ?: 0L,
+            appearance = decodeAppearance(prefs[Keys.APPEARANCE]) ?: if (prefs[Keys.THEME] == null) AppAppearance() else null,
         )
     }
 
@@ -116,6 +118,40 @@ class SettingsStore(context: Context) {
         prefs[Keys.WIDGET_OPACITY_DARK] = opacity(settings.widgetOpacityDark, settings.widgetGlass.defaultDark)
         prefs[Keys.WIDGET_OPACITY_LIGHT] = opacity(settings.widgetOpacityLight, settings.widgetGlass.defaultLight)
         prefs[Keys.LAST_SYNC] = settings.lastSyncMs
+        put(prefs, Keys.APPEARANCE, settings.appearance?.let(::encodeAppearance))
+    }
+
+    private fun encodeAppearance(value: AppAppearance): String {
+        val a = value.normalized()
+        return org.json.JSONObject().apply {
+            put("style", a.backgroundStyle.name)
+            put("base", a.backgroundBase); put("secondary", a.backgroundSecondary); put("accent", a.accent)
+            put("intensity", a.accentIntensity); put("blur", a.glassBlurRadius)
+            put("opacity", a.glassOpacity); put("radius", a.cornerRadius)
+            put("reduceMotion", a.reduceMotion); put("reduceTransparency", a.reduceTransparency)
+            a.backgroundImageUri?.let { put("image", it) }
+        }.toString()
+    }
+
+    private fun decodeAppearance(text: String?): AppAppearance? {
+        if (text == null) return null
+        return runCatching {
+            val json = org.json.JSONObject(text)
+            val d = AppAppearance()
+            AppAppearance(
+                backgroundStyle = named(json.optString("style"), d.backgroundStyle),
+                backgroundBase = json.optInt("base", d.backgroundBase),
+                backgroundSecondary = json.optInt("secondary", d.backgroundSecondary),
+                accent = json.optInt("accent", d.accent),
+                accentIntensity = json.optDouble("intensity", d.accentIntensity.toDouble()).toFloat(),
+                glassBlurRadius = json.optDouble("blur", d.glassBlurRadius.toDouble()).toFloat(),
+                glassOpacity = json.optDouble("opacity", d.glassOpacity.toDouble()).toFloat(),
+                cornerRadius = json.optDouble("radius", d.cornerRadius.toDouble()).toFloat(),
+                reduceMotion = json.optBoolean("reduceMotion", false),
+                reduceTransparency = json.optBoolean("reduceTransparency", false),
+                backgroundImageUri = json.optString("image").takeIf { it.isNotBlank() && it != "null" },
+            ).normalized()
+        }.getOrNull()
     }
 
     /** Keeps an opacity between 0 and 1; anything unreadable becomes [fallback]. */

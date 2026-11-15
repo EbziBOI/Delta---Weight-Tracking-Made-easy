@@ -36,39 +36,8 @@ object WidgetBitmaps {
         val type = DeltaFonts.canvas(context, settings.typeStyle)
         val canvas = Canvas(bitmap)
         canvas.scale(scale, scale)
-        val radius = min(24f, min(widthDp, heightDp) / 2)
-        val clip = Path().apply { addRoundRect(RectF(0f, 0f, widthDp, heightDp), radius, radius, Path.Direction.CW) }
-        canvas.clipPath(clip)
-        val opacity = if (settings.widgetGlass == WidgetGlass.SOLID) 1f else
-            (if (colors.isLight) settings.widgetOpacityLight else settings.widgetOpacityDark).let { if (it.isFinite()) it.coerceIn(0f, 1f) else 0.6f }
-        val body = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            shader = LinearGradient(0f, 0f, widthDp, heightDp,
-                Palettes.withAlpha(colors.bgTop, (opacity * 255).roundToInt()),
-                Palettes.withAlpha(colors.bg, (opacity * 255).roundToInt()), Shader.TileMode.CLAMP)
-        }
-        canvas.drawPath(clip, body)
-        // An inner wash and bright rim give the glass body depth without drawing outside its corners.
-        if (settings.widgetGlass != WidgetGlass.CLEAR) {
-            val wash = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                shader = RadialGradient(widthDp * 0.12f, 0f, max(widthDp, heightDp) * 0.85f,
-                    Palettes.fade(colors.accent, 0.13f * opacity), Color.TRANSPARENT, Shader.TileMode.CLAMP)
-            }
-            canvas.drawPath(clip, wash)
-        }
-        canvas.drawRoundRect(0.5f, 0.5f, widthDp - 0.5f, heightDp - 0.5f, radius, radius,
-            Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                style = Paint.Style.STROKE; strokeWidth = 1f
-                shader = LinearGradient(0f, 0f, widthDp, heightDp,
-                    intArrayOf(colors.glass.edge, colors.glass.edgeFaint, colors.glass.edgeFaint, colors.glass.highlight),
-                    floatArrayOf(0f, 0.28f, 0.82f, 1f), Shader.TileMode.CLAMP)
-            })
-        if (settings.theme == ThemeStyle.EMBER && settings.widgetGlass != WidgetGlass.CLEAR) {
-            val light = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                shader = RadialGradient(widthDp * 0.2f, -heightDp * 0.25f, max(widthDp, heightDp),
-                    Palettes.fade(colors.accent2, opacity * 0.28f), Color.TRANSPARENT, Shader.TileMode.CLAMP)
-            }
-            canvas.drawPath(clip, light)
-        }
+        val theme = AppearanceEngine.forWidget(context, settings, night)
+        GlassWidgetSurface.draw(canvas, widthDp, heightDp, theme, settings, WidgetCorners.radius(context, theme.appearance.cornerRadius))
 
         // Draw tiny hosts in a larger logical coordinate space so content scales down together.
         val fit = min(1f, min(widthDp / 150f, heightDp / 82f))
@@ -99,6 +68,17 @@ object WidgetBitmaps {
             if (room <= 0) return
             val measured = paint.measureText(value)
             if (measured > room) paint.textSize *= room / measured
+            if (settings.widgetGlass != WidgetGlass.SOLID) {
+                // A crisp opposite-luminance halo keeps glyphs legible over unknown launcher wallpapers.
+                val halo = Paint(paint).apply {
+                    clearShadowLayer()
+                    this.color = ThemeContrast.on(color)
+                    style = Paint.Style.STROKE
+                    strokeJoin = Paint.Join.ROUND
+                    strokeWidth = 0.9f
+                }
+                c.drawText(value, x, y, halo)
+            }
             c.drawText(value, x, y, paint)
         }
         fun label(value: String, x: Float, y: Float, align: Paint.Align = Paint.Align.LEFT, room: Float = w - pad * 2) =

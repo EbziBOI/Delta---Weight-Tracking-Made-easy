@@ -19,6 +19,8 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -42,6 +44,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -64,6 +67,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.dropShadow
+import androidx.compose.ui.draw.drawWithCache
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawOutline
 import androidx.compose.ui.draw.innerShadow
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
@@ -129,6 +135,7 @@ fun Modifier.glass(
     colors: DrawColors,
     glow: Color? = null,
     elevated: Boolean = true,
+    directional: Boolean = true,
 ): Modifier {
     val g = colors.glass
     var result = this
@@ -159,6 +166,29 @@ fun Modifier.glass(
             )
         }
     }
+    if (directional) {
+        result = result.drawBehind {
+            drawRect(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.13f)),
+                startY = size.height * 0.55f, endY = size.height))
+        }.drawWithCache {
+            val outline = shape.createOutline(size, layoutDirection, this)
+            val rim = Brush.verticalGradient(listOf(
+                Color(g.highlight).copy(alpha = if (colors.isLight) 0.22f else 0.64f),
+                Color(g.highlight).copy(alpha = if (colors.isLight) 0.10f else 0.24f),
+                Color(g.highlight).copy(alpha = 0.025f), Color.Transparent),
+                startY = 0f, endY = size.height * 0.86f)
+            val reflection = Brush.verticalGradient(listOf(
+                (glow ?: Color(colors.accent)).copy(alpha = (glow?.alpha ?: 0.1f) * 0.55f), Color.Transparent),
+                endY = size.height * 0.55f)
+            onDrawWithContent {
+                drawContent()
+                drawOutline(outline, Color(g.edge).copy(alpha = 0.08f), style = Stroke(1.dp.toPx()))
+                drawOutline(outline, rim, style = Stroke(1.5.dp.toPx()))
+                drawOutline(outline, reflection, style = Stroke(1.dp.toPx()))
+            }
+        }
+        return result
+    }
     return result
         .innerShadow(shape, Shadow(radius = 1.5.dp, color = Color(g.highlight), offset = DpOffset(0.dp, 1.dp)))
         .border(
@@ -179,9 +209,10 @@ fun Modifier.glass(
 @Composable
 fun Modifier.pressScale(source: MutableInteractionSource, pressedScale: Float = 0.97f): Modifier {
     val pressed by source.collectIsPressedAsState()
+    val motion = LocalMotion.current
     val scale by animateFloatAsState(
-        targetValue = if (pressed) pressedScale else 1f,
-        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium),
+        targetValue = if (pressed && motion) pressedScale else 1f,
+        animationSpec = tween(if (motion) 180 else 0, easing = FastOutSlowInEasing),
         label = "press",
     )
     return graphicsLayer {
@@ -198,15 +229,16 @@ fun Modifier.pressScale(source: MutableInteractionSource, pressedScale: Float = 
 fun Modifier.entrance(index: Int = 0): Modifier {
     val motion = LocalMotion.current
     val progress = remember { Animatable(if (motion) 0f else 1f) }
-    LaunchedEffect(Unit) {
-        if (progress.value < 1f) {
+    LaunchedEffect(motion) {
+        if (!motion) progress.snapTo(1f)
+        else if (progress.value < 1f) {
             delay(45L * index.coerceAtMost(10))
-            progress.animateTo(1f, tween(durationMillis = 560, easing = FastOutSlowInEasing))
+            progress.animateTo(1f, tween(durationMillis = 280, easing = FastOutSlowInEasing))
         }
     }
     return graphicsLayer {
         alpha = progress.value
-        translationY = (1f - progress.value) * 22.dp.toPx()
+        translationY = (1f - progress.value) * 12.dp.toPx()
     }
 }
 
@@ -215,56 +247,8 @@ fun Modifier.entrance(index: Int = 0): Modifier {
  * drift very slowly, so the glass above always has light to catch.
  */
 @Composable
-fun AuroraBackground(modifier: Modifier = Modifier, content: @Composable BoxScope.() -> Unit) {
-    val colors = LocalDeltaColors.current
-    val drift = if (LocalMotion.current) {
-        rememberInfiniteTransition(label = "aurora").animateFloat(
-            initialValue = 0f,
-            targetValue = 1f,
-            animationSpec = infiniteRepeatable(tween(durationMillis = 36_000, easing = LinearEasing), RepeatMode.Restart),
-            label = "drift",
-        )
-    } else {
-        null
-    }
-    Box(
-        modifier = modifier
-            .fillMaxSize()
-            .drawBehind {
-                drawRect(
-                    Brush.verticalGradient(
-                        0f to Color(colors.bgTop),
-                        0.55f to Color(colors.bg),
-                        1f to Color(colors.bg),
-                    ),
-                )
-                // Read in the draw phase only, so drifting never recomposes anything.
-                val turn = (drift?.value ?: 0f) * 2f * PI.toFloat()
-                val longest = max(size.width, size.height)
-                colors.aurora.forEachIndexed { index, blob ->
-                    val phase = turn + index * 2.1f
-                    val center = Offset(
-                        blob.x * size.width + sin(phase) * size.width * 0.06f,
-                        blob.y * size.height + cos(phase * 0.8f) * size.height * 0.04f,
-                    )
-                    val radius = blob.radius * longest * (1f + 0.05f * sin(phase * 1.3f))
-                    val tint = Color(blob.color)
-                    drawCircle(
-                        brush = Brush.radialGradient(
-                            0f to tint,
-                            0.45f to tint.copy(alpha = tint.alpha * 0.5f),
-                            1f to tint.copy(alpha = 0f),
-                            center = center,
-                            radius = radius,
-                        ),
-                        radius = radius,
-                        center = center,
-                    )
-                }
-            },
-        content = content,
-    )
-}
+fun AuroraBackground(modifier: Modifier = Modifier, content: @Composable BoxScope.() -> Unit) =
+    GlassBackground(modifier, content)
 
 // ---- Containers ----------------------------------------------------------------------------
 
@@ -279,26 +263,7 @@ fun GlassCard(
     spacing: Dp = 12.dp,
     content: @Composable ColumnScope.() -> Unit,
 ) {
-    val colors = LocalDeltaColors.current
-    val source = remember { MutableInteractionSource() }
-    var base = modifier.fillMaxWidth()
-    if (onClick != null) base = base.pressScale(source, 0.985f)
-    base = base.glass(shape, colors, glow)
-    if (onClick != null) {
-        base = base.clickable(
-            interactionSource = source,
-            indication = ripple(color = Color(colors.text)),
-            role = Role.Button,
-            onClick = onClick,
-        )
-    }
-    CompositionLocalProvider(LocalContentColor provides Color(colors.text)) {
-        Column(
-            modifier = base.padding(contentPadding),
-            verticalArrangement = Arrangement.spacedBy(spacing),
-            content = content,
-        )
-    }
+    RefractiveGlassCard(modifier, onClick, shape, glow, contentPadding, spacing, content)
 }
 
 /** A plain pane of glass with no padding or layout of its own, for custom content. */
@@ -312,7 +277,7 @@ fun GlassSurface(
 ) {
     val colors = LocalDeltaColors.current
     CompositionLocalProvider(LocalContentColor provides Color(colors.text)) {
-        Box(modifier = modifier.glass(shape, colors, glow, elevated), content = content)
+        Box(modifier = modifier.refractiveGlass(shape, colors, glow, elevated), content = content)
     }
 }
 
@@ -404,6 +369,10 @@ fun ValueWithUnit(
 /** Text that rolls to its new value instead of jumping, for numbers that change in place. */
 @Composable
 fun RollingText(text: String, style: TextStyle, modifier: Modifier = Modifier, color: Color = Color.Unspecified) {
+    if (!LocalMotion.current) {
+        Text(text, modifier = modifier, style = style, color = color, maxLines = 1)
+        return
+    }
     AnimatedContent(
         targetState = text,
         modifier = modifier,
@@ -482,11 +451,12 @@ fun PrimaryButton(
 ) {
     val colors = LocalDeltaColors.current
     val source = remember { MutableInteractionSource() }
-    val shape = RoundedCornerShape(Radii.pill)
+    val shape = RoundedCornerShape(Radii.control)
     val accent = Color(colors.accent)
+    val intensity = LocalAppearance.current.accentIntensity
     val fill = if (enabled) {
         Modifier
-            .dropShadow(shape, Shadow(radius = 22.dp, color = accent.copy(alpha = 0.28f), offset = DpOffset(0.dp, 8.dp)))
+            .dropShadow(shape, Shadow(radius = 22.dp, color = accent.copy(alpha = 0.28f * intensity), offset = DpOffset(0.dp, 8.dp)))
             .clip(shape)
             .background(
                 Brush.horizontalGradient(
@@ -535,7 +505,7 @@ fun SecondaryButton(
         modifier = modifier
             .heightIn(min = 48.dp)
             .pressScale(source)
-            .glass(RoundedCornerShape(Radii.pill), colors, elevated = false)
+            .refractiveGlass(RoundedCornerShape(Radii.control), colors, elevated = false)
             .clickable(
                 interactionSource = source,
                 indication = ripple(color = ink),
@@ -557,7 +527,7 @@ fun SecondaryButton(
 fun TextAction(text: String, onClick: () -> Unit, modifier: Modifier = Modifier, color: Color = Color(LocalDeltaColors.current.accent)) {
     Text(
         text = text,
-        modifier = modifier
+        modifier = modifier.heightIn(min = 48.dp)
             .clip(RoundedCornerShape(Radii.control))
             .clickable(role = Role.Button, onClick = onClick)
             .padding(horizontal = 4.dp, vertical = 8.dp),
@@ -636,7 +606,7 @@ fun ProgressRail(fraction: Float?, modifier: Modifier = Modifier, height: Dp = 1
     val motion = LocalMotion.current
     val shown by animateFloatAsState(
         targetValue = (fraction ?: 0f).coerceIn(0f, 1f),
-        animationSpec = if (motion) tween(durationMillis = 1100, easing = FastOutSlowInEasing) else tween(0),
+        animationSpec = if (motion) tween(durationMillis = 300, easing = FastOutSlowInEasing) else tween(0),
         label = "rail",
     )
     val spoken = if (fraction == null) "No progress yet" else "${(fraction * 100).roundToInt()} percent of the way to your target"
@@ -692,9 +662,10 @@ fun DeltaTrack(fraction: Float?, modifier: Modifier = Modifier, glow: Boolean = 
     val colors = LocalDeltaColors.current
     val canvasType = LocalCanvasType.current
     val motion = LocalMotion.current
+    val intensity = LocalAppearance.current.accentIntensity
     val shown by animateFloatAsState(
         targetValue = fraction ?: 0f,
-        animationSpec = if (motion) tween(durationMillis = 1300, easing = FastOutSlowInEasing) else tween(0),
+        animationSpec = if (motion) tween(durationMillis = 300, easing = FastOutSlowInEasing) else tween(0),
         label = "delta-progress",
     )
     val spoken = if (fraction == null) "Delta" else "${(fraction * 100).roundToInt()} percent of the way to your target"
@@ -707,8 +678,8 @@ fun DeltaTrack(fraction: Float?, modifier: Modifier = Modifier, glow: Boolean = 
             val center = Offset(size.width / 2f, top + side * 0.6f)
             drawCircle(
                 brush = Brush.radialGradient(
-                    0f to Color(colors.accent).copy(alpha = if (colors.isLight) 0.20f else 0.32f),
-                    0.5f to Color(colors.accent2).copy(alpha = if (colors.isLight) 0.06f else 0.10f),
+                    0f to Color(colors.accent).copy(alpha = (if (colors.isLight) 0.20f else 0.32f) * intensity),
+                    0.5f to Color(colors.accent2).copy(alpha = (if (colors.isLight) 0.06f else 0.10f) * intensity),
                     1f to Color.Transparent,
                     center = center,
                     radius = side * 0.62f,
@@ -741,10 +712,10 @@ fun TrendChartView(spec: ChartSpec, modifier: Modifier = Modifier, labels: Boole
     val canvasType = LocalCanvasType.current
     val motion = LocalMotion.current
     val reveal = remember { Animatable(if (motion) 0f else 1f) }
-    LaunchedEffect(spec.points.size, spec.points.firstOrNull()?.epochMs, spec.style) {
+    LaunchedEffect(spec.points.size, spec.points.firstOrNull()?.epochMs, spec.style, motion) {
         if (motion) {
             reveal.snapTo(0f)
-            reveal.animateTo(1f, tween(durationMillis = 1100, easing = FastOutSlowInEasing))
+            reveal.animateTo(1f, tween(durationMillis = 300, easing = FastOutSlowInEasing))
         } else {
             reveal.snapTo(1f)
         }
@@ -788,7 +759,7 @@ fun <T> SegmentedControl(
         animationSpec = spring(dampingRatio = 0.78f, stiffness = Spring.StiffnessMediumLow),
         label = "segment",
     )
-    val shape = RoundedCornerShape(Radii.pill)
+    val shape = RoundedCornerShape(Radii.control)
     val accent = Color(colors.accent)
     Row(
         modifier = modifier
@@ -855,8 +826,9 @@ fun <T> ChoiceRow(
             }
             Text(
                 text = label(option),
-                modifier = look
+                modifier = look.heightIn(min = 48.dp)
                     .clickable(role = Role.RadioButton) { onSelect(option) }
+                    .wrapContentHeight(Alignment.CenterVertically)
                     .padding(horizontal = 16.dp, vertical = 9.dp),
                 style = type.bodySmall.copy(fontWeight = type.bodyStrong.fontWeight),
                 color = if (isSelected) Color(colors.onAccent) else Color(colors.text),
@@ -937,16 +909,7 @@ fun NavRow(
 /** An icon in a small glass square, tinted with the accent. Leads settings rows. */
 @Composable
 fun IconBadge(icon: Int, modifier: Modifier = Modifier, tint: Color = Color(LocalDeltaColors.current.accent)) {
-    Box(
-        modifier = modifier
-            .size(38.dp)
-            .clip(RoundedCornerShape(12.dp))
-            .background(tint.copy(alpha = 0.14f))
-            .border(1.dp, tint.copy(alpha = 0.22f), RoundedCornerShape(12.dp)),
-        contentAlignment = Alignment.Center,
-    ) {
-        DeltaIcon(icon, contentDescription = null, tint = tint, size = 20.dp)
-    }
+    GlowingIcon(icon, modifier, tint)
 }
 
 /** A setting that is on or off. */
@@ -962,7 +925,7 @@ fun ToggleRow(
     val type = LocalDeltaType.current
     Row(
         modifier = Modifier
-            .fillMaxWidth()
+            .fillMaxWidth().heightIn(min = 48.dp)
             .clip(RoundedCornerShape(Radii.control))
             .clickable(role = Role.Switch) { onCheckedChange(!checked) }
             .padding(vertical = 8.dp, horizontal = 2.dp),
@@ -1068,17 +1031,7 @@ fun GlassDialog(
     val colors = LocalDeltaColors.current
     val type = LocalDeltaType.current
     BasicAlertDialog(onDismissRequest = onDismissRequest, modifier = modifier) {
-        val shape = RoundedCornerShape(Radii.card)
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .dropShadow(shape, Shadow(radius = 40.dp, color = Color.Black.copy(alpha = 0.35f), offset = DpOffset(0.dp, 16.dp)))
-                .clip(shape)
-                .background(Color(colors.glass.scrim))
-                .glass(shape, colors, elevated = false)
-                .padding(24.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-        ) {
+        GlassSheet(modifier = Modifier.verticalScroll(rememberScrollState())) {
             Text(text = title, style = type.title, color = Color(colors.text))
             CompositionLocalProvider(LocalContentColor provides Color(colors.text)) {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp), content = content)
@@ -1093,9 +1046,9 @@ fun GlassDialog(
                     Spacer(Modifier.width(8.dp))
                 }
                 if (destructive) {
-                    TextAction(confirmLabel, onClick = { if (confirmEnabled) onConfirm() }, color = Color(colors.warn))
+                    TextAction(confirmLabel, onClick = { if (confirmEnabled) onConfirm() }, color = Color(LocalDerivedTheme.current.danger))
                 } else {
-                    PrimaryButton(text = confirmLabel, onClick = onConfirm, enabled = confirmEnabled)
+                    AccentButton(text = confirmLabel, onClick = onConfirm, enabled = confirmEnabled)
                 }
             }
         }
