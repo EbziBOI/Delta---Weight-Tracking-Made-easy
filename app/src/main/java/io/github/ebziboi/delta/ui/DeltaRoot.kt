@@ -129,7 +129,7 @@ private fun MainScreen(
                         onClick = { tab = index },
                         icon = {
                             when (index) {
-                                0 -> DeltaIcon()
+                                0 -> Icon(androidx.compose.ui.res.painterResource(io.github.ebziboi.delta.R.drawable.ic_delta_mark), contentDescription = null)
                                 1 -> Icon(Icons.Filled.DateRange, contentDescription = null)
                                 else -> Icon(Icons.Filled.Settings, contentDescription = null)
                             }
@@ -176,26 +176,6 @@ private fun MainScreen(
                 logging = false
                 vm.logWeight(kg, at)
             },
-        )
-    }
-}
-
-/** The Progress tab's icon: a small delta, tinted like any other icon. */
-@Composable
-private fun DeltaIcon() {
-    val tint = LocalContentColor.current
-    Canvas(modifier = Modifier.size(24.dp)) {
-        val inset = 3.5.dp.toPx()
-        val outline = Path().apply {
-            moveTo(size.width / 2f, inset)
-            lineTo(size.width - inset + 1f, size.height - inset)
-            lineTo(inset - 1f, size.height - inset)
-            close()
-        }
-        drawPath(
-            path = outline,
-            color = tint,
-            style = Stroke(width = 2.2.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round),
         )
     }
 }

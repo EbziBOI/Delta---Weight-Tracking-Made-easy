@@ -6,10 +6,14 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import java.time.Instant
+
+/** How an import went: weigh-ins added, and ones Health Connect already had. */
+data class ImportResult(val added: Int, val alreadyThere: Int)
 
 sealed interface SyncResult {
     data class Done(val count: Int) : SyncResult
@@ -79,6 +83,30 @@ class WeightRepository(context: Context) {
     } catch (error: Exception) {
         false
     }
+
+    /**
+     * Adds weigh-ins from a scale's export to Health Connect. Readings the scale
+     * saved twice within minutes count once, and anything already in Health
+     * Connect (often the scale's own app syncs there too) is skipped.
+     */
+    suspend fun importReadings(readings: List<ImportedReading>): ImportResult {
+        val existing = store.weights.first()
+        val distinct = ArrayList<ImportedReading>()
+        for (reading in readings.sortedBy { it.epochMs }) {
+            val last = distinct.lastOrNull()
+            if (last != null && same(last.epochMs, last.kg, reading)) continue
+            distinct += reading
+        }
+        val fresh = distinct.filter { reading -> existing.none { same(it.epochMs, it.kg, reading) } }
+        if (fresh.isNotEmpty()) {
+            health.writeWeights(fresh)
+            sync()
+        }
+        return ImportResult(added = fresh.size, alreadyThere = distinct.size - fresh.size)
+    }
+
+    private fun same(epochMs: Long, kg: Double, reading: ImportedReading) =
+        kotlin.math.abs(epochMs - reading.epochMs) <= 15 * 60_000L && kotlin.math.abs(kg - reading.kg) < 0.1
 
     suspend fun delete(entry: WeightEntry): Boolean = try {
         health.deleteWeight(entry.id)

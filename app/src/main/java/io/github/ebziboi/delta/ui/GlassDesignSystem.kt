@@ -49,20 +49,33 @@ fun Modifier.refractiveGlass(
         elevated = elevated && !live)
 }
 
+/**
+ * A block of content laid straight onto the background, with no pane around it.
+ * Glass is kept for the things you touch (buttons, pickers, the tab bar); content
+ * is set apart by space and a hairline above it instead. [accent] tints the start
+ * of that hairline for a section that needs attention or carries the main figure.
+ */
 @Composable
-fun RefractiveGlassCard(
+fun ContentSection(
     modifier: Modifier = Modifier, onClick: (() -> Unit)? = null,
-    shape: Shape = RoundedCornerShape(Radii.card), glow: Color? = null,
-    contentPadding: PaddingValues = PaddingValues(20.dp), spacing: Dp = 12.dp,
+    accent: Color? = null, spacing: Dp = 12.dp,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val colors = LocalDeltaColors.current
-    val source = remember { MutableInteractionSource() }
-    var pane = modifier.fillMaxWidth().refractiveGlass(shape, colors, glow)
-    if (onClick != null) pane = pane.heightIn(min = 48.dp).pressScale(source, 0.98f)
-        .clickable(interactionSource = source, indication = ripple(color = Color(colors.text)), role = Role.Button, onClick = onClick)
+    val rule = Color(colors.text).copy(alpha = if (colors.isLight) 0.12f else 0.14f)
+    var section = modifier.fillMaxWidth().drawBehind {
+        val y = 0.5.dp.toPx()
+        val line = 1.dp.toPx()
+        drawLine(rule, Offset(0f, y), Offset(size.width, y), line)
+        if (accent != null) {
+            val reach = minOf(size.width, 140.dp.toPx())
+            drawLine(Brush.horizontalGradient(listOf(accent, accent.copy(alpha = 0f)), 0f, reach),
+                Offset(0f, y), Offset(reach, y), 2.dp.toPx(), cap = StrokeCap.Round)
+        }
+    }
+    if (onClick != null) section = section.clickable(role = Role.Button, onClick = onClick)
     CompositionLocalProvider(LocalContentColor provides Color(colors.text)) {
-        Column(pane.padding(contentPadding), verticalArrangement = Arrangement.spacedBy(spacing), content = content)
+        Column(section.padding(top = 20.dp, bottom = 6.dp), verticalArrangement = Arrangement.spacedBy(spacing), content = content)
     }
 }
 
@@ -104,14 +117,16 @@ fun GlassButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier
 @Composable
 fun StatusPill(text: String, color: Color, modifier: Modifier = Modifier, icon: Int? = null) = Pill(text, color, modifier, icon)
 
+/** A row in a plain list: no pane, just a hairline beneath to separate it from the next. */
 @Composable
-fun GlassListItem(modifier: Modifier = Modifier, onClick: (() -> Unit)? = null, content: @Composable RowScope.() -> Unit) {
-    val shape = RoundedCornerShape(Radii.tile)
-    val source = remember { MutableInteractionSource() }
-    var m = modifier.fillMaxWidth().heightIn(min = 56.dp).refractiveGlass(shape)
-    if (onClick != null) m = m.pressScale(source, 0.98f).clickable(interactionSource = source,
-        indication = ripple(), onClick = onClick)
-    Row(m.padding(horizontal = 16.dp, vertical = 16.dp), verticalAlignment = Alignment.CenterVertically,
+fun ListRow(modifier: Modifier = Modifier, onClick: (() -> Unit)? = null, content: @Composable RowScope.() -> Unit) {
+    val colors = LocalDeltaColors.current
+    val rule = Color(colors.text).copy(alpha = if (colors.isLight) 0.10f else 0.11f)
+    var row = modifier.fillMaxWidth().heightIn(min = 56.dp).drawBehind {
+        drawLine(rule, Offset(0f, size.height - 0.5.dp.toPx()), Offset(size.width, size.height - 0.5.dp.toPx()), 1.dp.toPx())
+    }
+    if (onClick != null) row = row.clickable(onClick = onClick)
+    Row(row.padding(vertical = 14.dp), verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp), content = content)
 }
 

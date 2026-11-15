@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The Delta logo as an icon: the delta-shaped track with the letter inside,
+     from the same paths as the app icon, cropped to the mark. White, so it
+     takes whatever tint the tab bar gives it. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="212"
+    android:viewportHeight="212">
+    <group
+        android:translateX="-44"
+        android:translateY="-40">
+        <path
+            android:pathData="M150,51.33 L244.7,240.75 L55.3,240.75 Z"
+            android:strokeColor="#FFFFFFFF"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round"
+            android:strokeWidth="15" />
+        <path
+            android:fillColor="#FFFFFFFF"
+            android:fillType="evenOdd"
+            android:pathData="M144.93,107.254 L155.07,107.254 L211.57,220.254 L88.43,220.254 Z M138.82,135.124 L102.75,207.254 L174.89,207.254 Z"
+            android:strokeColor="#FFFFFFFF"
+            android:strokeLineJoin="round"
+            android:strokeWidth="5" />
+    </group>
+</vector>

@@ -116,6 +116,22 @@ class HealthConnectManager(context: Context) {
         client.insertRecords(listOf(record))
     }
 
+    /** Writes many weigh-ins at once, in batches Health Connect accepts. */
+    suspend fun writeWeights(readings: List<ImportedReading>) {
+        val client = client() ?: throw IllegalStateException("Health Connect is not available")
+        for (batch in readings.chunked(500)) {
+            client.insertRecords(batch.map { reading ->
+                val at = Instant.ofEpochMilli(reading.epochMs)
+                WeightRecord(
+                    time = at,
+                    zoneOffset = ZoneId.systemDefault().rules.getOffset(at),
+                    weight = Mass.kilograms(reading.kg),
+                    metadata = Metadata.manualEntry(),
+                )
+            })
+        }
+    }
+
     /** Health Connect only lets an app delete what it wrote itself. */
     suspend fun deleteWeight(id: String) {
         val client = client() ?: throw IllegalStateException("Health Connect is not available")

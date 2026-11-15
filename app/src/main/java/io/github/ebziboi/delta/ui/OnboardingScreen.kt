@@ -104,7 +104,7 @@ private fun Connect(health: HealthState?, onConnect: () -> Unit, onNext: () -> U
     )
 
     if (health != null && health.availability != HealthAvailability.AVAILABLE) {
-        DeltaCard {
+        ContentSection {
             Text(
                 text = if (health.availability == HealthAvailability.NEEDS_UPDATE) {
                     "Health Connect needs an update before Delta can use it. Update it in the Play Store, then come back."
@@ -115,7 +115,7 @@ private fun Connect(health: HealthState?, onConnect: () -> Unit, onNext: () -> U
             )
         }
     } else {
-        DeltaCard {
+        ContentSection {
             AccessLine("Read weight", "Your weigh-ins, from any app or scale", health?.canRead == true)
             AccessLine("Past data", "Reaches back before today, to your start date", health?.hasHistory == true)
             AccessLine("Background updates", "Keeps widgets current while Delta is closed", health?.hasBackground == true)
@@ -207,7 +207,7 @@ private fun Goal(vm: AppViewModel, settings: AppSettings, onBack: () -> Unit) {
         onSelect = { picked -> vm.update { it.copy(unit = picked) } },
     )
 
-    DeltaCard {
+    ContentSection {
         SettingRow(title = "Start date", value = Format.day(startDay), onClick = { editing = "start" })
         SettingRow(
             title = "Starting weight",
@@ -220,7 +220,7 @@ private fun Goal(vm: AppViewModel, settings: AppSettings, onBack: () -> Unit) {
         )
     }
 
-    DeltaCard {
+    ContentSection {
         SettingRow(
             title = "Target weight",
             value = targetKg?.let { Units.weight(it, unit) } ?: "Set",

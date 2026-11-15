@@ -70,7 +70,7 @@ fun AppearanceControls(vm: AppViewModel, settings: AppSettings) {
         }
     }
 
-    RefractiveGlassCard {
+    ContentSection {
         Caption("Presets")
         Text("Choose a starting point, then make it yours.", style = LocalDeltaType.current.bodySmall, color = Color(colors.textDim))
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -91,7 +91,7 @@ fun AppearanceControls(vm: AppViewModel, settings: AppSettings) {
             }
         }
     }
-    RefractiveGlassCard {
+    ContentSection {
         Caption("Background")
         Text("Your colors are balanced automatically to keep text readable.", style = LocalDeltaType.current.bodySmall, color = Color(colors.textDim))
         ColorSetting("Background color", a.backgroundBase) { picking = "base" }
@@ -107,12 +107,12 @@ fun AppearanceControls(vm: AppViewModel, settings: AppSettings) {
             imageError?.let { Text(it, color = Color(LocalDerivedTheme.current.danger)) }
         }
     }
-    RefractiveGlassCard {
+    ContentSection {
         Caption("Accent colour")
         ColorSetting("Accent color", a.accent) { picking = "accent" }
         AppearanceSlider("Accent intensity", a.accentIntensity, 0f..1f, "${(a.accentIntensity * 100).roundToInt()}%") { v -> update { it.copy(accentIntensity = v) } }
     }
-    RefractiveGlassCard {
+    ContentSection {
         Caption("Glass and shape")
         AppearanceSlider("Glass blur", a.glassBlurRadius, 0f..48f, "${a.glassBlurRadius.roundToInt()} dp", !a.reduceTransparency) { v -> update { it.copy(glassBlurRadius = v) } }
         AppearanceSlider("Glass transparency", 1f - a.glassOpacity, 0.05f..0.94f, "${((1 - a.glassOpacity) * 100).roundToInt()}%", !a.reduceTransparency) { v -> update { it.copy(glassOpacity = 1 - v) } }
@@ -123,7 +123,7 @@ fun AppearanceControls(vm: AppViewModel, settings: AppSettings) {
             vm.update { current -> current.copy(motion = !enabled, appearance = AppearanceEngine.resolve(context, current).copy(reduceMotion = enabled)) }
         }, note = "Disable ambient movement, shimmer and decorative transitions.")
     }
-    RefractiveGlassCard {
+    ContentSection {
         Caption("Live preview")
         Text("A theme that is yours", style = LocalDeltaType.current.title)
         Text("Your background and accent shape every screen and widget.", color = Color(colors.textDim))
@@ -133,13 +133,13 @@ fun AppearanceControls(vm: AppViewModel, settings: AppSettings) {
             GlassButton("Secondary", onClick = {})
         }
     }
-    RefractiveGlassCard {
+    ContentSection {
         Caption("Typography")
         ChoiceRow(TypeStyle.entries, settings.typeStyle, { it.label }) { chosen -> vm.update { it.copy(typeStyle = chosen) } }
         Text("Your progress, beautifully clear", style = LocalDeltaType.current.title)
         Text("82.4 kg", style = LocalDeltaType.current.number)
     }
-    RefractiveGlassCard {
+    ContentSection {
         Caption("Existing themes")
         Text("Your earlier theme choices are still available.", style = LocalDeltaType.current.bodySmall, color = Color(colors.textDim))
         ChoiceRow(ThemeStyle.entries, settings.theme, { it.label }) { chosen -> vm.update { it.copy(theme = chosen, appearance = null) } }
@@ -191,7 +191,11 @@ fun CustomColorDialog(title: String, initial: Int, onDismiss: () -> Unit, onConf
     var value by remember(initial) { mutableStateOf(initial) }
     var input by remember(initial) { mutableStateOf(hex(initial)) }
     val hsv = remember(value) { FloatArray(3).also { AndroidColor.colorToHSV(value, it) } }
-    GlassDialog(onDismiss, title, "Apply", { onConfirm(value) }, confirmEnabled = parseColor(input) != null) {
+    // Closing the dialog also closes the keyboard the hex field opened, so it is not left over the page.
+    val keyboard = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
+    val focus = androidx.compose.ui.platform.LocalFocusManager.current
+    fun close() { focus.clearFocus(force = true); keyboard?.hide() }
+    GlassDialog({ close(); onDismiss() }, title, "Apply", { close(); onConfirm(value) }, confirmEnabled = parseColor(input) != null) {
         Box(Modifier.fillMaxWidth().height(60.dp).background(Color(value), RoundedCornerShape(Radii.control)), contentAlignment = Alignment.Center) {
             Text(hex(value), color = Color(ThemeContrast.on(value)), style = LocalDeltaType.current.number)
         }

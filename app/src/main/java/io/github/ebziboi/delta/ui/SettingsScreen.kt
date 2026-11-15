@@ -100,7 +100,7 @@ fun SettingsScreen(
         ScreenHeader(title = "Settings", eyebrow = "Make Delta yours")
 
         // Goal
-        DeltaCard {
+        ContentSection {
             Caption("Goal")
             SettingRow(
                 title = "Target weight",
@@ -142,7 +142,7 @@ fun SettingsScreen(
         }
 
         // Units
-        DeltaCard {
+        ContentSection {
             Caption("Units")
             ChoiceRow(
                 options = WeightUnit.values().toList(),
@@ -152,7 +152,7 @@ fun SettingsScreen(
             )
         }
 
-        GlassCard {
+        ContentSection {
             NavRow(io.github.ebziboi.delta.R.drawable.ic_palette, "Appearance", subtitle = "Theme, accent, typography and motion", onClick = { section = "Appearance" })
             GlassDivider()
             NavRow(io.github.ebziboi.delta.R.drawable.ic_show_chart, "Graphs", subtitle = "Line style and path to your goal", onClick = { section = "Graphs" })
@@ -161,7 +161,7 @@ fun SettingsScreen(
         }
 
         // Health Connect
-        DeltaCard {
+        ContentSection {
             Caption("Health Connect")
             when {
                 health == null -> Text(text = "Checking…", color = Color(colors.textDim))
@@ -189,6 +189,7 @@ fun SettingsScreen(
                 }
                 OutlinedButton(onClick = { openHealthConnect(context) }) { Text("Open Health Connect") }
             }
+            ScaleImportRow(vm)
             if (settings.lastSyncMs > 0L) {
                 Text(
                     text = "Last synced  ·  ${Format.moment(settings.lastSyncMs)}",
@@ -308,7 +309,7 @@ private fun SettingsDetail(
         when (title) {
             "Appearance" -> AppearanceControls(vm, settings)
             "Graphs" -> {
-                GlassCard {
+                ContentSection {
                     Caption("In the app")
                     ChoiceRow(ChartStyle.entries, settings.appChart, { it.label }) { chosen -> vm.update { it.copy(appChart = chosen) } }
                     Text(settings.appChart.detail, color = Color(colors.textDim))
@@ -316,7 +317,7 @@ private fun SettingsDetail(
                         io.github.ebziboi.delta.render.ChartSpec.journey(snap, settings.appChart, settings.unit, settings.showProjection),
                         Modifier.fillMaxWidth().height(190.dp))
                 }
-                GlassCard {
+                ContentSection {
                     ToggleRow("Path to the goal", settings.showProjection, { enabled -> vm.update { it.copy(showProjection = enabled) } },
                         note = "A dashed line to your target at your current pace.")
                     Text("Widgets have their own graph style: touch and hold one on your home screen and choose Settings.",
@@ -324,14 +325,14 @@ private fun SettingsDetail(
                 }
             }
             "Widgets" -> {
-                GlassCard {
+                ContentSection {
                     Caption("Changing a widget's look")
                     Text("Touch and hold a Delta widget on your home screen and choose Settings. " +
                         "You'll see it over your own wallpaper while you change its glass, opacity, colours and graph, " +
                         "and each widget keeps its own look.", color = Color(colors.textDim))
                 }
                 for (kind in WidgetKind.entries) {
-                    GlassCard {
+                    ContentSection {
                         Text(kind.title, style = LocalDeltaType.current.title)
                         Text(kind.detail, color = Color(colors.textDim))
                         if (snap != null) {
@@ -344,6 +345,38 @@ private fun SettingsDetail(
                     }
                 }
                 Text("Touch and hold a widget on your home screen to resize it. You can also add all five from your home screen's widget picker.", color = Color(colors.textDim))
+            }
+        }
+    }
+}
+
+/**
+ * Imports a smart scale app's CSV export into Health Connect. When the file holds
+ * more than one person, asks whose weigh-ins to bring in.
+ */
+@Composable
+private fun ScaleImportRow(vm: AppViewModel) {
+    val colors = LocalDeltaColors.current
+    val type = LocalDeltaType.current
+    val importing by vm.importing.collectAsStateWithLifecycle()
+    val choice by vm.importChoice.collectAsStateWithLifecycle()
+    val picker = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.OpenDocument(),
+    ) { uri -> if (uri != null) vm.importFile(uri) }
+    SecondaryButton(if (importing) "Importing…" else "Import scale export", onClick = {
+        picker.launch(arrayOf("text/*", "application/csv", "application/vnd.ms-excel", "application/octet-stream"))
+    }, enabled = !importing, icon = io.github.ebziboi.delta.R.drawable.ic_download)
+    Text("A CSV file from your smart scale's app. Weigh-ins already in Health Connect are skipped.",
+        color = Color(colors.textDim), style = type.bodySmall)
+
+    val export = choice ?: return
+    GlassDialog(onDismissRequest = { vm.choosePerson(null) }, title = "Whose weigh-ins?", confirmLabel = "Cancel",
+        onConfirm = { vm.choosePerson(null) }, dismissLabel = null) {
+        Text("This file has weigh-ins for more than one person.", color = Color(colors.textDim), style = type.body)
+        for ((name, readings) in export.people) {
+            ListRow(onClick = { vm.choosePerson(name) }) {
+                Text(name.ifBlank { "Unnamed" }, style = type.bodyStrong, color = Color(colors.text), modifier = Modifier.weight(1f))
+                Text("${readings.size} weigh-ins", style = type.bodySmall, color = Color(colors.textDim))
             }
         }
     }

@@ -117,11 +117,17 @@ class AppearanceGalleryTest {
     }
     private fun shot(name: String) { device.waitForIdle(1_000); Thread.sleep(350); device.takeScreenshot(File(out, "$name.png")) }
     private fun scrollPage(forward: Boolean = true) {
-        // Short overlapping swipes avoid sliders and don't skip controls behind the floating dock.
-        val x = device.displayWidth * 7 / 100
+        // Prefer UiAutomator's scroll of the page itself: it drags within the page's own bounds.
+        val page = device.findObject(By.scrollable(true))
+        if (page != null && page.scroll(if (forward) androidx.test.uiautomator.Direction.DOWN else androidx.test.uiautomator.Direction.UP, 0.4f) ) {
+            device.waitForIdle(1_000); Thread.sleep(300); return
+        }
+        // Slow, short overlapping drags down the middle of the page: a quick flick at the edge can be
+        // taken by gesture navigation, and these stay clear of the floating dock.
+        val x = device.displayWidth / 2
         val lower = device.displayHeight * 7 / 10
         val upper = device.displayHeight * 4 / 10
-        device.swipe(x, if (forward) lower else upper, x, if (forward) upper else lower, 24)
+        device.swipe(x, if (forward) lower else upper, x, if (forward) upper else lower, 60)
         device.waitForIdle(1_000)
         Thread.sleep(300)
     }

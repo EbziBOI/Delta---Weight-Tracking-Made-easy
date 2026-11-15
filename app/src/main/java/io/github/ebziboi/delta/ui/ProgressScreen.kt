@@ -95,7 +95,7 @@ fun ProgressScreen(
         if (snap != null && insights != null) {
             HeroCard(snap, insights, unit, Modifier.entrance(0))
             if (snap.targetKg == null) {
-                GlassCard(Modifier.entrance(1)) {
+                ContentSection(Modifier.entrance(1)) {
                     Text("Set a target weight", style = LocalDeltaType.current.title)
                     Text("With a target, Delta shows how far you have to go and when you'll get there.",
                         color = Color(LocalDeltaColors.current.textDim), style = LocalDeltaType.current.body)
@@ -124,7 +124,7 @@ private fun greeting(): String = when (LocalTime.now().hour) {
 private fun CrashCard(details: String, onDismiss: () -> Unit) {
     val colors = LocalDeltaColors.current
     val context = androidx.compose.ui.platform.LocalContext.current
-    GlassCard(glow = Color(colors.warn)) {
+    ContentSection(accent = Color(colors.warn)) {
         Text("Delta closed unexpectedly", style = LocalDeltaType.current.title)
         Text("The details stay on your phone. Sharing them helps find and fix the cause.",
             color = Color(colors.textDim), style = LocalDeltaType.current.body)
@@ -145,7 +145,7 @@ private fun CrashCard(details: String, onDismiss: () -> Unit) {
 @Composable
 private fun ConnectCard(health: HealthState, onConnect: () -> Unit) {
     val colors = LocalDeltaColors.current
-    GlassCard(glow = Color(colors.warn)) {
+    ContentSection(accent = Color(colors.warn)) {
         Text("Connect Health Connect", style = LocalDeltaType.current.title)
         Text(
             text = when (health.availability) {
@@ -164,7 +164,7 @@ private fun ConnectCard(health: HealthState, onConnect: () -> Unit) {
 private fun HeroCard(snap: ProgressSnapshot, insights: Insights, unit: WeightUnit, modifier: Modifier) {
     val colors = LocalDeltaColors.current
     val type = LocalDeltaType.current
-    GlassCard(modifier, glow = Color(colors.accent), spacing = 14.dp) {
+    ContentSection(modifier, accent = Color(colors.accent), spacing = 14.dp) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Caption("Now")
@@ -273,7 +273,7 @@ private fun TrendCard(snap: ProgressSnapshot, unit: WeightUnit, settings: AppSet
             snap.points.filter { it.epochMs >= cutoff }
         }
     }
-    GlassCard(modifier) {
+    ContentSection(modifier) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text("Trend", style = LocalDeltaType.current.title, modifier = Modifier.weight(1f))
             SegmentedControl(RANGES, range, { it }) { range = it }
@@ -311,7 +311,7 @@ private fun InsightsCard(snap: ProgressSnapshot, insights: Insights, unit: Weigh
     }
     if (lines.isEmpty()) return
     val colors = LocalDeltaColors.current
-    GlassCard(modifier) {
+    ContentSection(modifier) {
         Text("Insights", style = LocalDeltaType.current.title)
         for ((icon, line) in lines) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -327,7 +327,7 @@ private fun InsightsCard(snap: ProgressSnapshot, insights: Insights, unit: Weigh
 private fun RecentCard(insights: Insights, losing: Boolean, unit: WeightUnit, modifier: Modifier) {
     val colors = LocalDeltaColors.current
     val type = LocalDeltaType.current
-    GlassCard(modifier, spacing = 10.dp) {
+    ContentSection(modifier, spacing = 10.dp) {
         Text("Recent weigh-ins", style = type.title)
         insights.recent.forEachIndexed { index, reading ->
             if (index > 0) GlassDivider()

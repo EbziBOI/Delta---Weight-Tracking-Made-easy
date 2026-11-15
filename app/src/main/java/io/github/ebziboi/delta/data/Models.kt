@@ -74,9 +74,9 @@ enum class ChartStyle(val label: String, val detail: String) {
  * dark glass to keep dark text readable over a busy wallpaper.
  */
 enum class WidgetGlass(val label: String, val detail: String, val defaultDark: Float, val defaultLight: Float) {
-    SOLID("Solid", "An opaque panel in your theme's colours", 1f, 1f),
-    FROSTED("Frosted", "Tinted, translucent glass", 0.55f, 0.72f),
-    CLEAR("Clear", "See-through glass with just an edge of light", 0.14f, 0.24f),
+    SOLID("Solid", "Fully opaque: the wallpaper does not show through", 1f, 1f),
+    FROSTED("Frosted", "Partly see-through: the wallpaper shows softly", 0.55f, 0.72f),
+    CLEAR("Clear", "Mostly see-through: a light tint over the wallpaper", 0.14f, 0.24f),
 }
 
 /** Whether the widgets follow the app's theme or switch with the phone's dark mode. */

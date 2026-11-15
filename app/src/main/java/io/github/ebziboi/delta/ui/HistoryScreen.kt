@@ -118,7 +118,7 @@ private fun HistoryRow(
     onDelete: () -> Unit,
 ) {
     val colors = LocalDeltaColors.current
-    GlassListItem {
+    ListRow {
         Column(modifier = Modifier.weight(1f)) {
             Text(text = Units.weight(entry.kg, unit), style = LocalDeltaType.current.number)
             Text(text = Format.moment(entry.epochMs), color = Color(colors.textDim), fontSize = 13.sp)

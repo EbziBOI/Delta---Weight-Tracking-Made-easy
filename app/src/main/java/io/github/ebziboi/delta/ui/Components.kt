@@ -273,20 +273,6 @@ fun AuroraBackground(modifier: Modifier = Modifier, content: @Composable BoxScop
 
 // ---- Containers ----------------------------------------------------------------------------
 
-/** The standard card: a pane of glass with evenly spaced content. Tappable when [onClick] is given. */
-@Composable
-fun GlassCard(
-    modifier: Modifier = Modifier,
-    onClick: (() -> Unit)? = null,
-    shape: Shape = RoundedCornerShape(Radii.card),
-    glow: Color? = null,
-    contentPadding: PaddingValues = PaddingValues(20.dp),
-    spacing: Dp = 12.dp,
-    content: @Composable ColumnScope.() -> Unit,
-) {
-    RefractiveGlassCard(modifier, onClick, shape, glow, contentPadding, spacing, content)
-}
-
 /** A plain pane of glass with no padding or layout of its own, for custom content. */
 @Composable
 fun GlassSurface(
@@ -576,7 +562,7 @@ fun Pill(text: String, color: Color, modifier: Modifier = Modifier, icon: Int? =
 
 // ---- Values --------------------------------------------------------------------------------
 
-/** A glass tile with a label, a value and an optional note beneath. */
+/** A figure with a label, a value and an optional note beneath. */
 @Composable
 fun StatTile(
     label: String,
@@ -589,9 +575,10 @@ fun StatTile(
 ) {
     val colors = LocalDeltaColors.current
     val type = LocalDeltaType.current
-    GlassSurface(modifier = modifier, shape = RoundedCornerShape(Radii.tile)) {
+    // An open figure, not a tile: label, value and note set straight onto the background.
+    Box(modifier = modifier) {
         Column(
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 14.dp),
+            modifier = Modifier.padding(vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
