@@ -39,7 +39,7 @@ object ScaleImport {
         .map { DateTimeFormatter.ofPattern(it, Locale.ENGLISH) }
 
     fun parse(text: String, zone: ZoneId = ZoneId.systemDefault()): ScaleExport {
-        val lines = text.removePrefix("﻿").lines().filter { it.isNotBlank() }
+        val lines = text.removePrefix("\uFEFF").lines().filter { it.isNotBlank() }
         if (lines.size < 2) throw ScaleImportException("That file has no weigh-ins in it.")
         val header = split(lines.first()).map { it.trim().lowercase(Locale.ENGLISH) }
 

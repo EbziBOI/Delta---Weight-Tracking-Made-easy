@@ -13,6 +13,7 @@ data class AppAppearance(
     val reduceMotion: Boolean = false,
     val reduceTransparency: Boolean = false,
     val backgroundImageUri: String? = null,
+    val designStyle: DesignStyle = DesignStyle.GLASS,
 ) {
     fun normalized(): AppAppearance = copy(
         backgroundBase = backgroundBase or (0xFF shl 24),
@@ -49,4 +50,25 @@ enum class AppearancePreset(val label: String, val base: Long, val highlight: Lo
         val secondary = (0xFF shl 24) or tint(16) or tint(8) or tint(0)
         return AppAppearance(backgroundBase = base.toInt(), backgroundSecondary = secondary, accent = highlight.toInt())
     }
+}
+
+/** Complete presentation systems; palettes remain independently editable within each one. */
+enum class DesignStyle(val label: String) {
+    GLASS("Glass"), TUBIK("Tubik inspired");
+    fun defaults() = when (this) {
+        GLASS -> AppAppearance()
+        TUBIK -> AppAppearance(backgroundStyle = BackgroundStyle.SOLID,
+            backgroundBase = 0xFF222222.toInt(), backgroundSecondary = 0xFF30302E.toInt(),
+            accent = 0xFFED3426.toInt(), accentIntensity = 0f, glassBlurRadius = 0f,
+            glassOpacity = 0.95f, cornerRadius = 28f, designStyle = TUBIK)
+    }
+}
+
+fun AppSettings.withDesignStyle(style: DesignStyle, current: AppAppearance): AppSettings {
+    if (style == current.designStyle) return this
+    val saved = if (style == DesignStyle.GLASS) savedGlassAppearance else savedTubikAppearance
+    val next = (saved ?: style.defaults()).copy(designStyle = style,
+        reduceMotion = current.reduceMotion, reduceTransparency = current.reduceTransparency)
+    return if (style == DesignStyle.TUBIK) copy(appearance = next, savedGlassAppearance = current, savedGlassUsesLegacy = appearance == null)
+        else copy(appearance = if (savedGlassUsesLegacy) null else next, savedTubikAppearance = current)
 }

@@ -65,9 +65,10 @@ data class DerivedTheme(
 ) {
     fun drawColors(): DrawColors {
         val a = appearance
+        val dashboard = a.designStyle == DesignStyle.TUBIK
         var ambient = a.accentIntensity * 0.30f
         repeat(24) { if (ThemeContrast.ratio(textPrimary, Palettes.mix(background, accent, ambient)) < 7.0) ambient *= 0.8f }
-        val fillTop = if (a.reduceTransparency) surfaceElevated else Palettes.withAlpha(surfaceElevated,
+        val fillTop = if (a.reduceTransparency || dashboard) surfaceElevated else Palettes.withAlpha(surfaceElevated,
             ((if (a.backgroundStyle == BackgroundStyle.IMAGE) max(a.glassOpacity, 0.88f) else a.glassOpacity + 0.10f).coerceAtMost(1f) * 255).toInt())
         return DrawColors(
             isLight = isLight, bg = background, bgTop = backgroundSecondary,
@@ -75,10 +76,10 @@ data class DerivedTheme(
             text = textPrimary, textDim = textSecondary, textFaint = textMuted,
             accent = accent, accentSoft = accentSoft, onAccent = onAccent,
             accent2 = Palettes.mix(accent, if (onAccent == Color.BLACK) Color.WHITE else Color.BLACK, 0.15f), good = success, warn = warning,
-            glow = a.accentIntensity > 0.75f,
+            glow = !dashboard && a.accentIntensity > 0.75f,
             glass = GlassTokens(glass, fillTop, glassBorder, Palettes.fade(glassBorder, 0.25f), glassHighlight,
                 Palettes.withAlpha(Color.BLACK, if (isLight) 28 else 64), surface),
-            aurora = if (a.backgroundStyle == BackgroundStyle.SOLID) emptyList() else listOf(
+            aurora = if (dashboard || a.backgroundStyle == BackgroundStyle.SOLID) emptyList() else listOf(
                 AuroraBlob(Palettes.fade(accent, ambient), 0.06f, 0.10f, 0.52f),
                 AuroraBlob(Palettes.fade(accent, ambient * 0.55f), 0.98f, 0.64f, 0.46f),
             ),
@@ -103,7 +104,7 @@ data class DerivedTheme(
             val dim = ThemeContrast.readable(Palettes.mix(ink, surface, 0.26f), elevated)
             val muted = ThemeContrast.readable(Palettes.mix(ink, surface, 0.45f), elevated)
             val actualOpacity = if (a.backgroundStyle == BackgroundStyle.IMAGE) max(a.glassOpacity, 0.86f) else a.glassOpacity
-            val glass = if (a.reduceTransparency) surface else if (a.backgroundStyle == BackgroundStyle.IMAGE)
+            val glass = if (a.reduceTransparency || a.designStyle == DesignStyle.TUBIK) surface else if (a.backgroundStyle == BackgroundStyle.IMAGE)
                 Palettes.withAlpha(surface, (actualOpacity * 255).toInt()) else Palettes.withAlpha(elevated, (actualOpacity * 255).toInt())
             return DerivedTheme(a, base, secondary, surface, elevated, glass,
                 Palettes.withAlpha(ink, if (light) 46 else 42), Palettes.withAlpha(ink, if (light) 55 else 80),
@@ -127,7 +128,7 @@ object AppearanceEngine {
     fun forApp(context: Context, settings: AppSettings, night: Boolean = Palettes.isNight(context)) =
         DerivedTheme.derive(resolve(context, settings, night))
 
-    fun forWidget(context: Context, settings: AppSettings, night: Boolean): DerivedTheme {
+    fun forWidget(context: Context, settings: AppSettings, night: Boolean, kind: WidgetKind? = null): DerivedTheme {
         var a = resolve(context, settings, night)
         val appLight = ThemeContrast.on(a.backgroundBase) == Color.BLACK
         val light = when (settings.widgetTheme) {
@@ -141,6 +142,29 @@ object AppearanceEngine {
             a = a.copy(backgroundBase = Palettes.mix(a.backgroundBase, neutral, 0.96f),
                 backgroundSecondary = Palettes.mix(a.backgroundSecondary, neutral, 0.96f))
         }
+        if (a.designStyle == DesignStyle.TUBIK && kind != null) {
+            val panel = settings.widgetBackgroundOverride ?: when (kind) {
+                WidgetKind.PROGRESS -> TubikTokens.SAGE
+                WidgetKind.SUMMARY -> TubikTokens.CORAL
+                WidgetKind.JOURNEY, WidgetKind.TREND -> TubikTokens.VIOLET
+                WidgetKind.PACE -> a.backgroundBase
+            }
+            val adapted = when (settings.widgetTheme) {
+                WidgetTheme.APP -> panel
+                WidgetTheme.LIGHT -> Palettes.mix(panel, Color.WHITE, 0.65f)
+                WidgetTheme.DARK -> Palettes.mix(panel, Color.BLACK, 0.77f)
+                WidgetTheme.SYSTEM -> Palettes.mix(panel, if (night) Color.BLACK else Color.WHITE, if (night) 0.77f else 0.65f)
+            }
+            a = a.copy(backgroundBase = adapted, backgroundSecondary = adapted)
+        }
         return DerivedTheme.derive(a)
     }
+}
+
+/** Muted functional modules and sharp warm actions from the reference's visual vocabulary. */
+object TubikTokens {
+    val SAGE = 0xFFC4D3C9.toInt()
+    val VIOLET = 0xFF756BFF.toInt()
+    val CORAL = 0xFFFF6959.toInt()
+    val CYAN = 0xFFB9EFF3.toInt()
 }

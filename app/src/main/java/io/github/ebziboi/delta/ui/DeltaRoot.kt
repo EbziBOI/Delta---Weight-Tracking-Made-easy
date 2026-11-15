@@ -142,10 +142,10 @@ private fun MainScreen(
                         },
                         label = { Text(item.label) },
                         colors = NavigationBarItemDefaults.colors(
-                            selectedIconColor = Color(colors.accent),
+                            selectedIconColor = Color(if (LocalAppearance.current.designStyle == io.github.ebziboi.delta.data.DesignStyle.TUBIK) android.graphics.Color.BLACK else colors.accent),
                             selectedTextColor = Color(colors.accent),
                             // No pill behind the selected tab: the accent colour alone shows which one is active.
-                            indicatorColor = Color.Transparent,
+                            indicatorColor = if (LocalAppearance.current.designStyle == io.github.ebziboi.delta.data.DesignStyle.TUBIK) Color(io.github.ebziboi.delta.render.TubikTokens.CYAN) else Color.Transparent,
                             unselectedIconColor = Color(colors.textDim),
                             unselectedTextColor = Color(colors.textDim),
                         ),

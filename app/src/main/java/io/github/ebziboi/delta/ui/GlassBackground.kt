@@ -46,11 +46,12 @@ fun GlassBackground(modifier: Modifier = Modifier, content: @Composable BoxScope
             catch (_: Exception) { null }
         }
     }
-    val drift = if (LocalMotion.current && appearance.backgroundStyle == BackgroundStyle.MESH) {
+    val dashboard = appearance.designStyle == io.github.ebziboi.delta.data.DesignStyle.TUBIK
+    val drift = if (!dashboard && LocalMotion.current && appearance.backgroundStyle == BackgroundStyle.MESH) {
         rememberInfiniteTransition(label = "ambient-light").animateFloat(0f, (PI * 2).toFloat(),
             infiniteRepeatable(tween(36_000, easing = LinearEasing), RepeatMode.Reverse), label = "ambient-drift")
     } else null
-    val capture = android.os.Build.VERSION.SDK_INT >= 31 && !appearance.reduceTransparency && appearance.glassBlurRadius > 0
+    val capture = !dashboard && android.os.Build.VERSION.SDK_INT >= 31 && !appearance.reduceTransparency && appearance.glassBlurRadius > 0
     val source = if (capture) Modifier.hazeSource(backdrop) else Modifier
     val imageScrim = remember(colors.bg, colors.textDim) { io.github.ebziboi.delta.render.ThemeContrast.imageScrim(colors.bg, colors.textDim) }
     Box(modifier.fillMaxSize()) {

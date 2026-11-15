@@ -63,9 +63,9 @@ object Radii {
      */
     val corner: androidx.compose.ui.unit.Dp @Composable get() = LocalAppearance.current.cornerRadius.dp
     val card: androidx.compose.ui.unit.Dp @Composable get() = corner
-    val tile: androidx.compose.ui.unit.Dp @Composable get() = corner
-    val control: androidx.compose.ui.unit.Dp @Composable get() = corner
-    val pill: androidx.compose.ui.unit.Dp @Composable get() = corner
+    val tile: androidx.compose.ui.unit.Dp @Composable get() = if (LocalAppearance.current.designStyle == io.github.ebziboi.delta.data.DesignStyle.TUBIK) corner * 0.75f else corner
+    val control: androidx.compose.ui.unit.Dp @Composable get() = if (LocalAppearance.current.designStyle == io.github.ebziboi.delta.data.DesignStyle.TUBIK) corner * 0.5f else corner
+    val pill: androidx.compose.ui.unit.Dp @Composable get() = if (LocalAppearance.current.designStyle == io.github.ebziboi.delta.data.DesignStyle.TUBIK) 999.dp else corner
 }
 
 @Composable
@@ -101,11 +101,16 @@ fun DeltaTheme(settings: AppSettings, content: @Composable () -> Unit) {
         textFaint = io.github.ebziboi.delta.render.ThemeContrast.readable(color(target.textFaint), raised))
     val scheme = palette.toColorScheme(derived.danger)
     // Material's components (menus, the date picker, text fields) use the same single radius.
-    val shapes = remember(appearance.cornerRadius) {
+    val shapes = remember(appearance.cornerRadius, appearance.designStyle) {
         val corner = RoundedCornerShape(appearance.cornerRadius.dp)
-        Shapes(extraSmall = corner, small = corner, medium = corner, large = corner, extraLarge = corner)
+        if (appearance.designStyle == io.github.ebziboi.delta.data.DesignStyle.TUBIK)
+            Shapes(extraSmall = RoundedCornerShape(8.dp), small = RoundedCornerShape(14.dp),
+                medium = RoundedCornerShape(20.dp), large = corner, extraLarge = RoundedCornerShape(32.dp))
+        else Shapes(extraSmall = corner, small = corner, medium = corner, large = corner, extraLarge = corner)
     }
-    val type = remember(settings.typeStyle) { deltaType(settings.typeStyle) }
+    val type = remember(settings.typeStyle, appearance.designStyle) {
+        if (appearance.designStyle == io.github.ebziboi.delta.data.DesignStyle.TUBIK) dashboardType(settings.typeStyle) else deltaType(settings.typeStyle)
+    }
     val typography = remember(type) { type.toMaterial() }
     val canvasType = remember(settings.typeStyle) { DeltaFonts.canvas(context, settings.typeStyle) }
 

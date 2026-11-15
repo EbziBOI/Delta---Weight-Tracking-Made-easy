@@ -151,7 +151,7 @@ private fun WidgetConfigurationScreen(
     onPickPhoto: () -> Unit, onSave: () -> Unit,
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
-    val appearance = AppearanceEngine.resolve(context, effective)
+    val baseAppearance = AppearanceEngine.resolve(context, effective)
     val colors = LocalDeltaColors.current
     val type = LocalDeltaType.current
     var colorPicker by remember { mutableStateOf<String?>(null) }
@@ -160,6 +160,9 @@ private fun WidgetConfigurationScreen(
     var previewNight by rememberSaveable { mutableStateOf(systemNight) }
     val followsPhone = Palettes.widgetFollowsSystem(effective)
     val night = if (followsPhone) previewNight else systemNight
+    val appearance = if (baseAppearance.designStyle == DesignStyle.TUBIK && draft.background == null)
+        baseAppearance.copy(backgroundBase = AppearanceEngine.forWidget(context, effective, night, kind).appearance.backgroundBase)
+        else baseAppearance
     val preview by produceState<android.graphics.Bitmap?>(null, kind, width, height, snapshot, effective, night) {
         kotlinx.coroutines.delay(30)
         value = withContext(Dispatchers.Default) {
@@ -204,21 +207,29 @@ private fun WidgetConfigurationScreen(
                     }
                     failure?.let { Text(it, color = Color(LocalDerivedTheme.current.danger)) }
 
-                    Caption("Glass")
-                    SegmentedControl(WidgetGlass.entries, draft.glass, { it.label }, Modifier.fillMaxWidth()) {
-                        onChange(draft.copy(glass = it, opacityDark = it.defaultDark, opacityLight = it.defaultLight))
-                    }
-                    Text(draft.glass.detail, color = Color(colors.textDim), style = type.bodySmall)
-                    if (draft.glass != WidgetGlass.SOLID) {
-                        SliderRow("Opacity in dark mode", draft.opacityDark, "${(draft.opacityDark * 100).roundToInt()}%",
-                            { previewNight = true; onChange(draft.copy(opacityDark = it)) }, {}, valueRange = 0f..1f)
-                        SliderRow("Opacity in light mode", draft.opacityLight, "${(draft.opacityLight * 100).roundToInt()}%",
-                            { previewNight = false; onChange(draft.copy(opacityLight = it)) }, {}, valueRange = 0f..1f)
-                    }
+                    val dashboard = appearance.designStyle == DesignStyle.TUBIK
+                    if (dashboard) {
+                        Caption("Dashboard modules")
+                        Text("Solid color modules follow the Tubik inspired design. Colors, content, photos and sizing can still be customized below.",
+                            color = Color(colors.textDim), style = type.bodySmall)
+                    } else {
+                        Caption("Glass")
+                        SegmentedControl(WidgetGlass.entries, draft.glass, { it.label }, Modifier.fillMaxWidth()) {
+                            onChange(draft.copy(glass = it, opacityDark = it.defaultDark, opacityLight = it.defaultLight))
+                        }
+                        Text(draft.glass.detail, color = Color(colors.textDim), style = type.bodySmall)
+                        if (draft.glass != WidgetGlass.SOLID) {
+                            SliderRow("Opacity in dark mode", draft.opacityDark, "${(draft.opacityDark * 100).roundToInt()}%",
+                                { previewNight = true; onChange(draft.copy(opacityDark = it)) }, {}, valueRange = 0f..1f)
+                            SliderRow("Opacity in light mode", draft.opacityLight, "${(draft.opacityLight * 100).roundToInt()}%",
+                                { previewNight = false; onChange(draft.copy(opacityLight = it)) }, {}, valueRange = 0f..1f)
+                        }
 
+                    }
                     Caption("Background")
-                    val background = effective.appearance?.backgroundStyle ?: BackgroundStyle.MESH
-                    ChoiceRow(BackgroundStyle.entries, background, { backgroundLabel(it) }) { chosen ->
+                    val selectedBackground = effective.appearance?.backgroundStyle ?: BackgroundStyle.MESH
+                    val background = if (dashboard && selectedBackground != BackgroundStyle.IMAGE) BackgroundStyle.SOLID else selectedBackground
+                    ChoiceRow(if (dashboard) listOf(BackgroundStyle.SOLID, BackgroundStyle.IMAGE) else BackgroundStyle.entries, background, { backgroundLabel(it) }) { chosen ->
                         if (chosen == BackgroundStyle.IMAGE && draft.backgroundImage == null) onPickPhoto()
                         else onChange(draft.copy(backgroundStyle = chosen))
                     }
@@ -228,7 +239,7 @@ private fun WidgetConfigurationScreen(
                     GlassButton("Background colour", { colorPicker = "background" }, Modifier.fillMaxWidth())
                     GlassButton("Accent colour", { colorPicker = "accent" }, Modifier.fillMaxWidth())
                     val glow = draft.accentIntensity ?: appearance.accentIntensity
-                    SliderRow("Accent glow", glow, "${(glow * 100).roundToInt()}%",
+                    if (!dashboard) SliderRow("Accent glow", glow, "${(glow * 100).roundToInt()}%",
                         { onChange(draft.copy(accentIntensity = it)) }, {}, valueRange = 0f..1f)
 
                     val radius = draft.cornerRadius ?: appearance.cornerRadius

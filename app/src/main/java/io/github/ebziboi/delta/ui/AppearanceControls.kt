@@ -62,15 +62,46 @@ fun AppearanceControls(vm: AppViewModel, settings: AppSettings) {
             finally { importing = false }
         }
     }
-    LaunchedEffect(a.backgroundImageUri) {
+    LaunchedEffect(a.backgroundImageUri, settings.savedGlassAppearance?.backgroundImageUri, settings.savedTubikAppearance?.backgroundImageUri) {
         withContext(Dispatchers.IO) {
-            val current = a.backgroundImageUri?.let { android.net.Uri.parse(it).path }
-            context.filesDir.listFiles()?.filter { it.name.startsWith("appearance-bg-") && it.name.endsWith(".png") && it.absolutePath != current }
+            val retained = listOfNotNull(a.backgroundImageUri, settings.savedGlassAppearance?.backgroundImageUri,
+                settings.savedTubikAppearance?.backgroundImageUri).mapNotNull { android.net.Uri.parse(it).path }.toSet()
+            context.filesDir.listFiles()?.filter { it.name.startsWith("appearance-bg-") && it.name.endsWith(".png") && it.absolutePath !in retained }
                 ?.forEach { it.delete() }
         }
     }
 
     ContentSection {
+        Caption("Design system")
+        Text("Choose the whole interface", style = LocalDeltaType.current.title)
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            DesignStyle.entries.forEach { style ->
+                val active = a.designStyle == style
+                val ink = if (active) colors.onAccent else colors.text
+                Column(Modifier.weight(1f).heightIn(min = 120.dp).clip(RoundedCornerShape(20.dp))
+                    .background(Color(if (active) colors.accent else colors.surfaceHigh))
+                    .clickable(role = Role.RadioButton) {
+                        vm.update { current -> current.withDesignStyle(style, AppearanceEngine.resolve(context, current)) }
+                    }.semantics { selected = active; contentDescription = "${style.label} design" }.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(style.label, style = LocalDeltaType.current.bodyStrong, color = Color(ink))
+                    Text(if (style == DesignStyle.GLASS) "Soft light · translucent controls" else "Matte modules · bold color · instrument dials",
+                        style = LocalDeltaType.current.bodySmall, color = Color(ink))
+                }
+            }
+        }
+        Text("Each design remembers its own colors and background.", style = LocalDeltaType.current.bodySmall, color = Color(colors.textDim))
+    }
+    if (a.designStyle == DesignStyle.TUBIK) ContentSection {
+        Caption("Tubik inspired")
+        Text("An editorial dashboard", style = LocalDeltaType.current.title)
+        Text("Charcoal surfaces, sage progress, violet graphs and coral actions. Controls, navigation, history and widgets change with the design.",
+            color = Color(colors.textDim), style = LocalDeltaType.current.bodySmall)
+        TextAction("Reset dashboard palette", {
+            update { DesignStyle.TUBIK.defaults().copy(reduceMotion = it.reduceMotion, reduceTransparency = it.reduceTransparency) }
+        })
+    }
+    if (a.designStyle == DesignStyle.GLASS) ContentSection {
         Caption("Presets")
         Text("Choose a starting point, then make it yours.", style = LocalDeltaType.current.bodySmall, color = Color(colors.textDim))
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -95,7 +126,7 @@ fun AppearanceControls(vm: AppViewModel, settings: AppSettings) {
         Caption("Background")
         Text("Your colors are balanced automatically to keep text readable.", style = LocalDeltaType.current.bodySmall, color = Color(colors.textDim))
         ColorSetting("Background color", a.backgroundBase) { picking = "base" }
-        ChoiceRow(BackgroundStyle.entries, a.backgroundStyle, { it.label }) { style -> update { it.copy(backgroundStyle = style) } }
+        ChoiceRow(if (a.designStyle == DesignStyle.TUBIK) BackgroundStyle.entries.filter { it != BackgroundStyle.MESH } else BackgroundStyle.entries, a.backgroundStyle, { it.label }) { style -> update { it.copy(backgroundStyle = style) } }
         if (a.backgroundStyle in listOf(BackgroundStyle.VERTICAL_GRADIENT, BackgroundStyle.RADIAL_GRADIENT, BackgroundStyle.MESH)) {
             ColorSetting("Secondary background color", a.backgroundSecondary) { picking = "secondary" }
         }
@@ -110,12 +141,14 @@ fun AppearanceControls(vm: AppViewModel, settings: AppSettings) {
     ContentSection {
         Caption("Accent colour")
         ColorSetting("Accent color", a.accent) { picking = "accent" }
-        AppearanceSlider("Accent intensity", a.accentIntensity, 0f..1f, "${(a.accentIntensity * 100).roundToInt()}%") { v -> update { it.copy(accentIntensity = v) } }
+        if (a.designStyle == DesignStyle.GLASS) AppearanceSlider("Accent intensity", a.accentIntensity, 0f..1f, "${(a.accentIntensity * 100).roundToInt()}%") { v -> update { it.copy(accentIntensity = v) } }
     }
     ContentSection {
-        Caption("Glass and shape")
+        Caption(if (a.designStyle == DesignStyle.TUBIK) "Shape and accessibility" else "Glass and shape")
+        if (a.designStyle == DesignStyle.GLASS) {
         AppearanceSlider("Glass blur", a.glassBlurRadius, 0f..48f, "${a.glassBlurRadius.roundToInt()} dp", !a.reduceTransparency) { v -> update { it.copy(glassBlurRadius = v) } }
         AppearanceSlider("Glass transparency", 1f - a.glassOpacity, 0.05f..0.94f, "${((1 - a.glassOpacity) * 100).roundToInt()}%", !a.reduceTransparency) { v -> update { it.copy(glassOpacity = 1 - v) } }
+        }
         AppearanceSlider("Corner radius", a.cornerRadius, 20f..32f, "${a.cornerRadius.roundToInt()} dp") { v -> update { it.copy(cornerRadius = v) } }
         ToggleRow("Reduce transparency", a.reduceTransparency, { enabled -> update { it.copy(reduceTransparency = enabled) } },
             note = "Use solid, elevated surfaces for easier reading.")
@@ -139,10 +172,10 @@ fun AppearanceControls(vm: AppViewModel, settings: AppSettings) {
         Text("Your progress, beautifully clear", style = LocalDeltaType.current.title)
         Text("82.4 kg", style = LocalDeltaType.current.number)
     }
-    ContentSection {
+    if (a.designStyle == DesignStyle.GLASS) ContentSection {
         Caption("Existing themes")
         Text("Your earlier theme choices are still available.", style = LocalDeltaType.current.bodySmall, color = Color(colors.textDim))
-        ChoiceRow(ThemeStyle.entries, settings.theme, { it.label }) { chosen -> vm.update { it.copy(theme = chosen, appearance = null) } }
+        ChoiceRow(ThemeStyle.entries, settings.theme, { it.label }) { chosen -> vm.update { it.copy(theme = chosen, appearance = null, savedTubikAppearance = if (a.designStyle == DesignStyle.TUBIK) a else it.savedTubikAppearance) } }
         ChoiceRow(Accent.entries, settings.accent, { it.label }) { chosen ->
             vm.update { current -> current.copy(accent = chosen, appearance = AppearanceEngine.resolve(context, current)
                 .copy(accent = (if (colors.isLight) chosen.onLight else chosen.onDark).toInt())) }

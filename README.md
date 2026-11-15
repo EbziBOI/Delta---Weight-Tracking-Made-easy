@@ -7,6 +7,12 @@ widgets that show where you started, where you are now and where you are going.
 track; in the app and on the widgets that track is live and fills as you close
 the gap to your target.
 
+Choose **Settings → Appearance → Design system → Tubik inspired** for a distinct
+matte dashboard: coral actions, sage progress modules, violet graphs, instrument
+dials, compact headings and matching widgets. Glass keeps its own saved colors,
+background and blur when you switch back. The visual reference is
+[Tubik’s restaurant operations concept](https://dribbble.com/shots/26787072-AI-Powered-Mobile-App-for-Restaurant-Operations).
+
 ## Status
 
 **Weight tracking is available.** GitHub Actions builds and publishes an installable APK.

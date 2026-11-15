@@ -50,7 +50,7 @@ data class WidgetStyle(
         return settings.copy(appearance = custom, widgetGlass = glass, widgetTheme = mode,
             widgetOpacityDark = opacityDark.coerceIn(0f, 1f), widgetOpacityLight = opacityLight.coerceIn(0f, 1f),
             widgetChart = chart ?: settings.widgetChart, showProjection = projection ?: settings.showProjection,
-            widgetContent = content)
+            widgetContent = content, widgetBackgroundOverride = background)
     }
     companion object {
         /** A widget's own style, starting from the defaults every new widget gets. */

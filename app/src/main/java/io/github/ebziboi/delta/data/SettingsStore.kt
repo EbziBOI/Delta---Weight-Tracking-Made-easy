@@ -60,6 +60,9 @@ class SettingsStore(context: Context) {
         val LAST_SYNC = longPreferencesKey("last_sync")
         val WEIGHTS = stringPreferencesKey("weights")
         val APPEARANCE = stringPreferencesKey("appearance_v1")
+        val GLASS_APPEARANCE = stringPreferencesKey("glass_appearance_v1")
+        val TUBIK_APPEARANCE = stringPreferencesKey("tubik_appearance_v1")
+        val GLASS_LEGACY = booleanPreferencesKey("glass_design_legacy")
     }
 
     val settings: Flow<AppSettings> = appContext.settingsStore.data
@@ -102,6 +105,9 @@ class SettingsStore(context: Context) {
             widgetOpacityDark = opacity(prefs[Keys.WIDGET_OPACITY_DARK], glass.defaultDark),
             widgetOpacityLight = opacity(prefs[Keys.WIDGET_OPACITY_LIGHT], glass.defaultLight),
             lastSyncMs = prefs[Keys.LAST_SYNC] ?: 0L,
+            savedGlassUsesLegacy = prefs[Keys.GLASS_LEGACY] ?: false,
+            savedGlassAppearance = decodeAppearance(prefs[Keys.GLASS_APPEARANCE]),
+            savedTubikAppearance = decodeAppearance(prefs[Keys.TUBIK_APPEARANCE]),
             appearance = decodeAppearance(prefs[Keys.APPEARANCE]) ?: if (prefs[Keys.THEME] == null) AppAppearance() else null,
         )
     }
@@ -127,11 +133,15 @@ class SettingsStore(context: Context) {
         prefs[Keys.WIDGET_OPACITY_LIGHT] = opacity(settings.widgetOpacityLight, settings.widgetGlass.defaultLight)
         prefs[Keys.LAST_SYNC] = settings.lastSyncMs
         put(prefs, Keys.APPEARANCE, settings.appearance?.let(::encodeAppearance))
+        put(prefs, Keys.GLASS_APPEARANCE, settings.savedGlassAppearance?.let(::encodeAppearance))
+        put(prefs, Keys.TUBIK_APPEARANCE, settings.savedTubikAppearance?.let(::encodeAppearance))
+        prefs[Keys.GLASS_LEGACY] = settings.savedGlassUsesLegacy
     }
 
     private fun encodeAppearance(value: AppAppearance): String {
         val a = value.normalized()
         return org.json.JSONObject().apply {
+            put("designStyle", a.designStyle.name)
             put("style", a.backgroundStyle.name)
             put("base", a.backgroundBase); put("secondary", a.backgroundSecondary); put("accent", a.accent)
             put("intensity", a.accentIntensity); put("blur", a.glassBlurRadius)
@@ -148,6 +158,7 @@ class SettingsStore(context: Context) {
             val d = AppAppearance()
             AppAppearance(
                 backgroundStyle = named(json.optString("style"), d.backgroundStyle),
+                designStyle = named(json.optString("designStyle"), DesignStyle.GLASS),
                 backgroundBase = json.optInt("base", d.backgroundBase),
                 backgroundSecondary = json.optInt("secondary", d.backgroundSecondary),
                 accent = json.optInt("accent", d.accent),

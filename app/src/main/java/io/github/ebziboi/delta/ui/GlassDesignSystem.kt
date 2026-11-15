@@ -23,6 +23,7 @@ import androidx.compose.ui.unit.*
 import dev.chrisbanes.haze.HazeTint
 import dev.chrisbanes.haze.hazeEffect
 import io.github.ebziboi.delta.render.DrawColors
+import io.github.ebziboi.delta.data.DesignStyle
 
 /** The tab bar's surface: a frosted blur of the backdrop where supported, otherwise the plain translucent tile. */
 @Composable
@@ -32,6 +33,7 @@ fun Modifier.refractiveGlass(
 ): Modifier {
     val a = LocalAppearance.current
     val backdrop = LocalGlassBackdrop.current
+    if (a.designStyle == DesignStyle.TUBIK) return clip(shape).background(Color(colors.surfaceHigh))
     val live = Build.VERSION.SDK_INT >= 31 && a.glassBlurRadius > 0f && !a.reduceTransparency && backdrop != null
     if (!live) return glass(shape, colors)
     // Where the phone can blur, the tile is a frosted blur of what is behind it, tinted
@@ -54,9 +56,13 @@ fun Modifier.refractiveGlass(
 @Composable
 fun ContentSection(
     modifier: Modifier = Modifier, onClick: (() -> Unit)? = null,
-    accent: Color? = null, spacing: Dp = 12.dp,
+    accent: Color? = null, spacing: Dp = 12.dp, tone: ModuleTone = ModuleTone.NEUTRAL,
     content: @Composable ColumnScope.() -> Unit,
 ) {
+    if (LocalAppearance.current.designStyle == DesignStyle.TUBIK) {
+        DashboardModule(modifier, tone, onClick, spacing, content)
+        return
+    }
     val colors = LocalDeltaColors.current
     val rule = Color(colors.text).copy(alpha = if (colors.isLight) 0.12f else 0.14f)
     var section = modifier.fillMaxWidth().drawBehind {
@@ -118,11 +124,14 @@ fun StatusPill(text: String, color: Color, modifier: Modifier = Modifier, icon: 
 fun ListRow(modifier: Modifier = Modifier, onClick: (() -> Unit)? = null, content: @Composable RowScope.() -> Unit) {
     val colors = LocalDeltaColors.current
     val rule = Color(colors.text).copy(alpha = if (colors.isLight) 0.10f else 0.11f)
-    var row = modifier.fillMaxWidth().heightIn(min = 56.dp).drawBehind {
+    val dashboard = LocalAppearance.current.designStyle == DesignStyle.TUBIK
+    var row = modifier.fillMaxWidth().heightIn(min = 56.dp)
+    if (dashboard) row = row.clip(RoundedCornerShape(Radii.tile)).background(Color(colors.surface))
+    else row = row.drawBehind {
         drawLine(rule, Offset(0f, size.height - 0.5.dp.toPx()), Offset(size.width, size.height - 0.5.dp.toPx()), 1.dp.toPx())
     }
     if (onClick != null) row = row.clickable(onClick = onClick)
-    Row(row.padding(vertical = 14.dp), verticalAlignment = Alignment.CenterVertically,
+    Row(row.padding(horizontal = if (dashboard) 16.dp else 0.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp), content = content)
 }
 
@@ -174,7 +183,12 @@ fun ShimmerPlaceholder(modifier: Modifier = Modifier) {
 @Composable
 fun GlowingIcon(icon: Int, modifier: Modifier = Modifier, tint: Color = Color(LocalDeltaColors.current.accent), contentDescription: String? = null) {
     val intensity = LocalAppearance.current.accentIntensity
-    Box(modifier.size(44.dp).drawBehind {
+    val dashboard = LocalAppearance.current.designStyle == DesignStyle.TUBIK
+    Box(modifier.size(44.dp).clip(androidx.compose.foundation.shape.CircleShape).drawBehind {
+        if (dashboard) {
+            drawCircle(tint.copy(alpha = 0.15f))
+            return@drawBehind
+        }
         drawCircle(Brush.radialGradient(listOf(tint.copy(alpha = intensity * 0.2f), Color.Transparent),
             radius = size.minDimension / 2), radius = size.minDimension / 2)
     }, contentAlignment = Alignment.Center) { DeltaIcon(icon, contentDescription = contentDescription, tint = tint, size = 22.dp) }

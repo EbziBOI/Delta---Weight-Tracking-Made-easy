@@ -169,7 +169,8 @@ private fun ConnectCard(health: HealthState, onConnect: () -> Unit) {
 private fun HeroCard(snap: ProgressSnapshot, insights: Insights, unit: WeightUnit, modifier: Modifier) {
     val colors = LocalDeltaColors.current
     val type = LocalDeltaType.current
-    ContentSection(modifier, accent = Color(colors.accent), spacing = 14.dp) {
+    ContentSection(modifier, accent = Color(colors.accent), spacing = 14.dp, tone = ModuleTone.SAGE) {
+        val colors = LocalDeltaColors.current
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Caption("Now")
@@ -185,7 +186,9 @@ private fun HeroCard(snap: ProgressSnapshot, insights: Insights, unit: WeightUni
                     insights.weekChangeKg?.let { change -> ChangePill(change, "this week", snap.losing, unit) }
                 }
             }
-            DeltaTrack(fraction = snap.fraction, modifier = Modifier.size(118.dp))
+            if (LocalAppearance.current.designStyle == io.github.ebziboi.delta.data.DesignStyle.TUBIK)
+                DashboardDial(snap.fraction, Modifier.size(118.dp))
+            else DeltaTrack(fraction = snap.fraction, modifier = Modifier.size(118.dp))
         }
         if (snap.targetKg != null && snap.startKg != null) {
             ProgressRail(snap.fraction)
@@ -312,8 +315,8 @@ private fun TrendCard(snap: ProgressSnapshot, unit: WeightUnit, settings: AppSet
             }
         }
     }
-    ContentSection(modifier) {
-        Text("Trend", style = LocalDeltaType.current.title)
+    ContentSection(modifier, tone = ModuleTone.VIOLET) {
+        Text(if (LocalAppearance.current.designStyle == io.github.ebziboi.delta.data.DesignStyle.TUBIK) "WEIGHT TREND" else "Trend", style = LocalDeltaType.current.title)
         SegmentedControl(RANGES, range, { it }, Modifier.fillMaxWidth()) { range = it }
         // Only the journey view is scaled from start to target, with the percentage tagged.
         val whole = range == "Journey"

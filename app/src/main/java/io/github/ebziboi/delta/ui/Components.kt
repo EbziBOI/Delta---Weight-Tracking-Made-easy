@@ -134,12 +134,13 @@ object Spacing {
  * [elevated] are kept for callers but no longer change the look.
  */
 @Suppress("UNUSED_PARAMETER")
+@Composable
 fun Modifier.glass(
     shape: Shape,
     colors: DrawColors,
     glow: Color? = null,
     elevated: Boolean = true,
-): Modifier = clip(shape).background(glassTile(colors))
+): Modifier = clip(shape).background(if (LocalAppearance.current.designStyle == io.github.ebziboi.delta.data.DesignStyle.TUBIK) Color(colors.surfaceHigh) else glassTile(colors))
 
 /** The tile colour behind controls: the raised surface, see-through enough to hint at what is behind. */
 fun glassTile(colors: DrawColors): Color =
@@ -235,6 +236,7 @@ fun ScreenHeader(
     accent: String? = null,
     trailing: @Composable RowScope.() -> Unit = {},
 ) {
+    val heading = if (LocalAppearance.current.designStyle == io.github.ebziboi.delta.data.DesignStyle.TUBIK) title.uppercase() else title
     val colors = LocalDeltaColors.current
     val type = LocalDeltaType.current
     Row(
@@ -247,7 +249,7 @@ fun ScreenHeader(
             if (eyebrow != null) Caption(eyebrow)
             Text(
                 text = buildAnnotatedString {
-                    append(title)
+                    append(heading)
                     if (accent != null) {
                         append(" ")
                         withStyle(type.displayAccent.toSpanStyle().merge(SpanStyle(color = Color(colors.accent)))) {
@@ -380,7 +382,10 @@ fun PrimaryButton(
     val shape = RoundedCornerShape(Radii.control)
     val accent = Color(colors.accent)
     val intensity = LocalAppearance.current.accentIntensity
-    val fill = if (enabled) {
+    val dashboard = LocalAppearance.current.designStyle == io.github.ebziboi.delta.data.DesignStyle.TUBIK
+    val fill = if (enabled && dashboard) {
+        Modifier.clip(shape).background(accent)
+    } else if (enabled) {
         Modifier
             .dropShadow(shape, Shadow(radius = 22.dp, color = accent.copy(alpha = 0.28f * intensity), offset = DpOffset(0.dp, 8.dp)))
             .clip(shape)
@@ -531,6 +536,7 @@ fun StatTile(
 fun ProgressRail(fraction: Float?, modifier: Modifier = Modifier, height: Dp = 10.dp) {
     val colors = LocalDeltaColors.current
     val motion = LocalMotion.current
+    val dashboard = LocalAppearance.current.designStyle == io.github.ebziboi.delta.data.DesignStyle.TUBIK
     val shown by animateFloatAsState(
         targetValue = (fraction ?: 0f).coerceIn(0f, 1f),
         animationSpec = if (motion) tween(durationMillis = 300, easing = FastOutSlowInEasing) else tween(0),
@@ -543,6 +549,18 @@ fun ProgressRail(fraction: Float?, modifier: Modifier = Modifier, height: Dp = 1
             .height(height + 12.dp)
             .semantics { contentDescription = spoken },
     ) {
+        if (dashboard) {
+            val count = 32
+            val gap = 2.dp.toPx()
+            val width = ((size.width - gap * (count - 1)) / count).coerceAtLeast(0f)
+            val barHeight = 7.dp.toPx()
+            repeat(count) { index ->
+                drawRect(if (fraction != null && (index + 0.5f) / count <= shown) Color(colors.accent)
+                    else Color(colors.text).copy(alpha = 0.12f),
+                    Offset(index * (width + gap), (size.height - barHeight) / 2), Size(width, barHeight))
+            }
+            return@Canvas
+        }
         val bar = height.toPx()
         val top = (size.height - bar) / 2f
         val radius = CornerRadius(bar / 2f, bar / 2f)
@@ -685,6 +703,10 @@ fun <T> SegmentedControl(
 ) {
     val colors = LocalDeltaColors.current
     val type = LocalDeltaType.current
+    if (LocalAppearance.current.designStyle == io.github.ebziboi.delta.data.DesignStyle.TUBIK) {
+        DashboardSegments(options, selected, label, modifier, onSelect)
+        return
+    }
     val index = options.indexOf(selected).coerceAtLeast(0)
     val position by animateFloatAsState(
         targetValue = index.toFloat(),

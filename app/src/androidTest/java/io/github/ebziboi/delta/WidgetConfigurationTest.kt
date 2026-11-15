@@ -56,15 +56,7 @@ class WidgetConfigurationTest {
             assertEquals(WidgetConfigurationActivity::class.java.name, info.configure.className)
             assertTrue(info.widgetFeatures and android.appwidget.AppWidgetProviderInfo.WIDGET_FEATURE_RECONFIGURABLE != 0)
         }
-        val component = ComponentName(context, WidgetCatalog.receiver(WidgetKind.PROGRESS))
-        if (manager.getAppWidgetIds(component).isEmpty()) {
-            assertTrue(manager.requestPinAppWidget(component, null, null))
-            val accept = device.wait(Until.findObject(By.text(Pattern.compile("(?i)add to home ?screen|add automatically|add")).clickable(true)), 10_000)
-                ?: throw AssertionError("Launcher didn't offer to add a widget")
-            accept.click()
-            repeat(30) { if (manager.getAppWidgetIds(component).isEmpty()) Thread.sleep(500) }
-        }
-        val id = manager.getAppWidgetIds(component).first()
+        val id = placedProgressWidget()
         val original = store.style(id).first()
         val app = SettingsStore(context).settings.first()
         val untouchedId = manager.installedProviders.filter { it.provider.packageName == context.packageName }
@@ -109,6 +101,33 @@ class WidgetConfigurationTest {
         Thread.sleep(1_000)
         device.pressHome()
         assertTrue("The app process must still be alive", (context.applicationContext as DeltaApp).repo != null)
+    }
+
+    @Test fun tubikWidgetEditorUsesMatteModules() = runBlocking {
+        val settings = SettingsStore(context)
+        val original = settings.settings.first()
+        val id = placedProgressWidget()
+        try {
+            settings.update { it.copy(onboardingDone = true, motion = false, appearance = DesignStyle.TUBIK.defaults()) }
+            open(id)
+            assertTrue(device.wait(Until.hasObject(By.text("DASHBOARD MODULES")), 10_000))
+            assertFalse("Matte widgets should not offer ineffective glass controls", device.hasObject(By.text("Frosted")))
+            preview("dashboard-widget-editor").recycle()
+            tap("Cancel")
+        } finally { settings.update { original } }
+    }
+
+    private fun placedProgressWidget(): Int {
+        val component = ComponentName(context, WidgetCatalog.receiver(WidgetKind.PROGRESS))
+        if (manager.getAppWidgetIds(component).isEmpty()) {
+            assertTrue(manager.requestPinAppWidget(component, null, null))
+            val accept = device.wait(Until.findObject(By.text(Pattern.compile("(?i)add to home ?screen|add automatically|add")).clickable(true)), 10_000)
+                ?: device.findObjects(By.text(Pattern.compile("(?i)add to home ?screen|add automatically|add"))).lastOrNull()
+                ?: throw AssertionError("Launcher didn't offer to add a widget")
+            accept.click()
+            repeat(30) { if (manager.getAppWidgetIds(component).isEmpty()) Thread.sleep(500) }
+        }
+        return manager.getAppWidgetIds(component).first()
     }
 
     private fun open(id: Int) {

@@ -192,3 +192,12 @@ fun DeltaType.toMaterial(): Typography {
         labelSmall = text(FontWeight.SemiBold, 11.sp, 16.sp, 0.4.sp),
     )
 }
+
+/** Compact, industrial headings and tabular figures for the alternate dashboard system. */
+fun dashboardType(style: TypeStyle): DeltaType {
+    val base = deltaType(style)
+    val condensed = FontFamily(android.graphics.Typeface.create("sans-serif-condensed", android.graphics.Typeface.BOLD))
+    return base.copy(display = base.display.copy(fontFamily = condensed, fontWeight = FontWeight.Bold, fontSize = 32.sp, lineHeight = 36.sp),
+        title = base.title.copy(fontFamily = condensed, fontWeight = FontWeight.Bold, fontSize = 23.sp, lineHeight = 27.sp),
+        label = base.label.copy(letterSpacing = 1.sp), button = base.button.copy(letterSpacing = 0.4.sp))
+}

@@ -141,6 +141,11 @@ data class AppSettings(
     val lastSyncMs: Long = 0L,
     /** Null preserves a saved legacy theme until appearance controls are first changed. */
     val appearance: AppAppearance? = null,
+    val savedGlassAppearance: AppAppearance? = null,
+    val savedTubikAppearance: AppAppearance? = null,
+    val savedGlassUsesLegacy: Boolean = false,
     /** Per-widget display options, filled in only while drawing a widget that has its own style. */
     val widgetContent: WidgetContent = WidgetContent(),
+    /** A placed widget may override the dashboard module color. Not a global preference. */
+    val widgetBackgroundOverride: Int? = null,
 )

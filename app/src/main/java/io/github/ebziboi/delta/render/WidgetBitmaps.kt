@@ -31,7 +31,8 @@ object WidgetBitmaps {
         require(maxSidePx.isFinite() && maxSidePx >= 1)
         val scale = min(context.resources.displayMetrics.density, maxSidePx / max(widthDp, heightDp))
         val bitmap = Bitmap.createBitmap(max(1, (widthDp * scale).roundToInt()), max(1, (heightDp * scale).roundToInt()), Bitmap.Config.ARGB_8888)
-        val palette = Palettes.forWidget(context, settings, night)
+        val theme = AppearanceEngine.forWidget(context, settings, night, kind)
+        val palette = theme.drawColors()
         val readable = if (settings.widgetGlass == WidgetGlass.CLEAR) palette.copy(textDim = palette.text, textFaint = palette.text) else palette
         // A widget may ask for light or dark text whatever its background; automatic keeps the contrast-derived colours.
         val colors = when (settings.widgetContent.text) {
@@ -42,7 +43,6 @@ object WidgetBitmaps {
         val type = DeltaFonts.canvas(context, settings.typeStyle)
         val canvas = Canvas(bitmap)
         canvas.scale(scale, scale)
-        val theme = AppearanceEngine.forWidget(context, settings, night)
         GlassWidgetSurface.draw(canvas, widthDp, heightDp, theme, settings, WidgetCorners.radius(context, theme.appearance.cornerRadius))
 
         // Draw tiny hosts in a larger logical coordinate space so content scales down together.
@@ -70,12 +70,12 @@ object WidgetBitmaps {
                  face: Typeface = type.number, align: Paint.Align = Paint.Align.LEFT, room: Float = w - pad * 2) {
             val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.SUBPIXEL_TEXT_FLAG).apply {
                 textSize = size; this.color = color; typeface = face; textAlign = align; fontFeatureSettings = "tnum"
-                if (settings.widgetGlass != WidgetGlass.SOLID) setShadowLayer(2f, 0f, 1f, if (colors.isLight) Color.WHITE else Color.BLACK)
+                if (settings.widgetGlass != WidgetGlass.SOLID && (settings.appearance?.designStyle != DesignStyle.TUBIK || settings.appearance.backgroundStyle == BackgroundStyle.IMAGE)) setShadowLayer(2f, 0f, 1f, if (colors.isLight) Color.WHITE else Color.BLACK)
             }
             if (room <= 0) return
             val measured = paint.measureText(value)
             if (measured > room) paint.textSize *= room / measured
-            if (settings.widgetGlass != WidgetGlass.SOLID) {
+            if (settings.widgetGlass != WidgetGlass.SOLID && (settings.appearance?.designStyle != DesignStyle.TUBIK || settings.appearance.backgroundStyle == BackgroundStyle.IMAGE)) {
                 // A crisp opposite-luminance halo keeps glyphs legible over unknown launcher wallpapers.
                 val halo = Paint(paint).apply {
                     clearShadowLayer()
@@ -92,6 +92,16 @@ object WidgetBitmaps {
             text(value, x, y, 9f, colors.textDim, type.label, align, room)
         fun bar(left: Float, top: Float, right: Float, height: Float = 6f) {
             val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = colors.surfaceHigh }
+            if (settings.appearance?.designStyle == DesignStyle.TUBIK) {
+                val count = 24; val gap = 1.5f
+                val width = ((right - left - gap * (count - 1)) / count).coerceAtLeast(0f)
+                repeat(count) { index ->
+                    paint.color = if ((index + 0.5f) / count <= (snap.fraction ?: 0f)) colors.accent else Palettes.fade(colors.text, 0.12f)
+                    val x = left + index * (width + gap)
+                    c.drawRect(x, top, x + width, top + height, paint)
+                }
+                return
+            }
             c.drawRoundRect(left, top, right, top + height, height / 2, height / 2, paint)
             val fraction = snap.fraction ?: 0f
             if (fraction > 0) {
@@ -100,6 +110,24 @@ object WidgetBitmaps {
             }
         }
         fun mark(left: Float, top: Float, size: Float) {
+            if (settings.appearance?.designStyle == DesignStyle.TUBIK) {
+                val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { strokeWidth = 0.8f; color = Palettes.fade(colors.text, 0.4f) }
+                val cx = left + size / 2; val cy = top + size / 2; val radius = size * 0.46f
+                repeat(60) { index ->
+                    val angle = (index * 6 - 90) * PI.toFloat() / 180
+                    val inner = radius - if (index % 5 == 0) 7f else 3f
+                    c.drawLine(cx + cos(angle) * inner, cy + sin(angle) * inner,
+                        cx + cos(angle) * radius, cy + sin(angle) * radius, paint)
+                }
+                val inset = size * 0.20f
+                val ring = RectF(left + inset, top + inset, left + size - inset, top + size - inset)
+                paint.style = Paint.Style.STROKE; paint.strokeWidth = size * 0.045f
+                paint.color = Palettes.fade(colors.text, 0.12f); c.drawOval(ring, paint)
+                paint.color = colors.accent; c.drawArc(ring, -90f, (snap.fraction ?: 0f).coerceIn(0f, 1f) * 360f, false, paint)
+                text(snap.fraction?.let { "${(it * 100).roundToInt()}%" } ?: "—", cx, cy + size * 0.06f,
+                    size = size * 0.18f, face = type.numberBold, align = Paint.Align.CENTER, room = size * 0.5f)
+                return
+            }
             DeltaMark.draw(c, left, top, size, snap.fraction ?: 0f, colors, glyph = snap.fraction == null)
             snap.fraction?.let { DeltaMark.drawLabel(c, left, top, size, "${(it * 100).roundToInt()}", "%", colors.text, type.numberBold,
                 shadowColor = if (settings.widgetGlass == WidgetGlass.SOLID) null else if (colors.isLight) Color.WHITE else Color.BLACK) }

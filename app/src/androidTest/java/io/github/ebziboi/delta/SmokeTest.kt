@@ -294,7 +294,7 @@ class SmokeTest {
 
         // Widget looks are edited from the home screen; here the page only adds widgets.
         tap("Widgets")
-        waitFor("Changing a widget's look")
+        waitFor("CHANGING A WIDGET'S LOOK")
         shot("20-widgets")
         device.pressBack()
         waitFor("Target weight")
@@ -312,7 +312,7 @@ class SmokeTest {
         tap("Settings")
         waitFor("Target weight")
         tap("Widgets")
-        waitFor("Changing a widget's look")
+        waitFor("CHANGING A WIDGET'S LOOK")
         repeat(6) { swipeUp() }
         shot("23-settings-widgets")
 
