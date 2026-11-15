@@ -82,7 +82,7 @@ fun ProgressScreen(
         verticalArrangement = Arrangement.spacedBy(Spacing.stack),
     ) {
         ScreenHeader(
-            title = greeting(),
+            title = "Progress",
             eyebrow = LocalDate.now().format(EYEBROW),
 
         )
@@ -104,12 +104,12 @@ fun ProgressScreen(
             TrendCard(snap, unit, settings, Modifier.entrance(2)) {
                 vm.update { it.copy(appChart = if (it.appChart == ChartStyle.TREND) ChartStyle.CONNECTED else ChartStyle.TREND) }
             }
-            BodyFatSection(snap.bodyFat, settings.targetBodyFat, health?.canWriteBodyFat == true, onConnect, snap.startDay.atStartOfDay(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli(), vm::logBodyFat)
+            BodyFatSection(snap.bodyFat, settings.targetBodyFat, health?.canWriteBodyFat == true, onConnect, snap.startDay.atStartOfDay(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli(), settings.bodyFatChart, {vm.update {it.copy(bodyFatChart=if(it.bodyFatChart==ChartStyle.TREND) ChartStyle.CONNECTED else ChartStyle.TREND)}}, vm::logBodyFat)
             InsightsCard(snap, insights, unit, Modifier.entrance(3))
             if (insights.recent.isNotEmpty()) RecentCard(insights, snap.losing, unit, Modifier.entrance(4))
         }
 
-        Spacer(Modifier.height(padding.calculateBottomPadding() + 24.dp))
+        Spacer(Modifier.height(padding.calculateBottomPadding() + 8.dp))
     }
 }
 
@@ -161,7 +161,7 @@ private fun ConnectCard(health: HealthState, onConnect: () -> Unit) {
 
 /** Where you are now, the week's change, the delta, and the journey from start to target. */
 @Composable
-private fun HeroCard(snap: ProgressSnapshot, insights: Insights, unit: WeightUnit, modifier: Modifier, settings: AppSettings) {
+internal fun HeroCard(snap: ProgressSnapshot, insights: Insights, unit: WeightUnit, modifier: Modifier, settings: AppSettings) {
     val colors = LocalDeltaColors.current
     val type = LocalDeltaType.current
     val withArt = settings.progressDisplay in listOf(ProgressDisplay.COMPLICATION, ProgressDisplay.BOTH) && snap.fraction != null
@@ -187,6 +187,10 @@ private fun HeroCard(snap: ProgressSnapshot, insights: Insights, unit: WeightUni
                     }
                 }
                 if (withArt) PercentageComplication(snap.fraction, settings.percentageDesign, Modifier.size(artSize))
+                else if(settings.progressDisplay==ProgressDisplay.PERIMETER) Column(Modifier.size(artSize),verticalArrangement=Arrangement.Center,horizontalAlignment=Alignment.CenterHorizontally) {
+                    RollingText(snap.fraction?.let {"${(it*100).roundToInt()}%"} ?: "—",type.numberLarge.copy(fontSize=34.sp),color=Color(panel.accent))
+                    Caption("of goal")
+                }
             }
         }
         snap.bodyFat.lastOrNull()?.let { reading ->
@@ -207,7 +211,7 @@ private fun HeroCard(snap: ProgressSnapshot, insights: Insights, unit: WeightUni
             val summary = buildList {
                 snap.changeKg?.let { add("${Units.amount(it, unit)} ${if (it <= 0) "lost" else "gained"}") }
                 if (snap.reached) add("Target reached") else snap.remainingKg?.let { add("${Units.amount(it, unit)} to go") }
-                if (!withArt) snap.fraction?.let { add("${(it * 100).roundToInt()}%") }
+                if (!withArt && settings.progressDisplay!=ProgressDisplay.PERIMETER) snap.fraction?.let { add("${(it * 100).roundToInt()}%") }
             }.joinToString("  ·  ")
             Text(summary, style = type.bodySmall, color = Color(panel.textDim))
         }
@@ -335,6 +339,20 @@ private fun TrendCard(snap: ProgressSnapshot, unit: WeightUnit, settings: AppSet
 @Composable
 private fun InsightsCard(snap: ProgressSnapshot, insights: Insights, unit: WeightUnit, modifier: Modifier) {
     val lines = buildList {
+        if(insights.average7Kg!=null && insights.averagePrevious7Kg!=null) {
+            val change=insights.average7Kg-insights.averagePrevious7Kg
+            add(R.drawable.ic_insights to "7-day average: ${Units.signed(change,unit)} compared with the previous week.")
+        }
+        val fat=snap.bodyFat.sortedBy {it.epochMs}
+        val latestFat=fat.lastOrNull()
+        val weekAgo=System.currentTimeMillis()-7L*86400000
+        if(latestFat!=null && latestFat.epochMs>=weekAgo) {
+            fat.lastOrNull {it.epochMs<=weekAgo && it.epochMs>=weekAgo-2L*86400000}?.let { earlier ->
+                val date=java.time.Instant.ofEpochMilli(earlier.epochMs).atZone(java.time.ZoneId.systemDefault()).toLocalDate()
+                add(R.drawable.ic_insights to String.format(Locale.getDefault(),"Body fat: %+.1f percentage points since %s.",latestFat.percent-earlier.percent,Format.day(date)))
+            }
+        }
+
         insights.monthChangeKg?.let { change ->
             val verb = if (change <= 0) "down" else "up"
             add(R.drawable.ic_calendar_month to "You're ${Units.amount(change, unit)} $verb on a month ago.")
@@ -349,7 +367,7 @@ private fun InsightsCard(snap: ProgressSnapshot, insights: Insights, unit: Weigh
             add(R.drawable.ic_event to "To reach your target by ${Format.day(target)} you need ${Units.rate(required, unit)}.")
         }
         insights.daysSinceLastWeighIn?.takeIf { it >= 2 }?.let {
-            add(R.drawable.ic_schedule to "Your last weigh-in was $it days ago. A quick one keeps the trend accurate.")
+            add(R.drawable.ic_schedule to "Your last weigh-in was $it days ago. The trend may lag behind recent changes.")
         }
         add(R.drawable.ic_today to "Day ${insights.daysSinceStart + 1} of your journey, with ${snap.weighIns} weigh-ins so far.")
     }

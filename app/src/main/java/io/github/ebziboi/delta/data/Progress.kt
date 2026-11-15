@@ -218,6 +218,9 @@ object ProgressCalculator {
      * to its neighbours, with nearby days counting most. Unlike a running average
      * this does not trail above the data while weight is steadily coming off.
      */
+    fun bodyFatTrend(readings: List<BodyFatEntry>): List<TrendPoint> = trend(readings.filter {BodyFat.valid(it.percent)}
+        .sortedBy {it.epochMs}.map {WeightEntry(it.epochMs,it.percent,it.own,it.id)})
+
     private fun trend(points: List<WeightEntry>): List<TrendPoint> {
         val out = ArrayList<TrendPoint>(points.size)
         var windowStart = 0

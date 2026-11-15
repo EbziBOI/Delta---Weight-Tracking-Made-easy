@@ -33,13 +33,12 @@ fun MetricDetailScreen(vm: AppViewModel, settings: AppSettings, initial: DetailM
     var weekEpoch by rememberSaveable { mutableStateOf(MetricDetails.monday(LocalDate.now()).toEpochDay()) }
     var selectedEpoch by rememberSaveable { mutableStateOf(LocalDate.now().toEpochDay()) }
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(top=padding.calculateTopPadding())
-        .padding(horizontal=Spacing.screen).padding(bottom=60.dp), verticalArrangement=Arrangement.spacedBy(18.dp)) {
-        TextAction("Back",onBack)
+        .padding(horizontal=Spacing.screen).padding(bottom=padding.calculateBottomPadding()+8.dp), verticalArrangement=Arrangement.spacedBy(18.dp)) {
         if (initial == DetailMetric.GOAL) {
-            ScreenHeader("Your forecast", eyebrow="GOAL BY")
+            ScreenHeader("Your forecast", eyebrow="GOAL BY",leading={TextAction("Back",onBack)})
             snap?.let { ForecastDetail(it,entries,settings) }
         } else {
-            ScreenHeader("Your rhythm",eyebrow="PROGRESS DETAILS")
+            ScreenHeader("Your rhythm",eyebrow="PROGRESS DETAILS",leading={TextAction("Back",onBack)})
             SegmentedControl(metrics,metrics[pager.currentPage],{ when(it) { DetailMetric.RATE -> "Rate"; DetailMetric.AVERAGE -> "Average"; else -> "Streak" } },Modifier.fillMaxWidth()) {
                 scope.launch { if(motion) pager.animateScrollToPage(metrics.indexOf(it)) else pager.scrollToPage(metrics.indexOf(it)) }
             }

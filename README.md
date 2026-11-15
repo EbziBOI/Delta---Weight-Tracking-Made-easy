@@ -7,8 +7,8 @@ widgets that show where you started, where you are now and where you are going.
 track; in the app and on the widgets that track is live and fills as you close
 the gap to your target.
 
-Choose **Settings → Appearance → Design system → Tubik inspired** for a distinct
-matte dashboard: coral actions, sage progress modules, violet graphs, instrument
+Choose **Settings → Appearance → Design system → Tubik** for a distinct
+dashboard: coral actions, sage progress modules, violet graphs, instrument
 dials, compact headings and matching widgets. Glass keeps its own saved colors,
 background and blur when you switch back. The visual reference is
 [Tubik’s restaurant operations concept](https://dribbble.com/shots/26787072-AI-Powered-Mobile-App-for-Restaurant-Operations).
@@ -35,13 +35,14 @@ background and blur when you switch back. The visual reference is
 - A single Health Connect status pill opens its dedicated access and sync page
 - Short, equally sized top/bottom fades retain fully black ends while content scrolls behind the toolbar
 - Tap Weekly rate, 7-day average or Streak for a swipeable daily calendar; tap Goal by for the full projection and recent pace/data-quality insights
-- Choose a complication, smooth/segmented/dotted bar, curved card-perimeter progress or both in Appearance
+- Choose art, a smooth/segmented/dotted bar, thicker card-perimeter progress with a goal percentage, or both in **Settings → Complications**, with a live card preview
 - Glass dashboard panels, animated progress fills and press feedback respect Reduce motion
 - Vertical graph drags scroll the page even after zooming; horizontal pans change dates, with centered disabled boundary controls
 - The home complication fits the card’s available width, alongside the current weight with compact, aligned journey totals
-- Frameless adaptive launcher icons with smaller marks and full-bleed gradients
+- Original supplied launcher artwork, preserving its detail and gradients with adaptive-mask padding
 - Per-widget graph ranges: 1 week, 1 month, 3 months, 1 year or the full journey
-- Live glass transparency and blur controls with an in-place material preview
+- Live transparency and blur controls in both themes with an in-place material preview
+- Portrait layouts, equal-width animated selectors, responsive presets, and separate main-theme/accent choices
 - A customizable glass design system shared by the app and widgets: independently
   choose background and accent colors, with automatic text and surface contrast
 - Backgrounds: solid, vertical gradient, radial gradient, mesh, or a photo picked
@@ -111,6 +112,8 @@ can remove local settings and cached data; record your goal and start date first
 - Backdrop blur: [Haze](https://github.com/chrisbanes/haze) by Chris Banes, under
   the Apache License 2.0.
 
-Release APKs include the version in their filename (for example `Delta-0.1.28.apk`) and Android package metadata. GitHub builds keep increasing the version code and use the stored signing key for in-place updates. `Delta.apk` remains as a compatibility download. Local release builds also write a versioned copy next to the standard Android Studio output.
+Release APKs include the version in their filename (for example `Delta-0.1.30.apk`) and Android package metadata. GitHub builds keep increasing the version code and use the stored signing key for in-place updates. `Delta.apk` remains as a compatibility download. Local release builds also write a versioned copy next to the standard Android Studio output.
 
-Widgets prioritize complete, readable measurements as they resize: compact sparklines, stacked narrow summaries and pace cells, current-week comparisons, and concise empty states. Tubik controls use a distinct translucent tint, while data modules stay solid. Repeated interface guidance is reduced to essential access, validation and data context.
+Widgets prioritize complete, readable measurements as they resize: compact sparklines, stacked narrow summaries and pace cells, current-week comparisons, and concise empty states. Tubik controls and data modules follow the saved transparency and blur. Repeated interface guidance is reduced to essential access, validation and data context.
+
+The nine supplied icon source PNGs are retained unchanged. On macOS, `swift -module-cache-path /tmp/delta-swift-cache ci/restore-launcher-art.swift .` rebuilds their padded adaptive foregrounds by removing the outer tile rim and extending the inner background; the central artwork is never redrawn.

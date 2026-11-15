@@ -30,7 +30,7 @@ fun Modifier.cardPerimeter(enabled: Boolean, fraction: Float?): Modifier {
             val path=Path().apply { addRoundRect(RectF(inset,inset,size.width-inset,size.height-inset),radius,radius,Path.Direction.CW) }
             val measure=PathMeasure(path,true);val active=Path()
             measure.getSegment(0f,measure.length*shown,active,true)
-            val paint=Paint(Paint.ANTI_ALIAS_FLAG).apply { style=Paint.Style.STROKE;strokeWidth=2.5.dp.toPx();strokeCap=Paint.Cap.ROUND;color=colors.text;alpha=25 }
+            val paint=Paint(Paint.ANTI_ALIAS_FLAG).apply { style=Paint.Style.STROKE;strokeWidth=4.dp.toPx();strokeCap=Paint.Cap.ROUND;color=colors.text;alpha=25 }
             canvas.nativeCanvas.drawPath(path,paint)
             paint.color=colors.accent;paint.alpha=255
             canvas.nativeCanvas.drawPath(active,paint)

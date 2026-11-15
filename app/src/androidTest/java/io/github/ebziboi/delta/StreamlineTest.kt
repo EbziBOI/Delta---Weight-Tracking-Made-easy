@@ -63,7 +63,7 @@ class StreamlineTest {
             inst.uiAutomation.clearCache()
             val hero=device.findObject(By.descStartsWith("Summit:")).visibleBounds
             assertTrue("Home complication should fit alongside the weight",hero.width() in (device.displayWidth*.25f).toInt()..(device.displayWidth*.42f).toInt())
-            assertTrue(device.findObject(By.text("Progress")).parent.visibleBounds.width()<device.displayWidth*.7f)
+            assertTrue(device.findObjects(By.text("Progress")).last {it.visibleBounds.centerY()>device.displayHeight*.8f}.parent.visibleBounds.width()<device.displayWidth*.7f)
             device.takeScreenshot(File(out,"hero-geometric.png"))
             val x=device.displayWidth/12
             device.swipe(x,device.displayHeight*65/100,x,device.displayHeight*35/100,70)

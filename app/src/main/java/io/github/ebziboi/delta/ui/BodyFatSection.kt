@@ -17,7 +17,7 @@ import java.util.Locale
 
 @Composable
 fun BodyFatSection(readings: List<BodyFatEntry>, target: Double?, canWrite: Boolean, onAccess: () -> Unit,
-                   journeyStart: Long?, onLog: (Double, Instant) -> Unit) {
+                   journeyStart: Long?, chartStyle: ChartStyle = ChartStyle.CONNECTED, onSwitchStyle: (() -> Unit)? = null, onLog: (Double, Instant) -> Unit) {
     var logging by remember { mutableStateOf(false) }
     var range by remember { mutableStateOf("Journey") }
     val latest = readings.maxByOrNull { it.epochMs }
@@ -38,8 +38,8 @@ fun BodyFatSection(readings: List<BodyFatEntry>, target: Double?, canWrite: Bool
         if (readings.size >= 2) {
             SegmentedControl(listOf("1M", "3M", "Journey", "All"), range, { it }, Modifier.fillMaxWidth()) { range = it }
             val cutoff = when (range) { "1M" -> System.currentTimeMillis() - 30L * 86_400_000; "3M" -> System.currentTimeMillis() - 90L * 86_400_000; "Journey" -> journeyStart ?: Long.MIN_VALUE; else -> Long.MIN_VALUE }
-            val points = readings.filter { it.epochMs >= cutoff }.sortedBy { it.epochMs }.map { TrendPoint(it.epochMs, it.percent, it.percent) }
-            InteractiveChart(ChartSpec(points, ChartStyle.CONNECTED, WeightUnit.KG, target, metric = ChartMetric.BODY_FAT), Modifier.height(190.dp))
+            val points = ProgressCalculator.bodyFatTrend(readings.filter { it.epochMs >= cutoff })
+            InteractiveChart(ChartSpec(points, chartStyle, WeightUnit.KG, target, metric = ChartMetric.BODY_FAT), Modifier.height(190.dp),onDoubleTap=onSwitchStyle)
         }
         GlassButton(if (canWrite) "Log body fat" else "Allow body fat access", { if (canWrite) logging = true else onAccess() })
     }

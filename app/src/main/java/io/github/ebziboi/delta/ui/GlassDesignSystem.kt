@@ -34,17 +34,17 @@ fun Modifier.refractiveGlass(
 ): Modifier {
     val a = LocalAppearance.current
     val backdrop = LocalGlassBackdrop.current
-    if (a.designStyle == DesignStyle.TUBIK) return clip(shape).background(controlTile(colors))
+    val tint = controlTile(colors)
     val live = Build.VERSION.SDK_INT >= 31 && a.glassBlurRadius > 0f && !a.reduceTransparency && backdrop != null
-    if (!live) return glass(shape, colors)
+    if (!live) return clip(shape).background(controlTile(colors))
     // Where the phone can blur, the tile is a frosted blur of what is behind it, tinted
     // with the same translucent tone as every other control, and still with no outline.
     return clip(shape).hazeEffect(backdrop) {
         backgroundColor = Color(colors.bg)
         blurRadius = a.glassBlurRadius.dp
         noiseFactor = 0.01f
-        tints = listOf(HazeTint(glassTile(colors, a)))
-        fallbackTint = HazeTint(glassTile(colors, a))
+        tints = listOf(HazeTint(tint))
+        fallbackTint = HazeTint(tint)
     }
 }
 
@@ -52,15 +52,10 @@ fun Modifier.refractiveGlass(
 fun controlTile(colors: DrawColors = LocalDeltaColors.current): Color {
     val a = LocalAppearance.current
     return if (a.designStyle == DesignStyle.TUBIK) Color(io.github.ebziboi.delta.render.Palettes.mix(colors.surfaceHigh,colors.accent2,.12f))
-        .copy(alpha = if(a.reduceTransparency) 1f else .86f) else glassTile(colors,a)
+        .copy(alpha = if(a.reduceTransparency) 1f else a.glassOpacity) else glassTile(colors,a)
 }
 
-/**
- * A block of content laid straight onto the background, with no pane around it.
- * Glass is kept for the things you touch (buttons, pickers, the tab bar); content
- * is set apart by space and a hairline above it instead. [accent] tints the start
- * of that hairline for a section that needs attention or carries the main figure.
- */
+/** Subtle glass-theme sections and tinted Tubik modules share the same spacing. */
 @Composable
 fun ContentSection(
     modifier: Modifier = Modifier, onClick: (() -> Unit)? = null,
@@ -74,26 +69,19 @@ fun ContentSection(
     }
     val colors = LocalDeltaColors.current
     if (framed) {
+        val interaction=if(onClick!=null) Modifier.clickable(role=Role.Button,onClick=onClick) else Modifier
         CompositionLocalProvider(LocalContentColor provides Color(colors.text)) {
-            Column(modifier.fillMaxWidth().then(if(LocalMotion.current) Modifier.animateContentSize() else Modifier).glass(RoundedCornerShape(Radii.card),colors).padding(20.dp),
+            Column(modifier.fillMaxWidth().then(if(LocalMotion.current) Modifier.animateContentSize() else Modifier).refractiveGlass(RoundedCornerShape(Radii.card),colors).then(interaction).padding(20.dp),
                 verticalArrangement = Arrangement.spacedBy(spacing),content=content)
         }
         return
     }
-    val rule = Color(colors.text).copy(alpha = if (colors.isLight) 0.12f else 0.14f)
-    var section = modifier.fillMaxWidth().drawBehind {
-        val y = 0.5.dp.toPx()
-        val line = 1.dp.toPx()
-        drawLine(rule, Offset(0f, y), Offset(size.width, y), line)
-        if (accent != null) {
-            val reach = minOf(size.width, 140.dp.toPx())
-            drawLine(Brush.horizontalGradient(listOf(accent, accent.copy(alpha = 0f)), 0f, reach),
-                Offset(0f, y), Offset(reach, y), 2.dp.toPx(), cap = StrokeCap.Round)
-        }
-    }
+    val shape=RoundedCornerShape(Radii.tile)
+    var section=modifier.fillMaxWidth().clip(shape).background(Color(colors.surface).copy(alpha=
+        if(LocalAppearance.current.reduceTransparency) 1f else if(colors.isLight) .56f else .38f))
     if (onClick != null) section = section.clickable(role = Role.Button, onClick = onClick)
     CompositionLocalProvider(LocalContentColor provides Color(colors.text)) {
-        Column(section.padding(top = 20.dp, bottom = 6.dp), verticalArrangement = Arrangement.spacedBy(spacing), content = content)
+        Column(section.padding(16.dp), verticalArrangement = Arrangement.spacedBy(spacing), content = content)
     }
 }
 
@@ -154,12 +142,13 @@ fun ListRow(modifier: Modifier = Modifier, onClick: (() -> Unit)? = null, conten
 @Composable
 fun GlassBottomNavBar(modifier: Modifier = Modifier, onLog: (() -> Unit)? = null, content: @Composable RowScope.() -> Unit) {
     Box(Modifier.fillMaxWidth().navigationBarsPadding().padding(bottom = 8.dp), contentAlignment = Alignment.Center) {
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.semantics { contentDescription = "Navigation dock" }) {
-            NavigationBar(modifier.width(216.dp).height(56.dp).refractiveGlass(RoundedCornerShape(28.dp)),
-                windowInsets = WindowInsets(0), containerColor = Color.Transparent, tonalElevation = 0.dp, content = content)
-            if (onLog != null) GlassIconButton(io.github.ebziboi.delta.R.drawable.ic_add, "Log weight", onLog,
-                size = 48.dp, tint = Color(LocalDeltaColors.current.accent))
+        BoxWithConstraints(Modifier.fillMaxWidth().height(if(androidx.compose.ui.platform.LocalDensity.current.fontScale>1.3f) 64.dp else 56.dp)
+            .semantics {contentDescription="Navigation dock"}) {
+            val barWidth = minOf(216.dp, maxWidth - 128.dp)
+            NavigationBar(modifier.align(Alignment.Center).width(barWidth).fillMaxHeight().refractiveGlass(RoundedCornerShape(28.dp)),
+                windowInsets=WindowInsets(0),containerColor=Color.Transparent,tonalElevation=0.dp,content=content)
+            if(onLog!=null) GlassIconButton(io.github.ebziboi.delta.R.drawable.ic_add,"Log weight",onLog,
+                Modifier.align(Alignment.Center).offset(x=barWidth/2+32.dp),size=48.dp,tint=Color(LocalDeltaColors.current.accent))
         }
     }
 }

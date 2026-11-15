@@ -33,9 +33,8 @@ fun IconCarousel(selected: String, onApply: (String) -> Unit) {
     fun apply(index: Int) { haptics.performHapticFeedback(HapticFeedbackType.LongPress); onApply(icons[index].id) }
     ContentSection {
         Caption("App icon")
-        Text("A mark of your own", style = LocalDeltaType.current.title)
         HorizontalPager(pager, contentPadding = PaddingValues(horizontal = 54.dp), pageSpacing = 12.dp,
-            modifier = Modifier.fillMaxWidth().height(190.dp).semantics { contentDescription = "App icon carousel" }) { index ->
+            modifier = Modifier.fillMaxWidth().height(170.dp).semantics { contentDescription = "App icon carousel" }) { index ->
             val icon = icons[index]
             val offset = abs(pager.currentPage - index + pager.currentPageOffsetFraction).coerceIn(0f, 1f)
             Box(Modifier.fillMaxSize().graphicsLayer { scaleX = 1 - offset * 0.16f; scaleY = scaleX; alpha = 1 - offset * 0.4f }

@@ -52,6 +52,7 @@ class SettingsStore(context: Context) {
         val ACCENT = stringPreferencesKey("accent")
         val TYPE_STYLE = stringPreferencesKey("type_style")
         val MOTION = booleanPreferencesKey("motion")
+        val BODY_FAT_CHART = stringPreferencesKey("body_fat_chart")
         val APP_CHART = stringPreferencesKey("app_chart")
         val WIDGET_CHART = stringPreferencesKey("widget_chart")
         val PROJECTION = booleanPreferencesKey("projection")
@@ -128,6 +129,7 @@ class SettingsStore(context: Context) {
             accent = named(prefs[Keys.ACCENT], defaults.accent),
             typeStyle = named(prefs[Keys.TYPE_STYLE], defaults.typeStyle),
             motion = prefs[Keys.MOTION] ?: defaults.motion,
+            bodyFatChart = named(prefs[Keys.BODY_FAT_CHART], defaults.bodyFatChart),
             appChart = named(prefs[Keys.APP_CHART], defaults.appChart),
             widgetChart = named(prefs[Keys.WIDGET_CHART], defaults.widgetChart),
             showProjection = prefs[Keys.PROJECTION] ?: defaults.showProjection,
@@ -161,6 +163,7 @@ class SettingsStore(context: Context) {
         prefs[Keys.ACCENT] = settings.accent.name
         prefs[Keys.TYPE_STYLE] = settings.typeStyle.name
         prefs[Keys.MOTION] = settings.motion
+        prefs[Keys.BODY_FAT_CHART] = settings.bodyFatChart.name
         prefs[Keys.APP_CHART] = settings.appChart.name
         prefs[Keys.WIDGET_CHART] = settings.widgetChart.name
         prefs[Keys.PROJECTION] = settings.showProjection

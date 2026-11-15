@@ -39,6 +39,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
@@ -100,6 +101,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpOffset
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.unit.dp
 import io.github.ebziboi.delta.R
 import io.github.ebziboi.delta.render.ChartSpec
@@ -233,12 +235,15 @@ fun Caption(text: String, modifier: Modifier = Modifier, color: Color = Color(Lo
  * date), then the title, with an optional [accent] word set in the display
  * face's italic and the accent colour. [trailing] holds buttons on the right.
  */
+val LocalHeaderActionSpace = androidx.compose.runtime.staticCompositionLocalOf { 0.dp }
+
 @Composable
 fun ScreenHeader(
     title: String,
     modifier: Modifier = Modifier,
     eyebrow: String? = null,
     accent: String? = null,
+    leading: (@Composable () -> Unit)? = null,
     trailing: @Composable RowScope.() -> Unit = {},
 ) {
     val heading = if (LocalAppearance.current.designStyle == io.github.ebziboi.delta.data.DesignStyle.TUBIK) title.uppercase() else title
@@ -247,12 +252,12 @@ fun ScreenHeader(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .padding(top = 12.dp, bottom = 4.dp),
-        verticalAlignment = Alignment.Bottom,
+            .padding(bottom = 4.dp),
+        verticalAlignment = Alignment.Top,
     ) {
+        if(leading!=null) { leading();Spacer(Modifier.width(8.dp)) }
         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            if (eyebrow != null) Caption(eyebrow)
-            Text(
+            androidx.compose.foundation.text.BasicText(
                 text = buildAnnotatedString {
                     append(heading)
                     if (accent != null) {
@@ -262,10 +267,13 @@ fun ScreenHeader(
                         }
                     }
                 },
-                style = type.display,
-                color = Color(colors.text),
+                style = type.display.copy(color=Color(colors.text)),
+                maxLines = 1,
+                autoSize = androidx.compose.foundation.text.TextAutoSize.StepBased(minFontSize=22.sp,maxFontSize=type.display.fontSize,stepSize=1.sp),
             )
+            if (eyebrow != null) Caption(eyebrow)
         }
+        Spacer(Modifier.width(LocalHeaderActionSpace.current))
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp), content = trailing)
     }
 }
@@ -719,10 +727,7 @@ fun <T> SegmentedControl(
 ) {
     val colors = LocalDeltaColors.current
     val type = LocalDeltaType.current
-    if (LocalAppearance.current.designStyle == io.github.ebziboi.delta.data.DesignStyle.TUBIK) {
-        DashboardSegments(options, selected, label, modifier, onSelect)
-        return
-    }
+    val dashboard = LocalAppearance.current.designStyle == io.github.ebziboi.delta.data.DesignStyle.TUBIK
     val index = options.indexOf(selected).coerceAtLeast(0)
     val position by animateFloatAsState(
         targetValue = index.toFloat(),
@@ -730,19 +735,19 @@ fun <T> SegmentedControl(
         label = "segment",
     )
     val shape = RoundedCornerShape(Radii.control)
-    val accent = Color(colors.accent)
+    val accent = if(dashboard) Color(colors.text).copy(alpha=.14f) else Color(colors.accent)
     Row(
         modifier = modifier
-            .width(IntrinsicSize.Max)
-            .glass(shape, colors, elevated = false)
+            .fillMaxWidth()
+            .refractiveGlass(shape, colors, elevated = false)
             .drawBehind {
                 if (options.isEmpty()) return@drawBehind
                 val inset = 3.dp.toPx()
-                val segment = size.width / options.size
+                val segment = (size.width-inset*2) / options.size
                 drawRoundRect(
                     color = accent,
                     topLeft = Offset(segment * position + inset, inset),
-                    size = Size(segment - inset * 2, size.height - inset * 2),
+                    size = Size(segment, size.height - inset * 2),
                     cornerRadius = CornerRadius(size.height / 2f, size.height / 2f),
                 )
             }
@@ -751,7 +756,7 @@ fun <T> SegmentedControl(
         options.forEachIndexed { i, option ->
             val isSelected = i == index
             val ink by animateColorAsState(
-                targetValue = if (isSelected) Color(colors.onAccent) else Color(colors.textDim),
+                targetValue = if (isSelected) Color(if(dashboard) colors.accent else colors.onAccent) else Color(colors.textDim),
                 animationSpec = tween(if(LocalMotion.current) 180 else 0),
                 label = "segment-ink",
             )
@@ -760,8 +765,8 @@ fun <T> SegmentedControl(
                     .weight(1f)
                     .clip(shape)
                     .clickable(role = Role.Tab) { onSelect(option) }
-                    .semantics { this.selected = isSelected }
-                    .padding(horizontal = 14.dp, vertical = 8.dp),
+                    .semantics { this.selected = isSelected; if(option is io.github.ebziboi.delta.data.DesignStyle) contentDescription="${option.label} design" }
+                    .heightIn(min=44.dp).padding(horizontal = 6.dp, vertical = 8.dp),
                 contentAlignment = Alignment.Center,
             ) {
                 Text(text = label(option), style = type.bodySmall.copy(fontWeight = type.bodyStrong.fontWeight), color = ink, maxLines = 1)
@@ -781,31 +786,23 @@ fun <T> ChoiceRow(
 ) {
     val colors = LocalDeltaColors.current
     val type = LocalDeltaType.current
-    FlowRow(
-        modifier = modifier,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        for (option in options) {
-            val isSelected = option == selected
-            val shape = RoundedCornerShape(Radii.pill)
-            val look = if (isSelected) {
-                Modifier
-                    .clip(shape)
-                    .background(Color(colors.accent))
-            } else {
-                Modifier.refractiveGlass(shape, colors, elevated = false)
+    androidx.compose.foundation.layout.BoxWithConstraints(modifier.fillMaxWidth()) {
+        val columns = ((maxWidth.value + 8f) / 112f).toInt().coerceIn(1,3)
+        Column(verticalArrangement=Arrangement.spacedBy(8.dp)) {
+            balancedOptionRows(options,columns).forEach { row ->
+                Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min),horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+                    row.forEach { option ->
+                        val active=option==selected
+                        val shape=RoundedCornerShape(Radii.control)
+                        val look=if(active) Modifier.clip(shape).background(Color(colors.accent)) else Modifier.refractiveGlass(shape,colors,elevated=false)
+                        Box(Modifier.weight(1f).fillMaxHeight().then(look).heightIn(min=48.dp).clickable(role=Role.RadioButton) {onSelect(option)}
+                            .semantics {this.selected=active}.padding(horizontal=10.dp,vertical=10.dp),contentAlignment=Alignment.Center) {
+                            Text(label(option),style=type.bodySmall.copy(fontWeight=type.bodyStrong.fontWeight),
+                                color=Color(if(active) colors.onAccent else colors.text),maxLines=2,textAlign=androidx.compose.ui.text.style.TextAlign.Center)
+                        }
+                    }
+                }
             }
-            Text(
-                text = label(option),
-                modifier = look.heightIn(min = 48.dp)
-                    .clickable(role = Role.RadioButton) { onSelect(option) }
-                    .wrapContentHeight(Alignment.CenterVertically)
-                    .padding(horizontal = 16.dp, vertical = 9.dp),
-                style = type.bodySmall.copy(fontWeight = type.bodyStrong.fontWeight),
-                color = if (isSelected) Color(colors.onAccent) else Color(colors.text),
-                maxLines = 1,
-            )
         }
     }
 }

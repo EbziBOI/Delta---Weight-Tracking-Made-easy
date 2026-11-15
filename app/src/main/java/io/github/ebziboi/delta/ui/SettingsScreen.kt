@@ -101,10 +101,9 @@ fun SettingsScreen(
             .padding(horizontal = 16.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-        ScreenHeader(title = "Settings", eyebrow = "Make Delta yours")
+        ScreenHeader(title = "Settings")
 
-        ContentSection(modifier = if (LocalAppearance.current.designStyle == io.github.ebziboi.delta.data.DesignStyle.GLASS)
-            Modifier.refractiveGlass(androidx.compose.foundation.shape.RoundedCornerShape(Radii.corner)).padding(16.dp) else Modifier, tone = ModuleTone.SAGE) {
+        ContentSection(tone = ModuleTone.SAGE,framed=true) {
             Caption("Body composition")
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Column {
@@ -167,8 +166,8 @@ fun SettingsScreen(
         // Units
         ContentSection {
             Caption("Units")
-            ChoiceRow(
-                options = WeightUnit.values().toList(),
+            SegmentedControl(
+                options = WeightUnit.entries,
                 selected = unit,
                 label = { it.label },
                 onSelect = { picked -> vm.update { it.copy(unit = picked) } },
@@ -176,11 +175,13 @@ fun SettingsScreen(
         }
 
         ContentSection {
-            NavRow(io.github.ebziboi.delta.R.drawable.ic_palette, "Appearance", subtitle = "Theme, accent, typography and motion", onClick = { section = "Appearance" })
+            NavRow(io.github.ebziboi.delta.R.drawable.ic_palette, "Appearance", onClick = { section = "Appearance" })
             GlassDivider()
-            NavRow(io.github.ebziboi.delta.R.drawable.ic_show_chart, "Graphs", subtitle = "Line style and path to your goal", onClick = { section = "Graphs" })
+            NavRow(io.github.ebziboi.delta.R.drawable.ic_delta_mark, "Complications", onClick = { section = "Complications" })
             GlassDivider()
-            NavRow(io.github.ebziboi.delta.R.drawable.ic_widgets, "Widgets", subtitle = "Add widgets to your home screen", onClick = { section = "Widgets" })
+            NavRow(io.github.ebziboi.delta.R.drawable.ic_show_chart, "Graphs", onClick = { section = "Graphs" })
+            GlassDivider()
+            NavRow(io.github.ebziboi.delta.R.drawable.ic_widgets, "Widgets", onClick = { section = "Widgets" })
         }
 
 
@@ -189,7 +190,7 @@ fun SettingsScreen(
             color = Color(colors.textDim),
             fontSize = 13.sp,
         )
-        Spacer(Modifier.height(24.dp))
+        Spacer(Modifier.height(8.dp))
     }
 
     when (editing) {
@@ -275,18 +276,18 @@ private fun SettingsDetail(
     Column(
         Modifier.fillMaxSize().verticalScroll(rememberScrollState())
             .padding(top = padding.calculateTopPadding()).padding(horizontal = 16.dp)
-            .padding(bottom = padding.calculateBottomPadding() + 24.dp),
+            .padding(bottom = padding.calculateBottomPadding() + 8.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-        TextAction("Back", onClick = onBack, modifier = Modifier.padding(top = 12.dp))
-        ScreenHeader(title = title)
+        ScreenHeader(title = title,leading={TextAction("Back",onBack)})
         when (title) {
             "Health Connect" -> HealthConnectDetails(vm, settings, health, onConnect)
             "Appearance" -> AppearanceControls(vm, settings)
+            "Complications" -> ComplicationControls(vm,settings)
             "Graphs" -> {
                 ContentSection {
                     Caption("In the app")
-                    ChoiceRow(ChartStyle.entries, settings.appChart, { it.label }) { chosen -> vm.update { it.copy(appChart = chosen) } }
+                    SegmentedControl(ChartStyle.entries, settings.appChart, { it.label }) { chosen -> vm.update { it.copy(appChart = chosen) } }
                     if (snap != null) TrendChartView(
                         io.github.ebziboi.delta.render.ChartSpec.journey(snap, settings.appChart, settings.unit, settings.showProjection),
                         Modifier.fillMaxWidth().height(190.dp))

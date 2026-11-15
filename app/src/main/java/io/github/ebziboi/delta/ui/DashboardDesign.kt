@@ -16,6 +16,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import dev.chrisbanes.haze.HazeTint
+import dev.chrisbanes.haze.hazeEffect
+import android.os.Build
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.semantics.*
@@ -36,9 +39,18 @@ fun DashboardModule(modifier: Modifier = Modifier, tone: ModuleTone = ModuleTone
         ModuleTone.SAGE -> TubikTokens.SAGE
         ModuleTone.VIOLET -> Palettes.mix(TubikTokens.VIOLET, android.graphics.Color.BLACK, 0.20f)
     }
-    val theme = remember(appearance, base) { DerivedTheme.derive(appearance.copy(backgroundBase = base, backgroundSecondary = base)) }
+    val opacity=if(appearance.reduceTransparency) 1f else appearance.glassOpacity
+    val composited=Palettes.mix(root.bg,base,opacity)
+    val theme = remember(appearance, composited) { DerivedTheme.derive(appearance.copy(backgroundBase = composited, backgroundSecondary = composited)) }
     val colors = theme.drawColors()
-    var pane = modifier.then(if(LocalMotion.current) Modifier.animateContentSize() else Modifier).fillMaxWidth().clip(RoundedCornerShape(Radii.card)).background(Color(colors.bg))
+    val shape=RoundedCornerShape(Radii.card)
+    val backdrop=LocalGlassBackdrop.current
+    var pane = modifier.then(if(LocalMotion.current) Modifier.animateContentSize() else Modifier).fillMaxWidth().clip(shape)
+    pane=if(Build.VERSION.SDK_INT>=31 && backdrop!=null && appearance.glassBlurRadius>0 && !appearance.reduceTransparency) pane.hazeEffect(backdrop) {
+        backgroundColor=Color(root.bg);blurRadius=appearance.glassBlurRadius.dp;noiseFactor=.01f
+        tints=listOf(HazeTint(Color(base).copy(alpha=opacity)))
+        fallbackTint=HazeTint(Color(base).copy(alpha=opacity))
+    } else pane.background(Color(base).copy(alpha=opacity))
     if (onClick != null) pane = pane.clickable(role = Role.Button, onClick = onClick)
     CompositionLocalProvider(LocalDeltaColors provides colors, LocalDerivedTheme provides theme,
         LocalContentColor provides Color(colors.text)) {

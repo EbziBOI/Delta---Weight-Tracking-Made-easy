@@ -59,8 +59,8 @@ enum class DesignStyle(val label: String) {
         GLASS -> AppAppearance()
         TUBIK -> AppAppearance(backgroundStyle = BackgroundStyle.SOLID,
             backgroundBase = 0xFF222222.toInt(), backgroundSecondary = 0xFF30302E.toInt(),
-            accent = 0xFFED3426.toInt(), accentIntensity = 0f, glassBlurRadius = 0f,
-            glassOpacity = 0.95f, cornerRadius = 28f, designStyle = TUBIK)
+            accent = 0xFFED3426.toInt(), accentIntensity = 0f, glassBlurRadius = 12f,
+            glassOpacity = 0.82f, cornerRadius = 28f, designStyle = TUBIK)
     }
 }
 

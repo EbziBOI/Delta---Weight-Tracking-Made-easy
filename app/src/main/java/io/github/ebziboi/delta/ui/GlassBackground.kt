@@ -52,7 +52,7 @@ fun GlassBackground(modifier: Modifier = Modifier, content: @Composable BoxScope
     } else null
     // Keep the source layer attached at zero blur too, so dragging away from zero
     // does not replace the backdrop layer in the middle of the touch gesture.
-    val capture = !dashboard && android.os.Build.VERSION.SDK_INT >= 31 && !appearance.reduceTransparency
+    val capture = android.os.Build.VERSION.SDK_INT >= 31 && !appearance.reduceTransparency
     val source = if (capture) Modifier.hazeSource(backdrop) else Modifier
     val imageScrim = remember(colors.bg, colors.textDim) { io.github.ebziboi.delta.render.ThemeContrast.imageScrim(colors.bg, colors.textDim) }
     Box(modifier.fillMaxSize()) {

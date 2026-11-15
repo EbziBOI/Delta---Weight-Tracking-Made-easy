@@ -152,18 +152,33 @@ private fun MainScreen(
     BackHandler(enabled = tab == 2) { tab = 0 }
     Scaffold(
         modifier = Modifier.nestedScroll(dockScroll),
-        topBar = {
-            Row(Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 20.dp, vertical = 4.dp), horizontalArrangement = Arrangement.End) {
-                GlassIconButton(io.github.ebziboi.delta.R.drawable.ic_sync, "Sync with Health Connect", { vm.refresh(announce = true) })
-                Spacer(Modifier.size(8.dp))
-                GlassIconButton(io.github.ebziboi.delta.R.drawable.ic_settings, "Settings", { metric = null; tab = 2 })
-            }
-        },
+        contentWindowInsets = WindowInsets(0),
         containerColor = Color.Transparent,
         contentColor = Color(colors.text),
-        snackbarHost = { SnackbarHost(snackbar) },
-        bottomBar = {
-            AnimatedVisibility(dockVisible && metric == null,
+        snackbarHost = { SnackbarHost(snackbar,Modifier.navigationBarsPadding().padding(bottom=if(dockVisible && metric==null) 72.dp else 8.dp)) },
+    ) { scaffoldPadding ->
+        val padding = PaddingValues(
+            top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 8.dp,
+            bottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding())
+        val hasActions = tab != 2 && metric == null
+        // Screens run the full height, so content scrolls on behind the floating glass bar
+        // (their padding keeps the last item clear of it) instead of stopping at a hard edge.
+        androidx.compose.foundation.layout.Box(Modifier.fillMaxSize().padding(scaffoldPadding)) {
+            androidx.compose.runtime.CompositionLocalProvider(LocalHeaderActionSpace provides if(hasActions) 104.dp else 0.dp) {
+            if (metric != null) MetricDetailScreen(vm,settings,metric!!,padding) { metric=null }
+            else screens.SaveableStateProvider("tab-$tab") { when (tab) {
+                0 -> ProgressScreen(vm, settings, health, padding, requestAccess, onOpenSettings = { tab = 2 }, onMetric = { metric=it })
+                1 -> HistoryScreen(vm, settings, padding)
+                else -> SettingsScreen(vm, settings, health, padding, requestAccess)
+            }
+            }
+            }
+            EdgeShading()
+            if(hasActions) Row(Modifier.align(androidx.compose.ui.Alignment.TopEnd).statusBarsPadding().padding(top=8.dp,end=20.dp),horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+                GlassIconButton(io.github.ebziboi.delta.R.drawable.ic_sync,"Sync with Health Connect",{vm.refresh(announce=true)})
+                GlassIconButton(io.github.ebziboi.delta.R.drawable.ic_settings,"Settings",{metric=null;tab=2})
+            }
+            AnimatedVisibility(dockVisible && metric == null, modifier = Modifier.align(androidx.compose.ui.Alignment.BottomCenter),
                 enter = if (LocalMotion.current) slideInVertically { it } else androidx.compose.animation.EnterTransition.None,
                 exit = if (LocalMotion.current) slideOutVertically { it } else androidx.compose.animation.ExitTransition.None) {
             GlassBottomNavBar(onLog = if (tab != 2) ({ if (health?.canWrite == false) requestAccess() else logging = true }) else null) {
@@ -191,19 +206,7 @@ private fun MainScreen(
                 }
             }
             }
-        },
-    ) { padding ->
-        // Screens run the full height, so content scrolls on behind the floating glass bar
-        // (their padding keeps the last item clear of it) instead of stopping at a hard edge.
-        androidx.compose.foundation.layout.Box(Modifier.fillMaxSize()) {
-            if (metric != null) MetricDetailScreen(vm,settings,metric!!,padding) { metric=null }
-            else screens.SaveableStateProvider("tab-$tab") { when (tab) {
-                0 -> ProgressScreen(vm, settings, health, padding, requestAccess, onOpenSettings = { tab = 2 }, onMetric = { metric=it })
-                1 -> HistoryScreen(vm, settings, padding)
-                else -> SettingsScreen(vm, settings, health, padding, requestAccess)
-            }
-            }
-            EdgeShading()
+
         }
     }
 
