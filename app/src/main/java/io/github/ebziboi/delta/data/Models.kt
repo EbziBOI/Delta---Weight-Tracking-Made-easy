@@ -10,6 +10,8 @@ data class WeightEntry(
     val id: String,
 )
 
+enum class PercentageDesign(val label: String) { ADAPTIVE("Signature"), ORBIT("Orbit"), BLOOM("Bloom"), CONTOURS("Contours") }
+
 enum class WeightUnit(val label: String) {
     KG("kg"),
     LB("lb"),
@@ -143,6 +145,7 @@ data class AppSettings(
     val lastSyncMs: Long = 0L,
     /** The selected launcher icon alias, independent of the app theme. */
     val appIcon: String = "Classic",
+    val percentageDesign: PercentageDesign = PercentageDesign.ADAPTIVE,
     /** Null preserves a saved legacy theme until appearance controls are first changed. */
     val appearance: AppAppearance? = null,
     val savedGlassAppearance: AppAppearance? = null,

@@ -191,6 +191,7 @@ class GlassAndRangeTest {
         throw AssertionError("Missing $selector")
     }
     private fun tap(text: String) {
+        if (text == "Settings") { device.wait(Until.findObject(By.desc("Settings")), 10000)!!.click(); device.waitForIdle(1000); Thread.sleep(300); return }
         instrumentation.uiAutomation.clearCache()
         var node = if (text in listOf("Settings", "History", "Progress")) device.findObjects(By.text(text)).last { it.visibleBounds.centerY() > device.displayHeight * 0.82f } else show(By.textStartsWith(text))
         while (!node.isClickable && node.parent != null) node = node.parent

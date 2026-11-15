@@ -15,10 +15,10 @@ data class GraphViewport(val first: Long, val last: Long, val low: Double, val h
         val time = (last - first).toDouble()
         val height = high - low
         val nextTime = (time / scale).coerceIn(fullTime / 32, fullTime)
-        val nextHeight = (height / scale).coerceIn(fullHeight / 32, fullHeight)
+        val nextHeight = fullHeight
         val ax = anchorX.coerceIn(0f, 1f); val ay = anchorY.coerceIn(0f, 1f)
         val start = (first + time * ax - nextTime * ax - panX * nextTime).coerceIn(full.first.toDouble(), full.last - nextTime)
-        val bottom = (low + height * ay - nextHeight * ay + panY * nextHeight).coerceIn(full.low, full.high - nextHeight)
+        val bottom = full.low
         return GraphViewport(start.roundToLong(), (start + nextTime).roundToLong(), bottom, bottom + nextHeight)
     }
     fun zoom(full: GraphViewport) = (full.last - full.first).toDouble() / (last - first).coerceAtLeast(1)

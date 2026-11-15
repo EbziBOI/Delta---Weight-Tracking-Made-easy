@@ -113,6 +113,7 @@ class TubikThemeTest {
         device.waitForIdle(1000); Thread.sleep(650)
     }
     private fun tap(text: String) {
+        if (text == "Settings") { device.wait(Until.findObject(By.desc("Settings")), 10000)!!.click(); device.waitForIdle(1000); Thread.sleep(300); return }
         instrumentation.uiAutomation.clearCache()
         fun target() = runCatching { device.findObjects(By.textStartsWith(text)).let { nodes ->
             if (text in listOf("Progress", "History", "Settings")) nodes.lastOrNull { it.visibleBounds.centerY() > device.displayHeight * 0.82f }

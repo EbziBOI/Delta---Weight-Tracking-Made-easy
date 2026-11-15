@@ -85,7 +85,7 @@ fun InteractiveChart(spec: ChartSpec, modifier: Modifier = Modifier, bodyFat: Li
                 TextAction("Next", { val index = spec.points.indexOf(point); if (index < spec.points.lastIndex) selected = spec.points[index + 1] })
             }
         } ?: Column {
-            Text("Pinch to zoom · drag a zoomed graph to pan · tap a reading", style = LocalDeltaType.current.bodySmall, color = Color(colors.textDim))
+            Text("Pinch to zoom · drag horizontally to pan dates · tap a reading", style = LocalDeltaType.current.bodySmall, color = Color(colors.textDim))
             if (spec.points.isNotEmpty()) TextAction("Inspect latest reading", { selected = spec.points.last() })
         }
     }

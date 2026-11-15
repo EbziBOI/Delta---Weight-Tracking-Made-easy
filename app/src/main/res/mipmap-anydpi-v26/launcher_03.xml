@@ -1,1 +1,1 @@
-<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android"><background android:drawable="@color/icon_background_charcoal"/><foreground><inset android:inset="10%" android:drawable="@drawable/app_icon_03"/></foreground></adaptive-icon>
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android"><background android:drawable="@drawable/launcher_glow_03"/><foreground android:drawable="@drawable/launcher_mark_03"/><monochrome android:drawable="@drawable/launcher_mark_03"/></adaptive-icon>

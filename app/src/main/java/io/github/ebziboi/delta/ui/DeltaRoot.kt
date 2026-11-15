@@ -4,6 +4,8 @@ import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.layout.*
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -65,7 +67,7 @@ fun DeltaRoot(vm: AppViewModel = viewModel()) {
     val preview by vm.appearancePreview.collectAsStateWithLifecycle()
     DeltaTheme(if (preview == null) settings else settings.copy(appearance = preview)) {
         val colors = LocalDeltaColors.current
-        SystemBars(light = colors.isLight)
+        SystemBars(light = if (settings.onboardingDone) false else colors.isLight)
 
         val health by vm.health.collectAsStateWithLifecycle()
         val snackbar = remember { SnackbarHostState() }
@@ -109,7 +111,7 @@ fun DeltaRoot(vm: AppViewModel = viewModel()) {
 
 private data class Tab(val label: String)
 
-private val TABS = listOf(Tab("Progress"), Tab("History"), Tab("Settings"))
+private val TABS = listOf(Tab("Progress"), Tab("History"))
 
 @Composable
 private fun MainScreen(
@@ -124,7 +126,15 @@ private fun MainScreen(
     var logging by remember { mutableStateOf(false) }
     val snap by vm.snapshot.collectAsStateWithLifecycle()
 
+    BackHandler(enabled = tab == 2) { tab = 0 }
     Scaffold(
+        topBar = {
+            Row(Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 20.dp, vertical = 4.dp), horizontalArrangement = Arrangement.End) {
+                GlassIconButton(io.github.ebziboi.delta.R.drawable.ic_sync, "Sync with Health Connect", { vm.refresh(announce = true) })
+                Spacer(Modifier.size(8.dp))
+                GlassIconButton(io.github.ebziboi.delta.R.drawable.ic_settings, "Settings", { tab = 2 })
+            }
+        },
         containerColor = Color.Transparent,
         contentColor = Color(colors.text),
         snackbarHost = { SnackbarHost(snackbar) },
@@ -198,16 +208,16 @@ private fun MainScreen(
  */
 @Composable
 private fun androidx.compose.foundation.layout.BoxScope.EdgeShading() {
-    val edge = Color(LocalDeltaColors.current.bg)
+    val edge = Color.Black
     val top = androidx.compose.foundation.layout.WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     val bottom = androidx.compose.foundation.layout.WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
     androidx.compose.foundation.layout.Box(
-        Modifier.align(androidx.compose.ui.Alignment.TopCenter).fillMaxWidth().height(top + 40.dp)
-            .background(androidx.compose.ui.graphics.Brush.verticalGradient(listOf(edge.copy(alpha = 0.9f), edge.copy(alpha = 0f)))),
+        Modifier.align(androidx.compose.ui.Alignment.TopCenter).fillMaxWidth().height(top + 64.dp)
+            .background(androidx.compose.ui.graphics.Brush.verticalGradient(listOf(edge.copy(alpha = 1f), edge.copy(alpha = 0f)))),
     )
     androidx.compose.foundation.layout.Box(
-        Modifier.align(androidx.compose.ui.Alignment.BottomCenter).fillMaxWidth().height(bottom + 150.dp)
-            .background(androidx.compose.ui.graphics.Brush.verticalGradient(listOf(edge.copy(alpha = 0f), edge.copy(alpha = 0.92f)))),
+        Modifier.align(androidx.compose.ui.Alignment.BottomCenter).fillMaxWidth().height(bottom + 210.dp)
+            .background(androidx.compose.ui.graphics.Brush.verticalGradient(listOf(Color.Transparent, edge.copy(alpha = 0.88f), edge))),
     )
 }
 

@@ -9,15 +9,15 @@ import io.github.ebziboi.delta.R
 data class LauncherIcon(val id: String, val title: String, val art: Int)
 object LauncherIcons {
     val all = listOf(LauncherIcon("Classic", "Delta classic", R.mipmap.ic_launcher),
-        LauncherIcon("Icon01", "Original progress", R.drawable.app_icon_01),
-        LauncherIcon("Icon02", "Data arc", R.drawable.app_icon_02),
-        LauncherIcon("Icon03", "Coral scale", R.drawable.app_icon_03),
-        LauncherIcon("Icon04", "Momentum", R.drawable.app_icon_04),
-        LauncherIcon("Icon05", "Habit grid", R.drawable.app_icon_05),
-        LauncherIcon("Icon06", "Arctic peak", R.drawable.app_icon_06),
-        LauncherIcon("Icon07", "Arctic trend", R.drawable.app_icon_07),
-        LauncherIcon("Icon08", "Arctic bars", R.drawable.app_icon_08),
-        LauncherIcon("Icon09", "Arctic scale", R.drawable.app_icon_09))
+        LauncherIcon("Icon01", "Original progress", R.mipmap.launcher_01),
+        LauncherIcon("Icon02", "Data arc", R.mipmap.launcher_02),
+        LauncherIcon("Icon03", "Coral scale", R.mipmap.launcher_03),
+        LauncherIcon("Icon04", "Momentum", R.mipmap.launcher_04),
+        LauncherIcon("Icon05", "Habit grid", R.mipmap.launcher_05),
+        LauncherIcon("Icon06", "Arctic peak", R.mipmap.launcher_06),
+        LauncherIcon("Icon07", "Arctic trend", R.mipmap.launcher_07),
+        LauncherIcon("Icon08", "Arctic bars", R.mipmap.launcher_08),
+        LauncherIcon("Icon09", "Arctic scale", R.mipmap.launcher_09))
     fun apply(context: Context, id: String) {
         val chosen = all.firstOrNull { it.id == id } ?: all.first()
         val pm = context.packageManager

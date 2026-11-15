@@ -81,13 +81,7 @@ fun ProgressScreen(
         ScreenHeader(
             title = greeting(),
             eyebrow = LocalDate.now().format(EYEBROW),
-            trailing = {
-                if (syncing) {
-                    ProgressRing(modifier = Modifier.padding(10.dp).size(24.dp))
-                } else {
-                    GlassIconButton(R.drawable.ic_sync, "Sync with Health Connect", { vm.refresh(announce = true) })
-                }
-            },
+
         )
 
         val crash by vm.lastCrash.collectAsStateWithLifecycle()
@@ -96,7 +90,7 @@ fun ProgressScreen(
         if (health != null && !health.connected) ConnectCard(health, onConnect)
 
         if (snap != null && insights != null) {
-            HeroCard(snap, insights, unit, Modifier.entrance(0))
+            HeroCard(snap, insights, unit, Modifier.entrance(0), settings.percentageDesign)
             if (snap.targetKg == null) {
                 ContentSection(Modifier.entrance(1)) {
                     Text("Set a target weight", style = LocalDeltaType.current.title)
@@ -109,7 +103,7 @@ fun ProgressScreen(
             TrendCard(snap, unit, settings, Modifier.entrance(2)) {
                 vm.update { it.copy(appChart = if (it.appChart == ChartStyle.TREND) ChartStyle.CONNECTED else ChartStyle.TREND) }
             }
-            BodyFatSection(snap.bodyFat, settings.targetBodyFat, health?.canWriteBodyFat == true, onConnect, vm::logBodyFat)
+            BodyFatSection(snap.bodyFat, settings.targetBodyFat, health?.canWriteBodyFat == true, onConnect, snap.startDay.atStartOfDay(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli(), vm::logBodyFat)
             InsightsCard(snap, insights, unit, Modifier.entrance(3))
             if (insights.recent.isNotEmpty()) RecentCard(insights, snap.losing, unit, Modifier.entrance(4))
         }
@@ -167,7 +161,7 @@ private fun ConnectCard(health: HealthState, onConnect: () -> Unit) {
 
 /** Where you are now, the week's change, the delta, and the journey from start to target. */
 @Composable
-private fun HeroCard(snap: ProgressSnapshot, insights: Insights, unit: WeightUnit, modifier: Modifier) {
+private fun HeroCard(snap: ProgressSnapshot, insights: Insights, unit: WeightUnit, modifier: Modifier, design: io.github.ebziboi.delta.data.PercentageDesign) {
     val colors = LocalDeltaColors.current
     val type = LocalDeltaType.current
     ContentSection(modifier, accent = Color(colors.accent), spacing = 14.dp, tone = ModuleTone.SAGE) {
@@ -187,9 +181,7 @@ private fun HeroCard(snap: ProgressSnapshot, insights: Insights, unit: WeightUni
                     insights.weekChangeKg?.let { change -> ChangePill(change, "this week", snap.losing, unit) }
                 }
             }
-            if (LocalAppearance.current.designStyle == io.github.ebziboi.delta.data.DesignStyle.TUBIK)
-                DashboardDial(snap.fraction, Modifier.size(118.dp))
-            else DeltaTrack(fraction = snap.fraction, modifier = Modifier.size(118.dp))
+            PercentageComplication(snap.fraction, design, Modifier.size(118.dp))
         }
         snap.bodyFat.lastOrNull()?.let { reading ->
             Text("Body fat ${io.github.ebziboi.delta.data.BodyFat.format(reading.percent)} · ${Format.moment(reading.epochMs)}",

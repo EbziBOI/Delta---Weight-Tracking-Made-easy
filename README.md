@@ -25,11 +25,15 @@ background and blur when you switch back. The visual reference is
   start/now/target, trend graph, pace and body fat
 - Ten launcher icons, including the original: swipe the icon deck in Appearance,
   then hold or double-tap an icon to apply it
-- Pinch to zoom and drag a zoomed graph to pan; tap a reading for its value/date,
+- Pinch to zoom dates horizontally and drag to pan; the vertical scale stays fixed. Tap a reading for its value/date,
   with buttons for zoom and reading navigation
 - Measured body-fat percentages in Progress, History, goals, scale CSV imports,
   Health Connect and widgets; weight remains independent of missing body-fat data
 - Studio typography pairs bold geometric headings with editorial and mono accents
+- Signature, Orbit, Bloom and Contours percentage complications follow both design themes and scale into widgets
+- A compact Progress/History dock, top-right Settings beside refresh, and a body-composition dashboard
+- A single Health Connect status pill opens its dedicated access and sync page
+- Frameless adaptive launcher icons with smaller marks and full-bleed gradients
 - Per-widget graph ranges: 1 week, 1 month, 3 months, 1 year or the full journey
 - Live glass transparency and blur controls with an in-place material preview
 - A customizable glass design system shared by the app and widgets: independently

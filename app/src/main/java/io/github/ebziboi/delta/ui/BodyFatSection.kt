@@ -17,9 +17,9 @@ import java.util.Locale
 
 @Composable
 fun BodyFatSection(readings: List<BodyFatEntry>, target: Double?, canWrite: Boolean, onAccess: () -> Unit,
-                   onLog: (Double, Instant) -> Unit) {
+                   journeyStart: Long?, onLog: (Double, Instant) -> Unit) {
     var logging by remember { mutableStateOf(false) }
-    var range by remember { mutableStateOf("All") }
+    var range by remember { mutableStateOf("Journey") }
     val latest = readings.maxByOrNull { it.epochMs }
     val previous = readings.sortedBy { it.epochMs }.dropLast(1).lastOrNull()
     ContentSection(tone = ModuleTone.SAGE) {
@@ -36,8 +36,8 @@ fun BodyFatSection(readings: List<BodyFatEntry>, target: Double?, canWrite: Bool
         latest?.let { Text(Format.moment(it.epochMs), color = Color(c.textDim), style = LocalDeltaType.current.bodySmall) }
         target?.let { Text("Target ${BodyFat.format(it)}", style = LocalDeltaType.current.bodyStrong) }
         if (readings.size >= 2) {
-            SegmentedControl(listOf("1M", "3M", "All"), range, { it }, Modifier.fillMaxWidth()) { range = it }
-            val cutoff = when (range) { "1M" -> System.currentTimeMillis() - 30L * 86_400_000; "3M" -> System.currentTimeMillis() - 90L * 86_400_000; else -> Long.MIN_VALUE }
+            SegmentedControl(listOf("1M", "3M", "Journey", "All"), range, { it }, Modifier.fillMaxWidth()) { range = it }
+            val cutoff = when (range) { "1M" -> System.currentTimeMillis() - 30L * 86_400_000; "3M" -> System.currentTimeMillis() - 90L * 86_400_000; "Journey" -> journeyStart ?: Long.MIN_VALUE; else -> Long.MIN_VALUE }
             val points = readings.filter { it.epochMs >= cutoff }.sortedBy { it.epochMs }.map { TrendPoint(it.epochMs, it.percent, it.percent) }
             InteractiveChart(ChartSpec(points, ChartStyle.CONNECTED, WeightUnit.KG, target, metric = ChartMetric.BODY_FAT), Modifier.height(190.dp))
         } else Text("Log a percentage or connect a body-fat source in Health Connect. Missing readings are never estimated.",

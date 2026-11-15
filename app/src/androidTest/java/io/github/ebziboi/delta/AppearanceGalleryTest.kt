@@ -144,6 +144,7 @@ class AppearanceGalleryTest {
     }
 
     private fun tap(text: String) {
+        if (text == "Settings") { device.wait(Until.findObject(By.desc("Settings")), 10000)!!.click(); device.waitForIdle(1000); Thread.sleep(300); return }
         for (attempt in 0 until 12) {
             if (visibleTarget(text) != null) break
             scrollPage()

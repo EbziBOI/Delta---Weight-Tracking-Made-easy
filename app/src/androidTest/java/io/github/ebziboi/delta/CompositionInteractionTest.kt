@@ -33,7 +33,8 @@ class CompositionInteractionTest {
         val full = GraphViewport(0, 32000, 0.0, 100.0)
         val zoomed = full.transform(full, 2f, 0.25f, 0.75f)
         assertEquals(4000L, zoomed.first)
-        assertEquals(37.5, zoomed.low, 1e-6)
+        assertEquals(0.0, zoomed.low, 1e-6)
+        assertEquals(100.0, zoomed.high, 1e-6)
         assertEquals(2.0, zoomed.zoom(full), 1e-6)
         val limited = zoomed.transform(full, 1000f, 0.5f, 0.5f, 900f, -900f)
         assertEquals(0L, limited.first)
@@ -205,6 +206,7 @@ class CompositionInteractionTest {
         throw AssertionError("Missing or obscured $selector")
     }
     private fun tap(text: String) {
+        if (text == "Settings") { device.wait(Until.findObject(By.desc("Settings")), 10000)!!.click(); device.waitForIdle(1000); Thread.sleep(300); return }
         instrumentation.uiAutomation.clearCache()
         var node = if (text in listOf("Settings", "Progress", "History")) device.findObjects(By.text(text)).last { it.visibleBounds.centerY() > device.displayHeight * 0.82f } else show(By.text(text))
         while (!node.isClickable && node.parent != null) node = node.parent

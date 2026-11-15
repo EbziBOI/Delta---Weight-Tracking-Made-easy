@@ -177,6 +177,14 @@ fun AppearanceControls(vm: AppViewModel, settings: AppSettings) {
         }
     }
     ContentSection {
+        Caption("Percentage complications")
+        ChoiceRow(PercentageDesign.entries, settings.percentageDesign, { it.label }) { chosen -> vm.update { it.copy(percentageDesign = chosen) } }
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
+            PercentageComplication(0.64f, settings.percentageDesign, Modifier.size(144.dp))
+        }
+        Text("The selected design follows your theme and scales across Progress and widgets.", style = LocalDeltaType.current.bodySmall)
+    }
+    ContentSection {
         Caption("Typography")
         ChoiceRow(TypeStyle.entries, settings.typeStyle, { it.label }) { chosen -> vm.update { it.copy(typeStyle = chosen) } }
         Text("Your progress, beautifully clear", style = LocalDeltaType.current.title)

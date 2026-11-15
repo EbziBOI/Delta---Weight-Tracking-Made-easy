@@ -85,7 +85,7 @@ fun SettingsScreen(
     }
     var section by rememberSaveable { mutableStateOf("") }
     if (section.isNotEmpty()) {
-        SettingsDetail(section, vm, settings, snapshot, padding, onBack = { section = "" })
+        SettingsDetail(section, vm, settings, snapshot, padding, onBack = { section = "" }, health = health, onConnect = onConnect)
         return
     }
     // Asked once: the answer depends on the home screen app, which does not change while this is open.
@@ -103,9 +103,36 @@ fun SettingsScreen(
     ) {
         ScreenHeader(title = "Settings", eyebrow = "Make Delta yours")
 
-        // Goal
+        ContentSection(modifier = if (LocalAppearance.current.designStyle == io.github.ebziboi.delta.data.DesignStyle.GLASS)
+            Modifier.refractiveGlass(androidx.compose.foundation.shape.RoundedCornerShape(Radii.corner)).padding(16.dp) else Modifier, tone = ModuleTone.SAGE) {
+            Caption("Body composition")
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Column {
+                    Text("Weight", style = LocalDeltaType.current.bodySmall)
+                    Text(snapshot?.currentKg?.let { Units.weight(it, unit) } ?: "—", style = LocalDeltaType.current.numberLarge)
+                }
+                Column {
+                    Text("Body fat", style = LocalDeltaType.current.bodySmall)
+                    Text(snapshot?.bodyFat?.lastOrNull()?.percent?.let(io.github.ebziboi.delta.data.BodyFat::format) ?: "—", style = LocalDeltaType.current.numberLarge)
+                }
+            }
+            SettingRow("Target body fat", settings.targetBodyFat?.let(io.github.ebziboi.delta.data.BodyFat::format) ?: "Not set", onClick = { fatTarget = true })
+            if (settings.targetBodyFat != null) TextAction("Remove body fat target", { vm.update { it.copy(targetBodyFat = null) } })
+        }
+
+        ContentSection(onClick = { section = "Health Connect" }) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                Text("Health Connect", style = LocalDeltaType.current.title)
+                val ready = health?.availability == HealthAvailability.AVAILABLE && health.missing.isEmpty()
+                val partial = health?.canRead == true || health?.canReadBodyFat == true
+                StatusPill(if (health == null) "Checking" else if (ready) "Connected" else if (partial) "Needs access" else "Not connected",
+                    Color(if (health == null) colors.textDim else if (ready) colors.good else if (partial) colors.warn else LocalDerivedTheme.current.danger))
+            }
+        }
+
+        // Weight goals
         ContentSection {
-            Caption("Goal")
+            Caption("Weight")
             SettingRow(
                 title = "Target weight",
                 value = settings.targetKg?.let { Units.weight(it, unit) } ?: "Set",
@@ -114,7 +141,7 @@ fun SettingsScreen(
             SettingRow(
                 title = "Target date",
                 value = settings.targetEpochDay?.let { Format.day(LocalDate.ofEpochDay(it)) } ?: "None",
-                note = "Optional. Adds the weekly rate you need and whether you're on track.",
+                note = "Optional",
                 onClick = { editing = "targetDate" },
             )
             if (settings.targetEpochDay != null) {
@@ -125,23 +152,17 @@ fun SettingsScreen(
             SettingRow(
                 title = "Start date",
                 value = snapshot?.startDay?.let { Format.day(it) } ?: "—",
-                note = "Progress is measured from here.",
+                note = "Journey begins here",
                 onClick = { editing = "startDate" },
             )
             SettingRow(
                 title = "Starting weight",
                 value = snapshot?.startKg?.let { Units.weight(it, unit) } ?: "—",
-                note = snapshot?.startMs?.let { "Your first weigh-in from the start date, on ${Format.moment(it)}" }
+                note = snapshot?.startMs?.let { "First recorded on ${Format.moment(it)}" }
                     ?: "Your first weigh-in on or after the start date",
             )
         }
 
-        ContentSection {
-            Caption("Body composition")
-            SettingRow("Target body fat", settings.targetBodyFat?.let(io.github.ebziboi.delta.data.BodyFat::format) ?: "Not set", onClick = { fatTarget = true })
-            if (settings.targetBodyFat != null) TextAction("Remove body fat target", { vm.update { it.copy(targetBodyFat = null) } })
-            Text("Set your own body fat target. Your recorded percentages stay separate from weight.", color = Color(colors.textDim), style = LocalDeltaType.current.bodySmall)
-        }
 
         // Units
         ContentSection {
@@ -162,46 +183,6 @@ fun SettingsScreen(
             NavRow(io.github.ebziboi.delta.R.drawable.ic_widgets, "Widgets", subtitle = "Add widgets to your home screen", onClick = { section = "Widgets" })
         }
 
-        // Health Connect
-        ContentSection {
-            Caption("Health Connect")
-            when {
-                health == null -> Text(text = "Checking…", color = Color(colors.textDim))
-                health.availability != HealthAvailability.AVAILABLE -> Text(
-                    text = if (health.availability == HealthAvailability.NEEDS_UPDATE) {
-                        "Health Connect needs an update before Delta can use it."
-                    } else {
-                        "Health Connect isn't available on this phone."
-                    },
-                    color = Color(colors.warn),
-                )
-                else -> {
-                    AccessRow("Read weight", health.canRead)
-                    AccessRow("Past data, back to your start date", health.hasHistory)
-                    AccessRow("Background updates for widgets", health.hasBackground)
-                    AccessRow("Write weight", health.canWrite)
-                    AccessRow("Read body fat", health.canReadBodyFat)
-                    AccessRow("Write body fat", health.canWriteBodyFat)
-                    if (health.missing.isNotEmpty()) {
-                        Button(onClick = onConnect) { Text("Allow access") }
-                    }
-                }
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                OutlinedButton(onClick = { vm.refresh(announce = true) }, enabled = !syncing) {
-                    Text(if (syncing) "Syncing…" else "Sync now")
-                }
-                OutlinedButton(onClick = { openHealthConnect(context) }) { Text("Open Health Connect") }
-            }
-            ScaleImportRow(vm)
-            if (settings.lastSyncMs > 0L) {
-                Text(
-                    text = "Last synced  ·  ${Format.moment(settings.lastSyncMs)}",
-                    color = Color(colors.textDim),
-                    fontSize = 13.sp,
-                )
-            }
-        }
 
         Text(
             text = "Delta ${versionName(context)}",
@@ -286,7 +267,7 @@ private fun versionName(context: Context): String =
 @Composable
 private fun SettingsDetail(
     title: String, vm: AppViewModel, settings: AppSettings,
-    snap: io.github.ebziboi.delta.data.ProgressSnapshot?, padding: PaddingValues, onBack: () -> Unit,
+    snap: io.github.ebziboi.delta.data.ProgressSnapshot?, padding: PaddingValues, onBack: () -> Unit, health: HealthState?, onConnect: () -> Unit,
 ) {
     val colors = LocalDeltaColors.current
     val context = LocalContext.current
@@ -300,6 +281,7 @@ private fun SettingsDetail(
         TextAction("Back", onClick = onBack, modifier = Modifier.padding(top = 12.dp))
         ScreenHeader(title = title)
         when (title) {
+            "Health Connect" -> HealthConnectDetails(vm, settings, health, onConnect)
             "Appearance" -> AppearanceControls(vm, settings)
             "Graphs" -> {
                 ContentSection {
@@ -372,5 +354,50 @@ private fun ScaleImportRow(vm: AppViewModel) {
                 Text("${readings.size} weigh-ins", style = type.bodySmall, color = Color(colors.textDim))
             }
         }
+    }
+}
+
+@Composable
+private fun HealthConnectDetails(vm: AppViewModel, settings: AppSettings, health: HealthState?, onConnect: () -> Unit) {
+    val colors = LocalDeltaColors.current
+    val context = LocalContext.current
+    val syncing by vm.syncing.collectAsStateWithLifecycle()
+    ContentSection {
+            when {
+                health == null -> Text(text = "Checking…", color = Color(colors.textDim))
+                health.availability != HealthAvailability.AVAILABLE -> Text(
+                    text = if (health.availability == HealthAvailability.NEEDS_UPDATE) {
+                        "Health Connect needs an update before Delta can use it."
+                    } else {
+                        "Health Connect isn't available on this phone."
+                    },
+                    color = Color(colors.warn),
+                )
+                else -> {
+                    AccessRow("Read weight", health.canRead)
+                    AccessRow("Past data, back to your start date", health.hasHistory)
+                    AccessRow("Background updates for widgets", health.hasBackground)
+                    AccessRow("Write weight", health.canWrite)
+                    AccessRow("Read body fat", health.canReadBodyFat)
+                    AccessRow("Write body fat", health.canWriteBodyFat)
+                    if (health.missing.isNotEmpty()) {
+                        Button(onClick = onConnect) { Text("Allow access") }
+                    }
+                }
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                OutlinedButton(onClick = { vm.refresh(announce = true) }, enabled = !syncing) {
+                    Text(if (syncing) "Syncing…" else "Sync now")
+                }
+                OutlinedButton(onClick = { openHealthConnect(context) }) { Text("Open Health Connect") }
+            }
+            ScaleImportRow(vm)
+            if (settings.lastSyncMs > 0L) {
+                Text(
+                    text = "Last synced  ·  ${Format.moment(settings.lastSyncMs)}",
+                    color = Color(colors.textDim),
+                    fontSize = 13.sp,
+                )
+            }
     }
 }

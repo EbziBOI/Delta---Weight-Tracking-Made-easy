@@ -112,6 +112,11 @@ object WidgetBitmaps {
             }
         }
         fun mark(left: Float, top: Float, size: Float) {
+            if (settings.percentageDesign != PercentageDesign.ADAPTIVE) {
+                PercentageArt.draw(c, RectF(left, top, left+size, top+size), snap.fraction, settings.percentageDesign, colors, type,
+                    settings.appearance?.designStyle == DesignStyle.TUBIK)
+                return
+            }
             if (settings.appearance?.designStyle == DesignStyle.TUBIK) {
                 val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { strokeWidth = 0.8f; color = Palettes.fade(colors.text, 0.4f) }
                 val cx = left + size / 2; val cy = top + size / 2; val radius = size * 0.46f

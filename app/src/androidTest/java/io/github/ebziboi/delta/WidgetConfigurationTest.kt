@@ -170,6 +170,7 @@ class WidgetConfigurationTest {
         Thread.sleep(600)
     }
     private fun tap(text: String) {
+        if (text == "Settings") { device.wait(Until.findObject(By.desc("Settings")), 10000)!!.click(); device.waitForIdle(1000); Thread.sleep(300); return }
         var node = device.wait(Until.findObject(By.text(text)), 10_000) ?: throw AssertionError("Missing $text")
         while (!node.isClickable && node.parent != null) node = node.parent
         node.click(); device.waitForIdle(1_000); Thread.sleep(600)
