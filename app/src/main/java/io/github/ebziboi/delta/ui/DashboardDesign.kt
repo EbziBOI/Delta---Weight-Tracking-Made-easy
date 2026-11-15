@@ -87,21 +87,5 @@ fun DashboardDial(fraction: Float?, modifier: Modifier = Modifier) {
 }
 
 @Composable
-fun <T> DashboardSegments(options: List<T>, selected: T, label: (T) -> String, modifier: Modifier, onSelect: (T) -> Unit) {
-    val c = LocalDeltaColors.current
-    Row(modifier.fillMaxWidth().clip(RoundedCornerShape(Radii.control)).background(controlTile(c)).padding(4.dp),
-        horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-        options.forEach { option ->
-            val active = option == selected
-            val motion=LocalMotion.current
-            val fill by animateColorAsState(if(active) Color(c.text).copy(alpha=.14f) else Color.Transparent,tween(if(motion) 200 else 0),label="dashboard-segment")
-            Box(Modifier.weight(1f).heightIn(min = 48.dp).clip(RoundedCornerShape(Radii.control))
-                .background(fill)
-                .clickable(role = Role.RadioButton) { onSelect(option) }.semantics { this.selected = active },
-                contentAlignment = Alignment.Center) {
-                Text(label(option), style = LocalDeltaType.current.bodySmall,
-                    color = Color(if (active) c.accent else c.text), maxLines = 1)
-            }
-        }
-    }
-}
+fun <T> DashboardSegments(options: List<T>,selected:T,label:(T)->String,modifier:Modifier,onSelect:(T)->Unit) =
+    SegmentedControl(options,selected,label,modifier,onSelect)

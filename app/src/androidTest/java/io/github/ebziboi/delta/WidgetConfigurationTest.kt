@@ -58,11 +58,14 @@ class WidgetConfigurationTest {
         }
         val id = placedProgressWidget()
         val original = store.style(id).first()
-        val app = SettingsStore(context).settings.first()
+        val settings = SettingsStore(context)
+        val originalApp = settings.settings.first()
+        val app = originalApp.copy(appearance = DesignStyle.GLASS.defaults().copy(reduceMotion = true), widgetGlass = WidgetGlass.FROSTED)
         val untouchedId = manager.installedProviders.filter { it.provider.packageName == context.packageName }
             .flatMap { manager.getAppWidgetIds(it.provider).toList() }.firstOrNull { it != id }
         val untouched = untouchedId?.let { store.style(it).first() }
         try {
+            settings.update { app }
             store.save(id, WidgetStyle.from(app))
             open(id)
             assertTrue(device.wait(Until.hasObject(By.text("Frosted")), 5_000))
@@ -85,6 +88,7 @@ class WidgetConfigurationTest {
             assertEquals("Cancel must preserve the last saved style", WidgetGlass.SOLID, store.style(id).first()!!.glass)
         } finally {
             if (original == null) store.delete(intArrayOf(id)) else store.save(id, original)
+            settings.update { originalApp }
             WidgetUpdater.updateOne(context, id, WidgetKind.PROGRESS)
             device.pressHome()
         }
@@ -93,14 +97,25 @@ class WidgetConfigurationTest {
     @Test fun editorSurvivesGoingToTheBackground() = runBlocking {
         val component = ComponentName(context, WidgetCatalog.receiver(WidgetKind.PROGRESS))
         val id = manager.getAppWidgetIds(component).firstOrNull() ?: return@runBlocking
-        open(id)
-        tap("Clear")
-        device.pressHome()
-        Thread.sleep(2_500)
-        device.pressRecentApps()
-        Thread.sleep(1_000)
-        device.pressHome()
-        assertTrue("The app process must still be alive", (context.applicationContext as DeltaApp).repo != null)
+        val settings = SettingsStore(context)
+        val originalApp = settings.settings.first()
+        val originalStyle = store.style(id).first()
+        val glass = originalApp.copy(appearance = DesignStyle.GLASS.defaults().copy(reduceMotion = true))
+        try {
+            settings.update { glass }
+            store.save(id, WidgetStyle.from(glass))
+            open(id)
+            tap("Clear")
+            device.pressHome()
+            Thread.sleep(2_500)
+            device.pressRecentApps()
+            Thread.sleep(1_000)
+            device.pressHome()
+            assertTrue("The app process must still be alive", (context.applicationContext as DeltaApp).repo != null)
+        } finally {
+            if (originalStyle == null) store.delete(intArrayOf(id)) else store.save(id, originalStyle)
+            settings.update { originalApp }
+        }
     }
 
     @Test fun tubikWidgetEditorUsesMatteModules() = runBlocking {

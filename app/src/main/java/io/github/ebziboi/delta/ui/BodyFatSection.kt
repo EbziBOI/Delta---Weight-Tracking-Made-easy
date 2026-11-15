@@ -1,6 +1,9 @@
 package io.github.ebziboi.delta.ui
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.clickable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.semantics.*
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
@@ -16,15 +19,17 @@ import java.time.ZoneId
 import java.util.Locale
 
 @Composable
-fun BodyFatSection(readings: List<BodyFatEntry>, target: Double?, canWrite: Boolean, onAccess: () -> Unit,
-                   journeyStart: Long?, chartStyle: ChartStyle = ChartStyle.CONNECTED, onSwitchStyle: (() -> Unit)? = null, onLog: (Double, Instant) -> Unit) {
-    var logging by remember { mutableStateOf(false) }
+fun BodyFatSection(readings: List<BodyFatEntry>, target: Double?, journeyStart: Long?,
+                   chartStyle: ChartStyle = ChartStyle.CONNECTED, onSwitchStyle: (() -> Unit)? = null, onOpen: () -> Unit) {
     var range by remember { mutableStateOf("Journey") }
     val latest = readings.maxByOrNull { it.epochMs }
     val previous = readings.sortedBy { it.epochMs }.dropLast(1).lastOrNull()
-    ContentSection(tone = ModuleTone.SAGE) {
+    ContentSection(tone = ModuleTone.SAGE,onClick=onOpen) {
         val c = LocalDeltaColors.current
-        Caption("Body composition")
+        Row(Modifier.fillMaxWidth().clickable(onClick=onOpen).semantics {contentDescription="Open body composition calendar"},verticalAlignment=Alignment.CenterVertically) {
+            Box(Modifier.weight(1f)) {Caption("Body composition")}
+            Text("↗",style=LocalDeltaType.current.bodyStrong,color=Color(c.accent))
+        }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             Column {
                 Text("Body fat", style = LocalDeltaType.current.title)
@@ -41,10 +46,6 @@ fun BodyFatSection(readings: List<BodyFatEntry>, target: Double?, canWrite: Bool
             val points = ProgressCalculator.bodyFatTrend(readings.filter { it.epochMs >= cutoff })
             InteractiveChart(ChartSpec(points, chartStyle, WeightUnit.KG, target, metric = ChartMetric.BODY_FAT), Modifier.height(190.dp),onDoubleTap=onSwitchStyle)
         }
-        GlassButton(if (canWrite) "Log body fat" else "Allow body fat access", { if (canWrite) logging = true else onAccess() })
-    }
-    if (logging) PercentDialog("Log body fat", latest?.percent, { logging = false }) { value, at ->
-        logging = false; onLog(value, at)
     }
 }
 

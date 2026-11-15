@@ -736,6 +736,7 @@ fun <T> SegmentedControl(
     )
     val shape = RoundedCornerShape(Radii.control)
     val accent = if(dashboard) Color(colors.text).copy(alpha=.14f) else Color(colors.accent)
+    val thumbRadius = if(dashboard) (Radii.control - 3.dp).coerceAtLeast(0.dp) else null
     Row(
         modifier = modifier
             .fillMaxWidth()
@@ -748,7 +749,10 @@ fun <T> SegmentedControl(
                     color = accent,
                     topLeft = Offset(segment * position + inset, inset),
                     size = Size(segment, size.height - inset * 2),
-                    cornerRadius = CornerRadius(size.height / 2f, size.height / 2f),
+                    cornerRadius = (thumbRadius?.toPx() ?: (size.height / 2f)).let { radius ->
+                        val bounded=minOf(radius,segment/2f,(size.height-inset*2)/2f)
+                        CornerRadius(bounded,bounded)
+                    },
                 )
             }
             .padding(3.dp),

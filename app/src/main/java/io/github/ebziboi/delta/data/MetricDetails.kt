@@ -5,12 +5,14 @@ import java.time.temporal.TemporalAdjusters
 import kotlin.math.abs
 import kotlin.math.ceil
 
-enum class DetailMetric(val label: String) { RATE("Weekly rate"), AVERAGE("7-day average"), STREAK("Streak"), GOAL("Goal by") }
+enum class DetailMetric(val label: String) { RATE("Weekly rate"), AVERAGE("7-day average"), STREAK("Streak"), GOAL("Goal by"), WEIGHT("Weight trend"), BODY_FAT("Body composition"), INSIGHTS("Insights") }
 data class MetricDay(val day: LocalDate, val kg: Double?, val averageKg: Double?, val rateKg: Double?, val streak: Int, val readings: Int)
 
 /** Calendar values use only readings available by the end of that day, never future data. */
 object MetricDetails {
     fun monday(day: LocalDate): LocalDate = day.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
+    fun weekStart(day: LocalDate, sundayIndex: Int): LocalDate = day.with(
+        TemporalAdjusters.previousOrSame(DayOfWeek.of((sundayIndex.coerceIn(0,6)+6)%7+1)))
     fun days(entries: List<WeightEntry>, settings: AppSettings, week: LocalDate,
              today: LocalDate = LocalDate.now(), zone: ZoneId = ZoneId.systemDefault()): List<MetricDay> {
         val readings = InsightsCalculator.distinctReadings(entries).filter { it.kg.isFinite() }

@@ -34,7 +34,9 @@ background and blur when you switch back. The visual reference is
 - A compact Progress/History dock with an adjacent plus button; both hide on downward scrolling and return together. Active tabs use accent text and icons without a pill
 - A single Health Connect status pill opens its dedicated access and sync page
 - Short, equally sized top/bottom fades retain fully black ends while content scrolls behind the toolbar
-- Tap Weekly rate, 7-day average or Streak for a swipeable daily calendar; tap Goal by for the full projection and recent pace/data-quality insights
+- Tap Weekly rate, 7-day average or Streak for one shared weekly calendar. Seven Sunday–Saturday bubbles set the saved start of the week; metric tabs retain that choice. Goal by opens the projection and recent pace/data-quality insights
+- Weight trend and Body composition open calendars marked separately for weight and body fat. Selecting a date shows every recorded measurement and its time in a compact card; empty dates remain empty. Body-fat logging lives in its detail page
+- Insights open a dedicated view with 7-day, 30-day and journey periods. Expand each statistic for its calculation: daily averages, recorded change, previous-period comparison, coverage, fitted pace, range, variation and recording rhythm. Duplicate readings and future timestamps are excluded
 - Choose art, a smooth/segmented/dotted bar, thicker card-perimeter progress with a goal percentage, or both in **Settings → Complications**, with a live card preview
 - Glass dashboard panels, animated progress fills and press feedback respect Reduce motion
 - Vertical graph drags scroll the page even after zooming; horizontal pans change dates, with centered disabled boundary controls
@@ -112,7 +114,7 @@ can remove local settings and cached data; record your goal and start date first
 - Backdrop blur: [Haze](https://github.com/chrisbanes/haze) by Chris Banes, under
   the Apache License 2.0.
 
-Release APKs include the version in their filename (for example `Delta-0.1.30.apk`) and Android package metadata. GitHub builds keep increasing the version code and use the stored signing key for in-place updates. `Delta.apk` remains as a compatibility download. Local release builds also write a versioned copy next to the standard Android Studio output.
+Release APKs include the version in their filename (for example `Delta-0.1.31.apk`) and Android package metadata. GitHub builds keep increasing the version code and use the stored signing key for in-place updates. `Delta.apk` remains as a compatibility download. Local release builds also write a versioned copy next to the standard Android Studio output.
 
 Widgets prioritize complete, readable measurements as they resize: compact sparklines, stacked narrow summaries and pace cells, current-week comparisons, and concise empty states. Tubik controls and data modules follow the saved transparency and blur. Repeated interface guidance is reduced to essential access, validation and data context.
 

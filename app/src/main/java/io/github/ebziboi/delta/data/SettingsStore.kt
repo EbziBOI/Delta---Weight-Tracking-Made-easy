@@ -52,6 +52,7 @@ class SettingsStore(context: Context) {
         val ACCENT = stringPreferencesKey("accent")
         val TYPE_STYLE = stringPreferencesKey("type_style")
         val MOTION = booleanPreferencesKey("motion")
+        val WEEK_START = longPreferencesKey("week_starts_on")
         val BODY_FAT_CHART = stringPreferencesKey("body_fat_chart")
         val APP_CHART = stringPreferencesKey("app_chart")
         val WIDGET_CHART = stringPreferencesKey("widget_chart")
@@ -130,6 +131,7 @@ class SettingsStore(context: Context) {
             typeStyle = named(prefs[Keys.TYPE_STYLE], defaults.typeStyle),
             motion = prefs[Keys.MOTION] ?: defaults.motion,
             bodyFatChart = named(prefs[Keys.BODY_FAT_CHART], defaults.bodyFatChart),
+            weekStartsOn = (prefs[Keys.WEEK_START] ?: 0L).coerceIn(0L,6L).toInt(),
             appChart = named(prefs[Keys.APP_CHART], defaults.appChart),
             widgetChart = named(prefs[Keys.WIDGET_CHART], defaults.widgetChart),
             showProjection = prefs[Keys.PROJECTION] ?: defaults.showProjection,
@@ -163,6 +165,7 @@ class SettingsStore(context: Context) {
         prefs[Keys.ACCENT] = settings.accent.name
         prefs[Keys.TYPE_STYLE] = settings.typeStyle.name
         prefs[Keys.MOTION] = settings.motion
+        prefs[Keys.WEEK_START] = settings.weekStartsOn.coerceIn(0,6).toLong()
         prefs[Keys.BODY_FAT_CHART] = settings.bodyFatChart.name
         prefs[Keys.APP_CHART] = settings.appChart.name
         prefs[Keys.WIDGET_CHART] = settings.widgetChart.name

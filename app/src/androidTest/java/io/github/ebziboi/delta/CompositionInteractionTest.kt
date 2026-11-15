@@ -104,14 +104,15 @@ class CompositionInteractionTest {
                 startEpochDay = java.time.LocalDate.now().minusDays(30).toEpochDay(),
                 appearance = AppearancePreset.ICE.appearance().copy(reduceMotion = true), motion = false, typeStyle = TypeStyle.STUDIO) }
             launch()
-            show(By.text("Log body fat")); shot("body-composition")
+            show(By.desc("Open body composition calendar")).click(); device.waitForIdle(700); shot("body-composition")
             val loggedAfter = System.currentTimeMillis()
-            tap("Log body fat")
+            device.wait(Until.findObject(By.desc("Log body fat")),5000)!!.click()
             assertTrue(device.wait(Until.hasObject(By.clazz("android.widget.EditText")), 5000))
             device.findObject(By.clazz("android.widget.EditText")).text = "23.8"
             println("Composition: saving a measured percentage")
             tap("Save")
             kotlinx.coroutines.withTimeout(12000) { store.bodyFat.first { rs -> rs.any { it.percent == 23.8 && it.epochMs >= loggedAfter } } }
+            device.pressBack()
             tap("History"); tap("Body fat"); shot("body-fat-history")
             instrumentation.uiAutomation.clearCache()
             assertTrue(device.wait(Until.hasObject(By.textContains("23.8%")), 5000))

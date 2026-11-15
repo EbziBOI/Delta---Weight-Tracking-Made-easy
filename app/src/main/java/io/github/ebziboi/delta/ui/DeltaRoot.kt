@@ -132,6 +132,8 @@ private fun MainScreen(
     var tab by rememberSaveable { mutableStateOf(0) }
     val screens = androidx.compose.runtime.saveable.rememberSaveableStateHolder()
     var metric by rememberSaveable { mutableStateOf<io.github.ebziboi.delta.data.DetailMetric?>(null) }
+    var detailParent by rememberSaveable { mutableStateOf<io.github.ebziboi.delta.data.DetailMetric?>(null) }
+    val closeDetail: () -> Unit = {metric=detailParent;detailParent=null}
     var logging by remember { mutableStateOf(false) }
     val snap by vm.snapshot.collectAsStateWithLifecycle()
 
@@ -148,7 +150,7 @@ private fun MainScreen(
             return Offset.Zero
         }
     } }
-    BackHandler(enabled = metric != null) { metric = null }
+    BackHandler(enabled = metric != null,onBack=closeDetail)
     BackHandler(enabled = tab == 2) { tab = 0 }
     Scaffold(
         modifier = Modifier.nestedScroll(dockScroll),
@@ -165,9 +167,14 @@ private fun MainScreen(
         // (their padding keeps the last item clear of it) instead of stopping at a hard edge.
         androidx.compose.foundation.layout.Box(Modifier.fillMaxSize().padding(scaffoldPadding)) {
             androidx.compose.runtime.CompositionLocalProvider(LocalHeaderActionSpace provides if(hasActions) 104.dp else 0.dp) {
-            if (metric != null) MetricDetailScreen(vm,settings,metric!!,padding) { metric=null }
+            if (metric != null) screens.SaveableStateProvider("detail-${metric!!.name}") { when(metric!!) {
+                io.github.ebziboi.delta.data.DetailMetric.WEIGHT -> MeasurementDetailScreen(vm,settings,io.github.ebziboi.delta.data.MeasurementKind.WEIGHT,padding,onBack=closeDetail,onAccess=requestAccess)
+                io.github.ebziboi.delta.data.DetailMetric.BODY_FAT -> MeasurementDetailScreen(vm,settings,io.github.ebziboi.delta.data.MeasurementKind.BODY_FAT,padding,onBack=closeDetail,onAccess=requestAccess)
+                io.github.ebziboi.delta.data.DetailMetric.INSIGHTS -> InsightsDetailScreen(vm,settings,padding,closeDetail,{detailParent=io.github.ebziboi.delta.data.DetailMetric.INSIGHTS;metric=it})
+                else -> MetricDetailScreen(vm,settings,metric!!,padding,closeDetail)
+            } }
             else screens.SaveableStateProvider("tab-$tab") { when (tab) {
-                0 -> ProgressScreen(vm, settings, health, padding, requestAccess, onOpenSettings = { tab = 2 }, onMetric = { metric=it })
+                0 -> ProgressScreen(vm, settings, health, padding, requestAccess, onOpenSettings = { tab = 2 }, onMetric = { detailParent=null;metric=it })
                 1 -> HistoryScreen(vm, settings, padding)
                 else -> SettingsScreen(vm, settings, health, padding, requestAccess)
             }

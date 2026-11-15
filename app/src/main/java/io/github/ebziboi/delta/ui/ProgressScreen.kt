@@ -1,5 +1,8 @@
 package io.github.ebziboi.delta.ui
 
+import androidx.compose.foundation.clickable
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -101,11 +104,14 @@ fun ProgressScreen(
                 }
             }
             KeyFigures(snap, insights, unit, Modifier.entrance(1),onMetric)
-            TrendCard(snap, unit, settings, Modifier.entrance(2)) {
+            TrendCard(snap, unit, settings, Modifier.entrance(2),onOpen={onMetric(DetailMetric.WEIGHT)}) {
                 vm.update { it.copy(appChart = if (it.appChart == ChartStyle.TREND) ChartStyle.CONNECTED else ChartStyle.TREND) }
             }
-            BodyFatSection(snap.bodyFat, settings.targetBodyFat, health?.canWriteBodyFat == true, onConnect, snap.startDay.atStartOfDay(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli(), settings.bodyFatChart, {vm.update {it.copy(bodyFatChart=if(it.bodyFatChart==ChartStyle.TREND) ChartStyle.CONNECTED else ChartStyle.TREND)}}, vm::logBodyFat)
-            InsightsCard(snap, insights, unit, Modifier.entrance(3))
+            BodyFatSection(snap.bodyFat, settings.targetBodyFat,
+                snap.startDay.atStartOfDay(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli(), settings.bodyFatChart,
+                {vm.update {it.copy(bodyFatChart=if(it.bodyFatChart==ChartStyle.TREND) ChartStyle.CONNECTED else ChartStyle.TREND)}},
+                onOpen={onMetric(DetailMetric.BODY_FAT)})
+            InsightsCard(snap,entries,settings,Modifier.entrance(3),onMetric)
             if (insights.recent.isNotEmpty()) RecentCard(insights, snap.losing, unit, Modifier.entrance(4))
         }
 
@@ -308,7 +314,7 @@ private fun KeyFigures(snap: ProgressSnapshot, insights: Insights, unit: WeightU
 }
 
 @Composable
-private fun TrendCard(snap: ProgressSnapshot, unit: WeightUnit, settings: AppSettings, modifier: Modifier, onSwitchStyle: () -> Unit) {
+private fun TrendCard(snap: ProgressSnapshot, unit: WeightUnit, settings: AppSettings, modifier: Modifier, onOpen: () -> Unit, onSwitchStyle: () -> Unit) {
     var range by rememberSaveable { mutableStateOf("Journey") }
     val points = remember(snap.points, snap.history, range) {
         when (range) {
@@ -321,8 +327,11 @@ private fun TrendCard(snap: ProgressSnapshot, unit: WeightUnit, settings: AppSet
             }
         }
     }
-    ContentSection(modifier, tone = ModuleTone.VIOLET) {
-        Text(if (LocalAppearance.current.designStyle == io.github.ebziboi.delta.data.DesignStyle.TUBIK) "WEIGHT TREND" else "Trend", style = LocalDeltaType.current.title)
+    ContentSection(modifier,onClick=onOpen, tone = ModuleTone.VIOLET) {
+        Row(Modifier.fillMaxWidth().clickable(onClick=onOpen).semantics {contentDescription="Open weight calendar"},verticalAlignment=Alignment.CenterVertically) {
+            Text(if (LocalAppearance.current.designStyle == io.github.ebziboi.delta.data.DesignStyle.TUBIK) "WEIGHT TREND" else "Trend",style=LocalDeltaType.current.title,modifier=Modifier.weight(1f))
+            Text("↗",style=LocalDeltaType.current.bodyStrong,color=Color(LocalDeltaColors.current.accent))
+        }
         SegmentedControl(RANGES, range, { it }, Modifier.fillMaxWidth()) { range = it }
         // Only the journey view is scaled from start to target, with the percentage tagged.
         val whole = range == "Journey"
@@ -335,52 +344,32 @@ private fun TrendCard(snap: ProgressSnapshot, unit: WeightUnit, settings: AppSet
     }
 }
 
-/** Plain-English observations drawn from the numbers. */
+/** Home and detail pages derive their observations from the same recorded days. */
 @Composable
-private fun InsightsCard(snap: ProgressSnapshot, insights: Insights, unit: WeightUnit, modifier: Modifier) {
-    val lines = buildList {
-        if(insights.average7Kg!=null && insights.averagePrevious7Kg!=null) {
-            val change=insights.average7Kg-insights.averagePrevious7Kg
-            add(R.drawable.ic_insights to "7-day average: ${Units.signed(change,unit)} compared with the previous week.")
-        }
-        val fat=snap.bodyFat.sortedBy {it.epochMs}
-        val latestFat=fat.lastOrNull()
-        val weekAgo=System.currentTimeMillis()-7L*86400000
-        if(latestFat!=null && latestFat.epochMs>=weekAgo) {
-            fat.lastOrNull {it.epochMs<=weekAgo && it.epochMs>=weekAgo-2L*86400000}?.let { earlier ->
-                val date=java.time.Instant.ofEpochMilli(earlier.epochMs).atZone(java.time.ZoneId.systemDefault()).toLocalDate()
-                add(R.drawable.ic_insights to String.format(Locale.getDefault(),"Body fat: %+.1f percentage points since %s.",latestFat.percent-earlier.percent,Format.day(date)))
+private fun InsightsCard(snap:ProgressSnapshot,entries:List<io.github.ebziboi.delta.data.WeightEntry>,settings:AppSettings,modifier:Modifier,onMetric:(DetailMetric)->Unit) {
+    val today=LocalDate.now()
+    val weights=remember(entries) {io.github.ebziboi.delta.data.MeasurementDetails.readings(entries,emptyList(),io.github.ebziboi.delta.data.MeasurementKind.WEIGHT)}
+    val fat=remember(snap.bodyFat) {io.github.ebziboi.delta.data.MeasurementDetails.readings(emptyList(),snap.bodyFat,io.github.ebziboi.delta.data.MeasurementKind.BODY_FAT)}
+    val items=remember(weights,fat,settings.unit,today) {buildList {
+        val weightReport=io.github.ebziboi.delta.data.MeasurementDetails.report(io.github.ebziboi.delta.data.MeasurementKind.WEIGHT,weights,today.minusDays(29),today)
+        measurementInsights(weightReport,settings.unit).filter {it.id in listOf("change","comparison","coverage")}.forEach {add(it to DetailMetric.WEIGHT)}
+        val fatReport=io.github.ebziboi.delta.data.MeasurementDetails.report(io.github.ebziboi.delta.data.MeasurementKind.BODY_FAT,fat,today.minusDays(29),today)
+        measurementInsights(fatReport,settings.unit).filter {it.id in listOf("change","average")}.take(1).forEach {add(it to DetailMetric.BODY_FAT)}
+    }}
+    ContentSection(modifier,onClick={onMetric(DetailMetric.INSIGHTS)}) {
+        Text("Insights",style=LocalDeltaType.current.title)
+        if(items.isEmpty()) Text("No measurements in the last 30 days",style=LocalDeltaType.current.bodySmall)
+        items.forEach {(item,route)->
+            ListRow(onClick={onMetric(route)}) {
+                Column(Modifier.weight(1f)) {
+                    Text("${if(route==DetailMetric.BODY_FAT) "Body fat · " else ""}${item.title}",style=LocalDeltaType.current.bodySmall,color=Color(LocalDeltaColors.current.textDim))
+                    Text(item.value,style=LocalDeltaType.current.bodyStrong)
+                    Text(item.detail,style=LocalDeltaType.current.bodySmall,color=Color(LocalDeltaColors.current.textDim))
+                }
+                Text("↗",style=LocalDeltaType.current.bodyStrong,color=Color(LocalDeltaColors.current.accent))
             }
         }
-
-        insights.monthChangeKg?.let { change ->
-            val verb = if (change <= 0) "down" else "up"
-            add(R.drawable.ic_calendar_month to "You're ${Units.amount(change, unit)} $verb on a month ago.")
-        }
-        if (insights.lowestKg != null && insights.lowestMs != null) {
-            val day = java.time.Instant.ofEpochMilli(insights.lowestMs).atZone(java.time.ZoneId.systemDefault()).toLocalDate()
-            add(R.drawable.ic_south_east to "Lowest since you started: ${Units.weightShort(insights.lowestKg, unit)} on ${Format.day(day)}.")
-        }
-        val target = snap.targetDay
-        val required = snap.requiredRateKg
-        if (target != null && required != null && !snap.reached) {
-            add(R.drawable.ic_event to "To reach your target by ${Format.day(target)} you need ${Units.rate(required, unit)}.")
-        }
-        insights.daysSinceLastWeighIn?.takeIf { it >= 2 }?.let {
-            add(R.drawable.ic_schedule to "Your last weigh-in was $it days ago. The trend may lag behind recent changes.")
-        }
-        add(R.drawable.ic_today to "Day ${insights.daysSinceStart + 1} of your journey, with ${snap.weighIns} weigh-ins so far.")
-    }
-    if (lines.isEmpty()) return
-    val colors = LocalDeltaColors.current
-    ContentSection(modifier) {
-        Text("Insights", style = LocalDeltaType.current.title)
-        for ((icon, line) in lines) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                IconBadge(icon)
-                Text(line, style = LocalDeltaType.current.body, color = Color(colors.text), modifier = Modifier.weight(1f))
-            }
-        }
+        TextAction("All insights",{onMetric(DetailMetric.INSIGHTS)})
     }
 }
 

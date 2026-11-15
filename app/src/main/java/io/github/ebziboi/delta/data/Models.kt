@@ -136,6 +136,8 @@ data class AppSettings(
     /** The graph on the Progress screen. */
     val appChart: ChartStyle = ChartStyle.TREND,
     val bodyFatChart: ChartStyle = ChartStyle.CONNECTED,
+    /** Sunday = 0, through Saturday = 6. */
+    val weekStartsOn: Int = 0,
     /** The graph on the Trend and Journey widgets. */
     val widgetChart: ChartStyle = ChartStyle.TREND,
     /** A dashed line from where you are to the target, at the current pace. */
