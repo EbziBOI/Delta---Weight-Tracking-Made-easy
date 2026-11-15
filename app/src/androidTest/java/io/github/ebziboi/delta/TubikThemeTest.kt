@@ -108,27 +108,30 @@ class TubikThemeTest {
     }
     private fun scroll(forward: Boolean = true) {
         val x = device.displayWidth * 7 / 100
-        device.swipe(x, device.displayHeight * (if (forward) 7 else 4) / 10,
-            x, device.displayHeight * (if (forward) 4 else 7) / 10, 24)
-        device.waitForIdle(1_000); Thread.sleep(200)
+        device.swipe(x, device.displayHeight * (if (forward) 65 else 43) / 100,
+            x, device.displayHeight * (if (forward) 43 else 65) / 100, 90)
+        device.waitForIdle(1000); Thread.sleep(650)
     }
     private fun tap(text: String) {
-        fun target() = device.findObjects(By.text(text)).let { nodes ->
+        instrumentation.uiAutomation.clearCache()
+        fun target() = runCatching { device.findObjects(By.textStartsWith(text)).let { nodes ->
             if (text in listOf("Progress", "History", "Settings")) nodes.lastOrNull { it.visibleBounds.centerY() > device.displayHeight * 0.82f }
-            else nodes.firstOrNull { it.visibleBounds.centerY() in 100..(device.displayHeight * 0.8f).toInt() }
-        }
-        for (i in 0..12) { if (target() != null) break; scroll() }
+            else nodes.firstOrNull { it.visibleBounds.centerY() in 65..(device.displayHeight * 0.8f).toInt() }
+        } }.getOrNull()
+        for (i in 0..12) { instrumentation.uiAutomation.clearCache(); if (target() != null) break; scroll() }
+        if (target() == null) for (i in 0..14) { if (target() != null) break; scroll(false) }
         var node = target() ?: throw AssertionError("Missing $text")
         while (!node.isClickable && node.parent != null) node = node.parent
         node.click(); device.waitForIdle(1_000); Thread.sleep(350)
     }
     private fun choose(description: String) {
         for (i in 0..16) {
+            instrumentation.uiAutomation.clearCache()
             val node = device.findObject(By.desc(description))
             if (node != null && node.visibleBounds.centerY() in 100..(device.displayHeight * 0.8f).toInt()) {
                 node.click(); device.waitForIdle(1_000); Thread.sleep(500); return
             }
-            scroll(false)
+            scroll(i < 8)
         }
         throw AssertionError("Missing $description")
     }

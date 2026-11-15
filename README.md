@@ -21,8 +21,15 @@ background and blur when you switch back. The visual reference is
   your real start date rather than from the day you install
 - Start, current and target weight, with an optional target date
 - Weekly rate, projected goal date, on-track check and weigh-in streak
-- Five resizable widgets: progress, journey (graph and progress bar together),
-  start/now/target, trend graph and pace
+- Six resizable widgets: progress, journey (graph and progress bar together),
+  start/now/target, trend graph, pace and body fat
+- Ten launcher icons, including the original: swipe the icon deck in Appearance,
+  then hold or double-tap an icon to apply it
+- Pinch to zoom and drag a zoomed graph to pan; tap a reading for its value/date,
+  with buttons for zoom and reading navigation
+- Measured body-fat percentages in Progress, History, goals, scale CSV imports,
+  Health Connect and widgets; weight remains independent of missing body-fat data
+- Studio typography pairs bold geometric headings with editorial and mono accents
 - A customizable glass design system shared by the app and widgets: independently
   choose background and accent colors, with automatic text and surface contrast
 - Backgrounds: solid, vertical gradient, radial gradient, mesh, or a photo picked

@@ -3,6 +3,8 @@ package io.github.ebziboi.delta
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -32,6 +34,7 @@ class PermissionsRationaleActivity : ComponentActivity() {
                     Column(
                         modifier = Modifier
                             .systemBarsPadding()
+                            .verticalScroll(rememberScrollState())
                             .padding(24.dp),
                         verticalArrangement = Arrangement.spacedBy(14.dp),
                     ) {
@@ -41,16 +44,16 @@ class PermissionsRationaleActivity : ComponentActivity() {
                             fontWeight = FontWeight.Bold,
                         )
                         Text(
-                            "Delta reads your weight so it can show your progress from your start " +
+                            "Delta reads your weight and measured body-fat percentages so it can show your progress from your start " +
                                 "date to your target, in the app and on your home-screen widgets."
                         )
                         Text(
                             "Access to past data lets it include weigh-ins from before you installed " +
                                 "it. Background access lets widgets stay up to date while the app is closed."
                         )
-                        Text("Delta writes a weight only when you log a weigh-in in the app.")
+                        Text("Delta writes weight and body fat only when you log measurements or import a scale export. Each measurement stays independent; missing body fat is never estimated.")
                         Text(
-                            "Your weight stays on your phone. Delta has no account, no server and " +
+                            "Your measurements stay on your phone. Delta has no account, no server and " +
                                 "no analytics."
                         )
                         Button(onClick = { finish() }) { Text("Close") }

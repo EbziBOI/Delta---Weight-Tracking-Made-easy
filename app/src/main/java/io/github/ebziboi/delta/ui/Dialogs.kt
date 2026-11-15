@@ -4,6 +4,8 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DatePicker
@@ -51,6 +53,7 @@ fun WeightDialog(
     onConfirm: (Double) -> Unit,
     confirmLabel: String = "Save",
     extra: (@Composable () -> Unit)? = null,
+    extraValid: Boolean = true,
 ) {
     val initialStone = remember(initialKg) { initialKg?.let { Units.stoneParts(it) } }
     // Fields start with their contents selected, so typing a new number replaces the old one.
@@ -92,7 +95,7 @@ fun WeightDialog(
         onDismissRequest = onDismiss,
         title = { Text(title) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 if (unit == WeightUnit.ST_LB) {
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         GlassTextField(
@@ -137,7 +140,7 @@ fun WeightDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = { kg?.let(onConfirm) }, enabled = valid) { Text(confirmLabel) }
+            TextButton(onClick = { kg?.let(onConfirm) }, enabled = valid && extraValid) { Text(confirmLabel) }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
     )
@@ -152,11 +155,15 @@ fun LogWeightDialog(
     lastKg: Double?,
     unit: WeightUnit,
     onDismiss: () -> Unit,
-    onConfirm: (Double, Instant) -> Unit,
+    onConfirm: (Double, Instant, Double?) -> Unit,
+    canWriteBodyFat: Boolean = false,
+    onBodyFatAccess: () -> Unit = {},
 ) {
     val today = remember { LocalDate.now() }
     var day by remember { mutableStateOf(today) }
     var choosingDay by remember { mutableStateOf(false) }
+    var fat by remember { mutableStateOf("") }
+    val parsedFat = fat.replace(',', '.').toDoubleOrNull()
 
     WeightDialog(
         title = "Log weight",
@@ -170,9 +177,16 @@ fun LogWeightDialog(
             } else {
                 day.atTime(8, 0).atZone(ZoneId.systemDefault()).toInstant()
             }
-            onConfirm(kg, at)
+            onConfirm(kg, at, parsedFat.takeIf { canWriteBodyFat && fat.isNotBlank() })
         },
+        extraValid = fat.isBlank() || (canWriteBodyFat && parsedFat?.let(io.github.ebziboi.delta.data.BodyFat::valid) == true),
         extra = {
+            if (canWriteBodyFat) {
+                OutlinedTextField(fat, { fat = it }, label = { Text("Body fat % (optional)") }, singleLine = true,
+                    suffix = { Text("%") }, isError = fat.isNotBlank() && parsedFat?.let(io.github.ebziboi.delta.data.BodyFat::valid) != true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), modifier = Modifier.fillMaxWidth())
+            } else TextButton(onClick = onBodyFatAccess) { Text("Add body fat · allow access") }
+
             TextButton(onClick = { choosingDay = true }) {
                 Text(if (day == today) "Today  ·  change date" else "${Format.day(day)}  ·  change date")
             }

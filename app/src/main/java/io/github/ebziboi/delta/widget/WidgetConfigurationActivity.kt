@@ -256,6 +256,7 @@ private fun WidgetConfigurationScreen(
                     val content = draft.content
                     fun show(change: (WidgetContent) -> WidgetContent) = onChange(draft.copy(content = change(content)))
                     when (kind) {
+                        WidgetKind.BODY_FAT -> ToggleRow("Body fat target", content.showTarget, { on -> show { it.copy(showTarget = on) } })
                         WidgetKind.PROGRESS -> ToggleRow("How far there is to go", content.showDetail, { on -> show { it.copy(showDetail = on) } })
                         WidgetKind.SUMMARY -> ToggleRow("How far there is to go", content.showDetail, { on -> show { it.copy(showDetail = on) } },
                             note = "On taller widgets, under the bar.")

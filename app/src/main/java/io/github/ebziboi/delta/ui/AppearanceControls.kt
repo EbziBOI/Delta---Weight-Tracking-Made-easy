@@ -71,6 +71,8 @@ fun AppearanceControls(vm: AppViewModel, settings: AppSettings) {
         }
     }
 
+    IconCarousel(settings.appIcon, vm::selectIcon)
+
     ContentSection {
         Caption("Design system")
         Text("Choose the whole interface", style = LocalDeltaType.current.title)

@@ -69,6 +69,19 @@ object DeltaFonts {
                 displayScale = 1f,
                 displayTabular = true,
             )
+            TypeStyle.STUDIO -> CanvasType(
+                style = style,
+                display = face(R.font.space_grotesk_bold),
+                displayItalic = face(R.font.instrument_serif_italic),
+                number = face(R.font.space_grotesk_medium),
+                numberBold = face(R.font.space_grotesk_bold),
+                body = face(R.font.manrope_medium),
+                bodyBold = face(R.font.manrope_bold),
+                label = face(R.font.jetbrains_mono_medium),
+                labelTracking = 0.1f,
+                displayScale = 1f,
+                displayTabular = true,
+            )
             TypeStyle.TECHNICAL -> CanvasType(
                 style = style,
                 display = face(R.font.jetbrains_mono_medium),

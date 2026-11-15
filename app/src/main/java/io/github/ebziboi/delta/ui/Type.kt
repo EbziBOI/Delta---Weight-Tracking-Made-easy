@@ -137,6 +137,14 @@ fun deltaType(style: TypeStyle): DeltaType {
             label = style(Manrope, FontWeight.Bold, 10.5.sp, 14.sp, tracking = 0.1.em),
             button = button,
         )
+        TypeStyle.STUDIO -> deltaType(TypeStyle.MODERN).copy(
+            style = style,
+            hero = style(SpaceGrotesk, FontWeight.Bold, 76.sp, 78.sp, tracking = (-0.055).em, tabular = true),
+            display = style(SpaceGrotesk, FontWeight.Bold, 38.sp, 42.sp, tracking = (-0.045).em),
+            displayAccent = style(InstrumentSerif, FontWeight.Normal, 42.sp, 44.sp, italic = true),
+            title = style(SpaceGrotesk, FontWeight.Bold, 22.sp, 27.sp, tracking = (-0.025).em),
+            label = style(JetBrainsMono, FontWeight.Medium, 10.sp, 15.sp, tracking = 0.1.em),
+        )
         TypeStyle.TECHNICAL -> DeltaType(
             style = style,
             hero = style(JetBrainsMono, FontWeight.Medium, 62.sp, 66.sp, tracking = (-0.05).em),

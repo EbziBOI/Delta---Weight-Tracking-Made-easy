@@ -18,6 +18,9 @@ import io.github.ebziboi.delta.render.WidgetKind
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.runBlocking
 
+class BodyFatWidget : BitmapWidget() { override val kind = WidgetKind.BODY_FAT }
+class BodyFatWidgetReceiver : DeltaWidgetReceiver() { override val glanceAppWidget: GlanceAppWidget = BodyFatWidget() }
+
 class ProgressWidget : BitmapWidget() { override val kind = WidgetKind.PROGRESS }
 class SummaryWidget : BitmapWidget() { override val kind = WidgetKind.SUMMARY }
 class TrendWidget : BitmapWidget() { override val kind = WidgetKind.TREND }
@@ -67,6 +70,7 @@ class JourneyWidgetReceiver : DeltaWidgetReceiver() {
 /** Which receiver serves each kind of widget, for adding one from inside the app. */
 object WidgetCatalog {
     fun widget(kind: WidgetKind): BitmapWidget = when (kind) {
+        WidgetKind.BODY_FAT -> BodyFatWidget()
         WidgetKind.PROGRESS -> ProgressWidget()
         WidgetKind.JOURNEY -> JourneyWidget()
         WidgetKind.SUMMARY -> SummaryWidget()
@@ -77,6 +81,7 @@ object WidgetCatalog {
     fun kind(providerClassName: String): WidgetKind? = WidgetKind.entries.firstOrNull { receiver(it).name == providerClassName }
 
     fun receiver(kind: WidgetKind): Class<out android.appwidget.AppWidgetProvider> = when (kind) {
+        WidgetKind.BODY_FAT -> BodyFatWidgetReceiver::class.java
         WidgetKind.PROGRESS -> ProgressWidgetReceiver::class.java
         WidgetKind.JOURNEY -> JourneyWidgetReceiver::class.java
         WidgetKind.SUMMARY -> SummaryWidgetReceiver::class.java
@@ -96,7 +101,7 @@ object WidgetUpdater {
 
     /** Redraws every Delta widget on the home screen. Safe to call when there are none. */
     suspend fun updateAll(context: Context) = withContext(Dispatchers.Default) {
-        val widgets = listOf(ProgressWidget(), SummaryWidget(), TrendWidget(), PaceWidget(), JourneyWidget())
+        val widgets = listOf(BodyFatWidget(), ProgressWidget(), SummaryWidget(), TrendWidget(), PaceWidget(), JourneyWidget())
         for (widget in widgets) {
             try {
                 widget.updateAll(context)

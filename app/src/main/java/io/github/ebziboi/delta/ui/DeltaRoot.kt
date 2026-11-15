@@ -180,10 +180,12 @@ private fun MainScreen(
             lastKg = snap?.currentKg,
             unit = settings.unit,
             onDismiss = { logging = false },
-            onConfirm = { kg, at ->
+            onConfirm = { kg, at, fat ->
                 logging = false
-                vm.logWeight(kg, at)
+                vm.logWeight(kg, at, fat)
             },
+            canWriteBodyFat = health?.canWriteBodyFat == true,
+            onBodyFatAccess = requestAccess,
         )
     }
 }

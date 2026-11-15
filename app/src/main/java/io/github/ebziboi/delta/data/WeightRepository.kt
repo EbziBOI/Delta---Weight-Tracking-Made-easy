@@ -13,7 +13,7 @@ import kotlinx.coroutines.sync.withLock
 import java.time.Instant
 
 /** How an import went: weigh-ins added, and ones Health Connect already had. */
-data class ImportResult(val added: Int, val alreadyThere: Int)
+data class ImportResult(val added: Int, val alreadyThere: Int, val bodyFatAdded: Int = 0)
 
 sealed interface SyncResult {
     data class Done(val count: Int) : SyncResult
@@ -36,13 +36,15 @@ class WeightRepository(context: Context) {
     val settings: Flow<AppSettings> = store.settings
     val entries: Flow<List<WeightEntry>> = store.weights
 
+    val bodyFat: Flow<List<BodyFatEntry>> = store.bodyFat
+
     val snapshot: Flow<ProgressSnapshot> =
-        combine(entries, settings) { entries, settings -> ProgressCalculator.compute(entries, settings) }
+        combine(entries, settings, bodyFat) { entries, settings, fat -> ProgressCalculator.compute(entries, settings).copy(bodyFat = fat, targetBodyFat = settings.targetBodyFat) }
             .flowOn(Dispatchers.Default)
 
     /** What a widget needs to draw itself. */
     val widgetData: Flow<Pair<ProgressSnapshot, AppSettings>> =
-        combine(entries, settings) { entries, settings -> ProgressCalculator.compute(entries, settings) to settings }
+        combine(entries, settings, bodyFat) { entries, settings, fat -> ProgressCalculator.compute(entries, settings).copy(bodyFat = fat, targetBodyFat = settings.targetBodyFat) to settings }
             .flowOn(Dispatchers.Default)
 
     suspend fun updateSettings(transform: (AppSettings) -> AppSettings) {
@@ -53,35 +55,56 @@ class WeightRepository(context: Context) {
     /** Reads the full weight history from Health Connect and refreshes everything that shows it. */
     suspend fun sync(): SyncResult = syncLock.withLock {
         if (health.availability() != HealthAvailability.AVAILABLE) return@withLock SyncResult.Unavailable
-        if (!health.state().canRead) return@withLock SyncResult.NoPermission
+        val access = health.state()
+        if (!access.canRead && !access.canReadBodyFat) return@withLock SyncResult.NoPermission
 
         val since = Instant.EPOCH
-        val fresh = try {
-            health.readWeights(since)
-        } catch (cancelled: CancellationException) {
-            throw cancelled
-        } catch (denied: SecurityException) {
-            // Typically a background run without permission to read while closed.
-            return@withLock SyncResult.NoPermission
-        } catch (error: Exception) {
-            return@withLock SyncResult.Failed(error.message ?: error.javaClass.simpleName)
+        val errors = mutableListOf<String>()
+        var synced = false
+        var count = store.weights.first().size
+        if (access.canRead) {
+            try {
+                val fresh = health.readWeights(since)
+                store.saveWeights(fresh)
+                count = fresh.size
+                synced = true
+            } catch (cancelled: CancellationException) { throw cancelled }
+            catch (error: Exception) { errors += "Weight: ${error.message ?: error.javaClass.simpleName}" }
         }
-
-        store.saveWeights(fresh)
-        store.update { it.copy(lastSyncMs = System.currentTimeMillis()) }
+        if (access.canReadBodyFat) {
+            try {
+                store.saveBodyFat(health.readBodyFat(since))
+                synced = true
+            } catch (cancelled: CancellationException) { throw cancelled }
+            catch (error: Exception) { errors += "Body fat: ${error.message ?: error.javaClass.simpleName}" }
+        }
+        if (synced) store.update { it.copy(lastSyncMs = System.currentTimeMillis()) }
         WidgetUpdater.updateAll(appContext)
-        SyncResult.Done(fresh.size)
+        if (errors.isNotEmpty()) SyncResult.Failed(errors.joinToString("; ")) else SyncResult.Done(count)
     }
 
     /** Writes a weigh-in to Health Connect, then reads back so the copy here matches. */
-    suspend fun logWeight(kg: Double, at: Instant): Boolean = try {
-        health.writeWeight(kg, at)
+    suspend fun logWeight(kg: Double, at: Instant, percent: Double? = null): Boolean = try {
+        health.writeMeasurement(kg, percent, at)
         sync()
         true
     } catch (cancelled: CancellationException) {
         throw cancelled
     } catch (error: Exception) {
         false
+    }
+
+    suspend fun logBodyFat(percent: Double, at: Instant): Boolean {
+        health.writeBodyFat(percent, at)
+        sync()
+        return true
+    }
+
+    suspend fun deleteBodyFat(entry: BodyFatEntry): Boolean {
+        if (!entry.own) return false
+        health.deleteBodyFat(entry.id)
+        sync()
+        return true
     }
 
     /**
@@ -98,17 +121,24 @@ class WeightRepository(context: Context) {
             distinct += reading
         }
         val fresh = distinct.filter { reading -> existing.none { same(it.epochMs, it.kg, reading) } }
-        if (fresh.isNotEmpty()) {
-            health.writeWeights(fresh)
-            sync()
+        val body = store.bodyFat.first()
+        val distinctFat = ArrayList<ImportedReading>()
+        for (r in readings.filter { it.bodyFatPercent != null }.sortedBy { it.epochMs }) {
+            require(BodyFat.valid(r.bodyFatPercent!!))
+            if (distinctFat.none { kotlin.math.abs(it.epochMs - r.epochMs) <= 15 * 60_000L && kotlin.math.abs(it.bodyFatPercent!! - r.bodyFatPercent) < 0.05 }) distinctFat += r
         }
-        return ImportResult(added = fresh.size, alreadyThere = distinct.size - fresh.size)
+        val newFat = distinctFat.filter { r -> body.none { kotlin.math.abs(it.epochMs - r.epochMs) <= 15 * 60_000L && kotlin.math.abs(it.percent - r.bodyFatPercent!!) < 0.05 } }
+        if (fresh.isNotEmpty()) health.writeWeights(fresh.map { it.copy(bodyFatPercent = null) })
+        for (r in newFat) health.writeBodyFat(r.bodyFatPercent!!, Instant.ofEpochMilli(r.epochMs), "delta-import-fat-${r.epochMs}-${r.bodyFatPercent}")
+        if (fresh.isNotEmpty() || newFat.isNotEmpty()) sync()
+        return ImportResult(added = fresh.size, alreadyThere = distinct.size - fresh.size, bodyFatAdded = newFat.size)
     }
 
     private fun same(epochMs: Long, kg: Double, reading: ImportedReading) =
         kotlin.math.abs(epochMs - reading.epochMs) <= 15 * 60_000L && kotlin.math.abs(kg - reading.kg) < 0.1
 
     suspend fun delete(entry: WeightEntry): Boolean = try {
+        require(entry.own)
         health.deleteWeight(entry.id)
         sync()
         true

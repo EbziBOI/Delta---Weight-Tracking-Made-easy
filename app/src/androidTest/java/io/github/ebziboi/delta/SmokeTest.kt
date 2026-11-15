@@ -272,7 +272,7 @@ class SmokeTest {
 
         // Changing theme restyles the whole app at once.
         tap("Appearance")
-        waitFor("PRESETS")
+        waitFor("APP ICON")
         shot("13-appearance")
         tap("Neon")
         shot("14-theme-neon")
@@ -437,6 +437,7 @@ class SmokeTest {
         val deadline = System.currentTimeMillis() + 25_000
         while (System.currentTimeMillis() < deadline) {
             dismissSystemDialogs()
+            instrumentation.uiAutomation.clearCache()
             if (device.wait(Until.hasObject(selector), 1_500) == true) return
         }
         shot("failed-waiting-for-${what.filter { it.isLetterOrDigit() || it == ' ' }.replace(' ', '-')}")
@@ -444,6 +445,7 @@ class SmokeTest {
     }
 
     private fun visibleTarget(text: String): androidx.test.uiautomator.UiObject2? {
+        instrumentation.uiAutomation.clearCache()
         val candidates = device.findObjects(By.text(text))
         if (text in listOf("Progress", "History", "Settings"))
             return candidates.lastOrNull { it.visibleBounds.centerY() > device.displayHeight * 0.82f }

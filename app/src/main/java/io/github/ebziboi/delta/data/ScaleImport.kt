@@ -8,7 +8,7 @@ import java.time.format.DateTimeParseException
 import java.util.Locale
 
 /** One weigh-in read from a file. */
-data class ImportedReading(val epochMs: Long, val kg: Double)
+data class ImportedReading(val epochMs: Long, val kg: Double, val bodyFatPercent: Double? = null)
 
 /**
  * The weigh-ins in a smart scale's CSV export, grouped by the person they belong
@@ -49,6 +49,10 @@ object ScaleImport {
         if (timeColumn < 0 || weightColumn < 0) {
             throw ScaleImportException("Delta couldn't find a date and a weight column in that file.")
         }
+        // Total body fat only: subcutaneous/visceral fat and fat mass are different measurements.
+        val normalizedHeaders = header.map { it.replace(Regex("[^a-z]"), "") }
+        val bodyFatColumn = normalizedHeaders.indexOfFirst { it in setOf("bodyfat", "bodyfatpercent", "bodyfatpercentage", "bodyfatrate") }
+        val fatColumn = if (bodyFatColumn >= 0) bodyFatColumn else normalizedHeaders.indexOfFirst { it in setOf("fat", "fatpercent", "fatpercentage") }
         val inPounds = header[weightColumn].contains("lb")
 
         val people = LinkedHashMap<String, MutableList<ImportedReading>>()
@@ -59,7 +63,11 @@ object ScaleImport {
             val kg = if (inPounds) raw / LB_PER_KG else raw
             if (kg !in SENSIBLE_KG) continue
             val person = if (personColumn >= 0) cells.getOrNull(personColumn)?.trim().orEmpty() else ""
-            people.getOrPut(person) { ArrayList() } += ImportedReading(at, kg)
+            val fatRaw = cells.getOrNull(fatColumn)?.trim()?.removeSuffix("%")?.trim()?.replace(',', '.')
+            val fat = fatRaw?.takeIf { it.isNotBlank() }?.toDoubleOrNull()
+            if (!fatRaw.isNullOrBlank() && (fat == null || (fat != 0.0 && !BodyFat.valid(fat))))
+                throw ScaleImportException("Invalid body fat percentage in the file. No readings were imported.")
+            people.getOrPut(person) { ArrayList() } += ImportedReading(at, kg, fat?.takeUnless { it == 0.0 })
         }
         if (people.isEmpty()) throw ScaleImportException("Delta couldn't read any weigh-ins from that file.")
         return ScaleExport(people.mapValues { (_, readings) -> readings.sortedBy { it.epochMs } })

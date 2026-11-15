@@ -120,6 +120,8 @@ private fun Connect(health: HealthState?, onConnect: () -> Unit, onNext: () -> U
             AccessLine("Past data", "Reaches back before today, to your start date", health?.hasHistory == true)
             AccessLine("Background updates", "Keeps widgets current while Delta is closed", health?.hasBackground == true)
             AccessLine("Write weight", "Saves weigh-ins you log in Delta", health?.canWrite == true)
+            AccessLine("Read body fat", "Measured percentages from your scales and apps", health?.canReadBodyFat == true)
+            AccessLine("Write body fat", "Saves percentages you log or import", health?.canWriteBodyFat == true)
         }
         val missing = health?.missing?.size ?: 4
         if (missing > 0) {
@@ -185,6 +187,7 @@ private fun Goal(vm: AppViewModel, settings: AppSettings, onBack: () -> Unit) {
         )
     }
     var targetKg by remember { mutableStateOf(settings.targetKg) }
+    var targetBodyFat by remember { mutableStateOf(settings.targetBodyFat) }
     var targetDay by remember { mutableStateOf(settings.targetEpochDay?.let(LocalDate::ofEpochDay)) }
     var editing by remember { mutableStateOf("") }
 
@@ -234,6 +237,9 @@ private fun Goal(vm: AppViewModel, settings: AppSettings, onBack: () -> Unit) {
         )
     }
 
+    SettingRow("Body fat target", targetBodyFat?.let(io.github.ebziboi.delta.data.BodyFat::format) ?: "Optional",
+        onClick = { editing = "body-fat" })
+
     Button(
         onClick = {
             vm.update {
@@ -241,6 +247,7 @@ private fun Goal(vm: AppViewModel, settings: AppSettings, onBack: () -> Unit) {
                     onboardingDone = true,
                     startEpochDay = startDay.toEpochDay(),
                     targetKg = targetKg,
+                    targetBodyFat = targetBodyFat,
                     targetEpochDay = targetDay?.toEpochDay(),
                 )
             }
@@ -253,6 +260,9 @@ private fun Goal(vm: AppViewModel, settings: AppSettings, onBack: () -> Unit) {
     TextButton(onClick = onBack, modifier = Modifier.fillMaxWidth()) { Text("Back") }
 
     when (editing) {
+        "body-fat" -> PercentDialog("Target body fat", targetBodyFat, { editing = "" }, showDate = false) { value, _ ->
+            targetBodyFat = value; editing = ""
+        }
         "start" -> DateDialog(
             initial = startDay,
             onDismiss = { editing = "" },

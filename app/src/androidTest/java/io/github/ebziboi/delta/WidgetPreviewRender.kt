@@ -43,10 +43,13 @@ class WidgetPreviewRender {
             targetEpochDay = LocalDate.now().plusDays(95).toEpochDay(),
             widgetGlass = WidgetGlass.SOLID,
         )
-        val snap = ProgressCalculator.compute(SampleData.entries(startDay), settings)
+        val snap = ProgressCalculator.compute(SampleData.entries(startDay), settings).copy(bodyFat = (0..30).map {
+            io.github.ebziboi.delta.data.BodyFatEntry(java.time.Instant.now().minusSeconds((30L - it) * 86400).toEpochMilli(), 25.0 - it * 0.08, false, "preview-$it")
+        })
 
         // Roughly each widget's default size on a phone home screen, in dp.
         val sizes = mapOf(
+            WidgetKind.BODY_FAT to (350f to 180f),
             WidgetKind.PROGRESS to (170f to 170f),
             WidgetKind.JOURNEY to (350f to 180f),
             WidgetKind.SUMMARY to (350f to 92f),

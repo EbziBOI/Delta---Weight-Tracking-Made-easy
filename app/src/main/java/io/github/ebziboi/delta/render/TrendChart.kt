@@ -47,6 +47,9 @@ data class ChartSpec(
     val projection: Projection? = null,
     /** The goal date, marked on the time axis when it falls inside the graph. */
     val targetEpochMs: Long? = null,
+    val metric: ChartMetric = ChartMetric.WEIGHT,
+    val viewport: GraphViewport? = null,
+    val selectedPoint: TrendPoint? = null,
 ) {
     companion object {
         /** The whole journey, as the Progress screen's "All" range and the widgets show it. */
@@ -99,7 +102,7 @@ object TrendChart {
         reveal: Float = 1f,
         zone: ZoneId = ZoneId.systemDefault(),
         contrastShadow: Boolean = false,
-    ) {
+    ): ChartLayout? {
         val points = spec.points.filter { it.kg.isFinite() && it.trendKg.isFinite() }.sortedBy { it.epochMs }
         val targetKg = spec.targetKg
         val unit = spec.unit
@@ -115,8 +118,8 @@ object TrendChart {
             caption.textAlign = Paint.Align.CENTER
             caption.textSize = 12f * density
             val middle = area.centerY() - (caption.ascent() + caption.descent()) / 2f
-            canvas.drawText("Two weigh-ins make a trend", area.centerX(), middle, caption)
-            return
+            canvas.drawText(if (spec.metric == ChartMetric.BODY_FAT) "Two body fat readings make a trend" else "Two weigh-ins make a trend", area.centerX(), middle, caption)
+            return null
         }
 
         // Vertical range: the data, plus the target so the goal is always in view.
@@ -128,12 +131,14 @@ object TrendChart {
         }
         spec.startKg?.let { low = min(low, it); high = max(high, it) }
         val margin = max((high - low) * 0.08, 0.25)
-        val bottomKg = low - margin
-        val topKg = high + margin
+        val fullLow = if (spec.metric == ChartMetric.BODY_FAT) (low - margin).coerceAtLeast(0.0) else low - margin
+        val fullHigh = if (spec.metric == ChartMetric.BODY_FAT) (high + margin).coerceAtMost(100.0) else high + margin
+        val bottomKg = spec.viewport?.low ?: fullLow
+        val topKg = spec.viewport?.high ?: fullHigh
 
-        val toDisplay = if (unit == WeightUnit.KG) 1.0 else Units.LB_PER_KG
+        val toDisplay = if (spec.metric == ChartMetric.BODY_FAT || unit == WeightUnit.KG) 1.0 else Units.LB_PER_KG
         var tickStep = niceStep((topKg - bottomKg) * toDisplay / 4.5)
-        if (unit == WeightUnit.ST_LB) tickStep = max(1.0, ceil(tickStep))
+        if (spec.metric == ChartMetric.WEIGHT && unit == WeightUnit.ST_LB) tickStep = max(1.0, ceil(tickStep))
         val ticks = ArrayList<Double>()
         var tick = ceil(bottomKg * toDisplay / tickStep) * tickStep
         while (tick <= topKg * toDisplay + 1e-9) {
@@ -141,8 +146,9 @@ object TrendChart {
             tick += tickStep
         }
 
+        fun axis(value: Double) = if (spec.metric == ChartMetric.BODY_FAT) String.format(Locale.getDefault(), "%.1f%%", value) else Units.axis(value, unit)
         val gutter = if (labels && ticks.isNotEmpty()) {
-            ticks.maxOf { caption.measureText(Units.axis(it, unit)) } + 8f * density
+            ticks.maxOf { caption.measureText(axis(it)) } + 8f * density
         } else {
             0f
         }
@@ -153,14 +159,16 @@ object TrendChart {
             area.right - 6f * density,
             area.bottom - footer - 2f * density,
         )
-        if (plot.width() <= 0f || plot.height() <= 0f) return
+        if (plot.width() <= 0f || plot.height() <= 0f) return null
 
-        val firstMs = points.first().epochMs
-        val dataEnd = max(points.last().epochMs, firstMs + DAY_MS)
+        val fullFirst = points.first().epochMs
+        val dataEnd = max(points.last().epochMs, fullFirst + DAY_MS)
         // Keep at least two thirds of the width for recorded data.
-        val horizon = dataEnd + max(7 * DAY_MS, (dataEnd - firstMs) / 2)
+        val horizon = dataEnd + max(7 * DAY_MS, (dataEnd - fullFirst) / 2)
         val projection = spec.projection?.takeIf { it.atEpochMs > points.last().epochMs }
-        val lastMs = projection?.let { min(it.atEpochMs, horizon) }?.coerceAtLeast(dataEnd) ?: dataEnd
+        val fullLast = projection?.let { min(it.atEpochMs, horizon) }?.coerceAtLeast(dataEnd) ?: dataEnd
+        val firstMs = spec.viewport?.first ?: fullFirst
+        val lastMs = spec.viewport?.last ?: fullLast
         fun x(epochMs: Long): Float =
             plot.left + (epochMs - firstMs).toFloat() / (lastMs - firstMs).toFloat() * plot.width()
         fun y(kg: Double): Float =
@@ -178,12 +186,12 @@ object TrendChart {
             canvas.drawLine(plot.left, lineY, plot.right, lineY, grid)
             if (labels) {
                 val baseline = lineY - (caption.ascent() + caption.descent()) / 2f
-                canvas.drawText(Units.axis(value, unit), plot.left - 6f * density, baseline, caption)
+                canvas.drawText(axis(value), plot.left - 6f * density, baseline, caption)
             }
         }
 
         // Target.
-        if (targetKg != null) {
+        if (targetKg != null && targetKg in bottomKg..topKg) {
             val lineY = y(targetKg)
             val dashed = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                 style = Paint.Style.STROKE
@@ -297,7 +305,16 @@ object TrendChart {
         canvas.drawCircle(lastX, lastY, 4f * density, marker)
         canvas.restoreToCount(drawing)
 
-        if (labels && reveal >= 1f) {
+        spec.selectedPoint?.let { selected ->
+            val sx = x(selected.epochMs); val sy = y(selected.kg)
+            if (plot.includes(sx, sy)) {
+                val cross = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = colors.text; strokeWidth = density; alpha = 100 }
+                canvas.drawLine(sx, plot.top, sx, plot.bottom, cross)
+                cross.alpha = 255; canvas.drawCircle(sx, sy, 6f * density, cross)
+                cross.color = colors.accent; canvas.drawCircle(sx, sy, 3.5f * density, cross)
+            }
+        }
+        if (labels && reveal >= 1f && plot.includes(lastX, lastY)) {
             spec.fraction?.let { fraction ->
                 val tag = Paint(caption).apply { color = colors.accent; textAlign = Paint.Align.RIGHT }
                 val text = "${(fraction.coerceIn(0f, 1f) * 100).toInt()}%"
@@ -324,6 +341,8 @@ object TrendChart {
                 }
             }
         }
+        return ChartLayout(plot, GraphViewport(fullFirst, fullLast, fullLow, fullHigh),
+            GraphViewport(firstMs, lastMs, bottomKg, topKg), points.map { ChartHit(it, x(it.epochMs), y(it.kg)) })
     }
 
     private fun format(epochMs: Long, zone: ZoneId): String =

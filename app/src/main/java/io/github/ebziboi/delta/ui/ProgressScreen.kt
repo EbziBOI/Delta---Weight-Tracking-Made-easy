@@ -109,6 +109,7 @@ fun ProgressScreen(
             TrendCard(snap, unit, settings, Modifier.entrance(2)) {
                 vm.update { it.copy(appChart = if (it.appChart == ChartStyle.TREND) ChartStyle.CONNECTED else ChartStyle.TREND) }
             }
+            BodyFatSection(snap.bodyFat, settings.targetBodyFat, health?.canWriteBodyFat == true, onConnect, vm::logBodyFat)
             InsightsCard(snap, insights, unit, Modifier.entrance(3))
             if (insights.recent.isNotEmpty()) RecentCard(insights, snap.losing, unit, Modifier.entrance(4))
         }
@@ -189,6 +190,10 @@ private fun HeroCard(snap: ProgressSnapshot, insights: Insights, unit: WeightUni
             if (LocalAppearance.current.designStyle == io.github.ebziboi.delta.data.DesignStyle.TUBIK)
                 DashboardDial(snap.fraction, Modifier.size(118.dp))
             else DeltaTrack(fraction = snap.fraction, modifier = Modifier.size(118.dp))
+        }
+        snap.bodyFat.lastOrNull()?.let { reading ->
+            Text("Body fat ${io.github.ebziboi.delta.data.BodyFat.format(reading.percent)} · ${Format.moment(reading.epochMs)}",
+                style = type.bodySmall, color = Color(colors.textDim))
         }
         if (snap.targetKg != null && snap.startKg != null) {
             ProgressRail(snap.fraction)
@@ -320,11 +325,11 @@ private fun TrendCard(snap: ProgressSnapshot, unit: WeightUnit, settings: AppSet
         SegmentedControl(RANGES, range, { it }, Modifier.fillMaxWidth()) { range = it }
         // Only the journey view is scaled from start to target, with the percentage tagged.
         val whole = range == "Journey"
-        TrendChartView(
+        InteractiveChart(
             spec = ChartSpec.journey(snap, settings.appChart, unit, settings.showProjection)
                 .copy(points = points, startKg = if (whole) snap.startKg else null, fraction = if (whole) snap.fraction else null),
             modifier = Modifier.fillMaxWidth().height(230.dp),
-            onDoubleTap = onSwitchStyle,
+            bodyFat = snap.bodyFat, onDoubleTap = onSwitchStyle,
         )
         Text("${settings.appChart.label}  ·  double-tap the graph to switch",
             style = LocalDeltaType.current.bodySmall, color = Color(LocalDeltaColors.current.textDim))

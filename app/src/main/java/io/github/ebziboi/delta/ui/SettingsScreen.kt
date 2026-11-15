@@ -79,6 +79,10 @@ fun SettingsScreen(
     val syncing by vm.syncing.collectAsStateWithLifecycle()
     val unit = settings.unit
     var editing by remember { mutableStateOf("") }
+    var fatTarget by remember { mutableStateOf(false) }
+    if (fatTarget) PercentDialog("Target body fat", settings.targetBodyFat, { fatTarget = false }, showDate = false) { value, _ ->
+        vm.update { it.copy(targetBodyFat = value) }; fatTarget = false
+    }
     var section by rememberSaveable { mutableStateOf("") }
     if (section.isNotEmpty()) {
         SettingsDetail(section, vm, settings, snapshot, padding, onBack = { section = "" })
@@ -132,6 +136,13 @@ fun SettingsScreen(
             )
         }
 
+        ContentSection {
+            Caption("Body composition")
+            SettingRow("Target body fat", settings.targetBodyFat?.let(io.github.ebziboi.delta.data.BodyFat::format) ?: "Not set", onClick = { fatTarget = true })
+            if (settings.targetBodyFat != null) TextAction("Remove body fat target", { vm.update { it.copy(targetBodyFat = null) } })
+            Text("Set your own body fat target. Your recorded percentages stay separate from weight.", color = Color(colors.textDim), style = LocalDeltaType.current.bodySmall)
+        }
+
         // Units
         ContentSection {
             Caption("Units")
@@ -169,6 +180,8 @@ fun SettingsScreen(
                     AccessRow("Past data, back to your start date", health.hasHistory)
                     AccessRow("Background updates for widgets", health.hasBackground)
                     AccessRow("Write weight", health.canWrite)
+                    AccessRow("Read body fat", health.canReadBodyFat)
+                    AccessRow("Write body fat", health.canWriteBodyFat)
                     if (health.missing.isNotEmpty()) {
                         Button(onClick = onConnect) { Text("Allow access") }
                     }

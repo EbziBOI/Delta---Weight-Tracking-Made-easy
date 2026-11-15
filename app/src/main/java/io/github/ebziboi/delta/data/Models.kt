@@ -91,6 +91,7 @@ enum class WidgetTheme(val label: String, val detail: String) {
 enum class TypeStyle(val label: String, val detail: String) {
     EDITORIAL("Editorial", "Serif headlines, grotesk numbers, mono labels"),
     MODERN("Modern", "Clean grotesk throughout"),
+    STUDIO("Studio", "Bold geometric headings, editorial accents, precise mono labels"),
     TECHNICAL("Technical", "Monospaced numbers and headings"),
 }
 
@@ -116,6 +117,7 @@ data class WidgetContent(
 data class AppSettings(
     val onboardingDone: Boolean = false,
     val targetKg: Double? = null,
+    val targetBodyFat: Double? = null,
     /** Day the journey started. Null until onboarding, when it defaults to 1 September. */
     val startEpochDay: Long? = null,
     /** Optional goal date. */
@@ -139,6 +141,8 @@ data class AppSettings(
     /** Opacity of widget glass, 0 to 1, when the widget is light. Ignored for solid widgets. */
     val widgetOpacityLight: Float = WidgetGlass.FROSTED.defaultLight,
     val lastSyncMs: Long = 0L,
+    /** The selected launcher icon alias, independent of the app theme. */
+    val appIcon: String = "Classic",
     /** Null preserves a saved legacy theme until appearance controls are first changed. */
     val appearance: AppAppearance? = null,
     val savedGlassAppearance: AppAppearance? = null,

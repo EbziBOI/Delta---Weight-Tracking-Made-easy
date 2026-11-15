@@ -10,6 +10,7 @@ import java.util.Locale
 import kotlin.math.*
 
 enum class WidgetKind(val title: String, val detail: String) {
+    BODY_FAT("Body fat", "Your body fat percentage, change and trend"),
     PROGRESS("Progress", "The delta, filling as you close the gap"),
     JOURNEY("Journey", "Your graph and progress bar together"),
     SUMMARY("Start, now, target", "Three numbers over a progress bar"),
@@ -50,6 +51,7 @@ object WidgetBitmaps {
         canvas.scale(fit, fit)
         val painter = Painter(context, canvas, widthDp / fit, heightDp / fit, snap, settings, colors, type)
         when (kind) {
+            WidgetKind.BODY_FAT -> painter.bodyFat()
             WidgetKind.PROGRESS -> painter.progress()
             WidgetKind.JOURNEY -> painter.trend(journey = true)
             WidgetKind.SUMMARY -> painter.summary()
@@ -152,11 +154,36 @@ object WidgetBitmaps {
             else -> "Goal ${snap.projectedDay.format(DateTimeFormatter.ofPattern("MMM yyyy", Locale.ENGLISH))}"
         }
 
-        fun remaining() = when {
+        fun remaining(): String {
+            val remaining = when {
             snap.reached -> "Target reached"
             snap.remainingKg != null -> "${Units.amount(snap.remainingKg, unit)} to go"
             else -> "Open Delta to set up"
+            }
+            return remaining + (snap.bodyFat.lastOrNull()?.let { " · ${BodyFat.format(it.percent)} fat" } ?: "")
         }
+        fun bodyFat() {
+            val readings = snap.bodyFat.sortedBy { it.epochMs }
+            label("BODY FAT", pad, pad + 8)
+            val latest = readings.lastOrNull()
+            text(latest?.let { BodyFat.format(it.percent) } ?: "—", pad, pad + 39, 30f, colors.accent, type.numberBold)
+            if (latest == null) {
+                text("Log or sync a measurement", pad, h * 0.68f, 12f, colors.textDim, type.body)
+                return
+            }
+            val previous = readings.dropLast(1).lastOrNull()
+            if (previous != null && w >= 230) text(String.format(Locale.getDefault(), "%+.1f pp", latest.percent - previous.percent), w - pad, pad + 35,
+                12f, colors.textDim, type.number, Paint.Align.RIGHT, room = w * 0.40f)
+            if (h >= 135 && readings.size >= 2) {
+                TrendChart.draw(c, RectF(pad, pad + 50, w - pad, h - 27),
+                    ChartSpec(readings.map { io.github.ebziboi.delta.data.TrendPoint(it.epochMs, it.percent, it.percent) },
+                        ChartStyle.CONNECTED, WeightUnit.KG, snap.targetBodyFat.takeIf { show.showTarget }, metric = ChartMetric.BODY_FAT), colors, type, 1f, true)
+            }
+            val footer = snap.targetBodyFat?.takeIf { show.showTarget }?.let { "Target ${BodyFat.format(it)} · " }.orEmpty() +
+                java.time.Instant.ofEpochMilli(latest.epochMs).atZone(java.time.ZoneId.systemDefault()).toLocalDate().format(shortDate)
+            text(footer, pad, h - pad, 10f, colors.textDim, type.body)
+        }
+
         fun progress() {
             if (w > h * 1.5f) {
                 val size = h - pad * 2

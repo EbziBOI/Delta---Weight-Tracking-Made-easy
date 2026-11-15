@@ -48,6 +48,8 @@ data class ProgressSnapshot(
     val points: List<TrendPoint>,
     /** Every weigh-in on record with its trend, including those before the start day. */
     val history: List<TrendPoint>,
+    val bodyFat: List<BodyFatEntry> = emptyList(),
+    val targetBodyFat: Double? = null,
 )
 
 object ProgressCalculator {

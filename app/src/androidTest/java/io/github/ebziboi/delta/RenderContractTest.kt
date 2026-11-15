@@ -97,7 +97,8 @@ class RenderContractTest {
 
     @Test fun journeyIsRegisteredAndDistinctFromTrend() {
         val providers = AppWidgetManager.getInstance(context).installedProviders.filter { it.provider.packageName == context.packageName }
-        assertEquals(5, providers.size)
+        assertEquals(WidgetKind.entries.size, providers.size)
+        assertTrue(providers.any { it.provider == ComponentName(context, io.github.ebziboi.delta.widget.BodyFatWidgetReceiver::class.java) })
         assertTrue(providers.any { it.provider == ComponentName(context, JourneyWidgetReceiver::class.java) })
         val journey = WidgetBitmaps.render(context, WidgetKind.JOURNEY, 350f, 200f, snapshot, settings)
         val trend = WidgetBitmaps.render(context, WidgetKind.TREND, 350f, 200f, snapshot, settings)

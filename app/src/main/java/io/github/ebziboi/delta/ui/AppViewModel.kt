@@ -31,6 +31,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     val snapshot: StateFlow<ProgressSnapshot?> =
         repo.snapshot.stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
+    val bodyFat = repo.bodyFat.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
     val entries: StateFlow<List<WeightEntry>> =
         repo.entries.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
@@ -73,7 +75,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                             1 -> "1 weigh-in synced"
                             else -> "${result.count} weigh-ins synced"
                         }
-                        SyncResult.NoPermission -> "Delta needs permission to read your weight"
+                        SyncResult.NoPermission -> "Allow Delta to read weight or body fat in Health Connect"
                         SyncResult.Unavailable -> "Health Connect isn't available on this phone"
                         is SyncResult.Failed -> "Sync failed: ${result.reason}"
                     }
@@ -82,12 +84,27 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun logWeight(kg: Double, at: Instant) {
+    fun logWeight(kg: Double, at: Instant, percent: Double? = null) {
         viewModelScope.launch {
-            val saved = repo.logWeight(kg, at)
+            val saved = repo.logWeight(kg, at, percent)
             _messages.tryEmit(
                 if (saved) "Weigh-in saved" else "Couldn't save. Check Health Connect access in Settings."
             )
+        }
+    }
+
+    fun logBodyFat(percent: Double, at: Instant) {
+        viewModelScope.launch {
+            try { repo.logBodyFat(percent, at); _messages.tryEmit("Body fat saved") }
+            catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
+            catch (_: Exception) { _messages.tryEmit("Couldn't save body fat. Check Health Connect access.") }
+        }
+    }
+    fun deleteBodyFat(entry: io.github.ebziboi.delta.data.BodyFatEntry) {
+        viewModelScope.launch {
+            try { val removed = repo.deleteBodyFat(entry); _messages.tryEmit(if (removed) "Body fat deleted" else "Couldn't delete that body fat reading") }
+            catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
+            catch (_: Exception) { _messages.tryEmit("Couldn't delete body fat") }
         }
     }
 
@@ -143,8 +160,12 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 _messages.tryEmit("Allow Delta to write weight in Health Connect, then import again.")
                 return
             }
+            if (readings.any { it.bodyFatPercent != null } && runCatching { repo.health.state() }.getOrNull()?.canWriteBodyFat != true) {
+                _messages.tryEmit("Allow body fat write access in Health Connect before importing this file.")
+                return
+            }
             val result = repo.importReadings(readings)
-            _messages.tryEmit(when {
+            _messages.tryEmit(if (result.bodyFatAdded > 0) "Imported ${result.added} weigh-ins and ${result.bodyFatAdded} body fat readings" else when {
                 result.added == 0 -> "All ${result.alreadyThere} weigh-ins were already in Health Connect"
                 result.alreadyThere == 0 -> "Imported ${result.added} weigh-ins"
                 else -> "Imported ${result.added} weigh-ins; ${result.alreadyThere} were already there"
@@ -166,6 +187,22 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun dismissCrash() {
         io.github.ebziboi.delta.CrashRecorder.clear(getApplication())
         _lastCrash.value = null
+    }
+
+    fun selectIcon(id: String) {
+        viewModelScope.launch {
+            val previous = settings.value?.appIcon ?: "Classic"
+            try {
+                io.github.ebziboi.delta.icons.LauncherIcons.apply(getApplication(), id)
+                repo.updateSettings { it.copy(appIcon = id) }
+                _messages.tryEmit("App icon updated")
+            } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                throw cancelled
+            } catch (error: Exception) {
+                runCatching { io.github.ebziboi.delta.icons.LauncherIcons.apply(getApplication(), previous) }
+                _messages.tryEmit("Couldn't change the app icon. Please try again.")
+            }
+        }
     }
 
     fun update(transform: (AppSettings) -> AppSettings) {

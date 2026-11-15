@@ -24,6 +24,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -44,6 +45,9 @@ import kotlin.math.abs
 fun HistoryScreen(vm: AppViewModel, settings: AppSettings, padding: PaddingValues) {
     val colors = LocalDeltaColors.current
     val entries by vm.entries.collectAsStateWithLifecycle()
+    val fat by vm.bodyFat.collectAsStateWithLifecycle()
+    var metric by rememberSaveable { mutableStateOf("Weight") }
+    var deletingFat by remember { mutableStateOf<io.github.ebziboi.delta.data.BodyFatEntry?>(null) }
     val snapshot by vm.snapshot.collectAsStateWithLifecycle()
     val newestFirst = remember(entries) {
         entries.distinctBy { it.id to it.epochMs }.sortedByDescending { it.epochMs }
@@ -66,7 +70,8 @@ fun HistoryScreen(vm: AppViewModel, settings: AppSettings, padding: PaddingValue
         item(key = "header") {
             Column(modifier = Modifier.padding(bottom = 6.dp)) {
                 ScreenHeader(title = "History")
-                Text(
+                SegmentedControl(listOf("Weight", "Body fat"), metric, { it }, Modifier.fillMaxWidth()) { metric = it }
+                if (metric == "Weight") Text(
                     text = when (newestFirst.size) {
                         0 -> "Weigh-ins from Health Connect will appear here."
                         1 -> "1 weigh-in from Health Connect"
@@ -77,17 +82,39 @@ fun HistoryScreen(vm: AppViewModel, settings: AppSettings, padding: PaddingValue
                 )
             }
         }
-        itemsIndexed(newestFirst, key = { _, entry -> "${entry.id}:${entry.epochMs}" }) { index, entry ->
+        if (metric == "Body fat") {
+            if (fat.isEmpty()) item { Text("No body fat readings yet. Log a measurement from Progress or allow body fat access in Health Connect.", color = Color(colors.textDim)) }
+            itemsIndexed(fat.sortedByDescending { it.epochMs }, key = { _, r -> "fat:${r.id}:${r.epochMs}" }) { _, reading ->
+                ListRow {
+                    Column(Modifier.weight(1f)) {
+                        Text(io.github.ebziboi.delta.data.BodyFat.format(reading.percent), style = LocalDeltaType.current.number)
+                        Text(Format.moment(reading.epochMs), style = LocalDeltaType.current.bodySmall, color = Color(colors.textDim))
+                    }
+                    if (reading.own) IconButton({ deletingFat = reading }) {
+                        Icon(Icons.Filled.Delete, "Delete body fat reading", tint = Color(colors.textDim))
+                    }
+                }
+            }
+        }
+        if (metric == "Weight") itemsIndexed(newestFirst, key = { _, entry -> "${entry.id}:${entry.epochMs}" }) { index, entry ->
             HistoryRow(
                 entry = entry,
                 previous = newestFirst.getOrNull(index + 1),
                 unit = settings.unit,
                 losing = losing,
                 onDelete = { deleting = entry },
+                bodyFat = io.github.ebziboi.delta.data.BodyFat.near(entry.epochMs, fat)?.percent,
             )
         }
     }
 
+    deletingFat?.let { entry ->
+        GlassDialog({ deletingFat = null }, "Delete body fat reading?", "Delete", {
+            deletingFat = null; vm.deleteBodyFat(entry)
+        }, destructive = true) {
+            Text("${io.github.ebziboi.delta.data.BodyFat.format(entry.percent)} on ${Format.moment(entry.epochMs)} will be removed from Health Connect.")
+        }
+    }
     val target = deleting
     if (target != null) {
         AlertDialog(
@@ -116,12 +143,14 @@ private fun HistoryRow(
     unit: WeightUnit,
     losing: Boolean,
     onDelete: () -> Unit,
+    bodyFat: Double? = null,
 ) {
     val colors = LocalDeltaColors.current
     ListRow {
         Column(modifier = Modifier.weight(1f)) {
             Text(text = Units.weight(entry.kg, unit), style = LocalDeltaType.current.number)
             Text(text = Format.moment(entry.epochMs), color = Color(colors.textDim), fontSize = 13.sp)
+            bodyFat?.let { Text("Body fat ${io.github.ebziboi.delta.data.BodyFat.format(it)}", style = LocalDeltaType.current.bodySmall, color = Color(colors.accent)) }
         }
         if (previous != null) {
             val change = entry.kg - previous.kg

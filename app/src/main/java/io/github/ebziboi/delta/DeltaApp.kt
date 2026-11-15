@@ -1,6 +1,8 @@
 package io.github.ebziboi.delta
 
 import android.app.Application
+import kotlinx.coroutines.*
+import kotlinx.coroutines.flow.first
 import io.github.ebziboi.delta.data.SyncWorker
 import io.github.ebziboi.delta.data.WeightRepository
 
@@ -13,5 +15,8 @@ class DeltaApp : Application() {
         super.onCreate()
         CrashRecorder.install(this)
         SyncWorker.schedule(this)
+        CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
+            runCatching { io.github.ebziboi.delta.icons.LauncherIcons.apply(this@DeltaApp, repo.settings.first().appIcon) }
+        }
     }
 }

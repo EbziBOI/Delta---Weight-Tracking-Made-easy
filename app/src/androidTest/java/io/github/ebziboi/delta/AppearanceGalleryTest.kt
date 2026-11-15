@@ -79,7 +79,7 @@ class AppearanceGalleryTest {
             tap("Settings")
             assertTrue(device.wait(Until.hasObject(By.text("Target weight")), 10_000))
             tap("Appearance")
-            assertTrue(device.wait(Until.hasObject(By.text("PRESETS")), 10_000))
+            assertTrue(device.wait(Until.hasObject(By.text("APP ICON")), 10_000))
             shot("appearance-presets")
             tap("Background color")
             assertTrue(device.wait(Until.hasObject(By.text("Hex color")), 5_000))
@@ -133,6 +133,7 @@ class AppearanceGalleryTest {
     }
 
     private fun visibleTarget(text: String): androidx.test.uiautomator.UiObject2? {
+        instrumentation.uiAutomation.clearCache()
         val candidates = device.findObjects(By.text(text))
         if (text in listOf("Progress", "History", "Settings"))
             return candidates.lastOrNull { it.visibleBounds.centerY() > device.displayHeight * 0.82f }

@@ -3,6 +3,8 @@ package io.github.ebziboi.delta.data
 import android.content.Context
 import androidx.health.connect.client.HealthConnectClient
 import androidx.health.connect.client.permission.HealthPermission
+import androidx.health.connect.client.records.BodyFatRecord
+import androidx.health.connect.client.units.Percentage
 import androidx.health.connect.client.records.WeightRecord
 import androidx.health.connect.client.records.metadata.Metadata
 import androidx.health.connect.client.request.ReadRecordsRequest
@@ -19,6 +21,8 @@ data class HealthState(
     val availability: HealthAvailability,
     val canRead: Boolean = false,
     val canWrite: Boolean = false,
+    val canReadBodyFat: Boolean = false,
+    val canWriteBodyFat: Boolean = false,
     /** Weigh-ins older than 30 days before access was granted, which is what reaches back to September. */
     val hasHistory: Boolean = false,
     /** Reading while the app is closed, which keeps widgets current. */
@@ -29,6 +33,8 @@ data class HealthState(
     /** The permissions still worth asking for. */
     val missing: Set<String>
         get() = buildSet {
+            if (!canReadBodyFat) add(HealthConnectManager.READ_BODY_FAT)
+            if (!canWriteBodyFat) add(HealthConnectManager.WRITE_BODY_FAT)
             if (!canRead) add(HealthConnectManager.READ_WEIGHT)
             if (!canWrite) add(HealthConnectManager.WRITE_WEIGHT)
             if (!hasHistory) add(HealthConnectManager.HISTORY)
@@ -41,6 +47,8 @@ class HealthConnectManager(context: Context) {
     private val appContext = context.applicationContext
 
     companion object {
+        val READ_BODY_FAT: String = HealthPermission.getReadPermission(BodyFatRecord::class)
+        val WRITE_BODY_FAT: String = HealthPermission.getWritePermission(BodyFatRecord::class)
         val READ_WEIGHT: String = HealthPermission.getReadPermission(WeightRecord::class)
         val WRITE_WEIGHT: String = HealthPermission.getWritePermission(WeightRecord::class)
 
@@ -71,6 +79,8 @@ class HealthConnectManager(context: Context) {
         return HealthState(
             availability = availability,
             canRead = READ_WEIGHT in granted,
+            canReadBodyFat = READ_BODY_FAT in granted,
+            canWriteBodyFat = WRITE_BODY_FAT in granted,
             canWrite = WRITE_WEIGHT in granted,
             hasHistory = HISTORY in granted,
             hasBackground = BACKGROUND in granted,
@@ -116,18 +126,57 @@ class HealthConnectManager(context: Context) {
         client.insertRecords(listOf(record))
     }
 
+    suspend fun readBodyFat(since: Instant): List<BodyFatEntry> {
+        val client = client() ?: return emptyList()
+        val result = ArrayList<BodyFatEntry>()
+        var token: String? = null
+        do {
+            val response = client.readRecords(ReadRecordsRequest(BodyFatRecord::class,
+                timeRangeFilter = TimeRangeFilter.after(since), ascendingOrder = true, pageSize = 1000, pageToken = token))
+            response.records.forEach { r ->
+                if (BodyFat.valid(r.percentage.value)) result += BodyFatEntry(r.time.toEpochMilli(), r.percentage.value,
+                    r.metadata.dataOrigin.packageName == appContext.packageName, r.metadata.id)
+            }
+            token = response.pageToken
+        } while (token != null)
+        return result
+    }
+
+    suspend fun writeBodyFat(percent: Double, at: Instant, clientId: String? = null) {
+        require(BodyFat.valid(percent)) { "Body fat must be greater than 0 and at most 100 percent" }
+        val client = client() ?: error("Health Connect is not available")
+        client.insertRecords(listOf(BodyFatRecord(at, ZoneId.systemDefault().rules.getOffset(at), Percentage(percent), if (clientId == null) Metadata.manualEntry() else Metadata.manualEntry(clientRecordId = clientId))))
+    }
+
+    suspend fun writeMeasurement(kg: Double, percent: Double?, at: Instant) {
+        require(kg.isFinite() && kg in 20.0..400.0)
+        require(percent == null || BodyFat.valid(percent))
+        val client = client() ?: error("Health Connect is not available")
+        val records = mutableListOf<androidx.health.connect.client.records.Record>(
+            WeightRecord(at, ZoneId.systemDefault().rules.getOffset(at), Mass.kilograms(kg), Metadata.manualEntry()))
+        percent?.let { records += BodyFatRecord(at, ZoneId.systemDefault().rules.getOffset(at), Percentage(it), Metadata.manualEntry()) }
+        client.insertRecords(records)
+    }
+
+    suspend fun deleteBodyFat(id: String) {
+        val client = client() ?: error("Health Connect is not available")
+        client.deleteRecords(BodyFatRecord::class, listOf(id), emptyList())
+    }
+
     /** Writes many weigh-ins at once, in batches Health Connect accepts. */
     suspend fun writeWeights(readings: List<ImportedReading>) {
         val client = client() ?: throw IllegalStateException("Health Connect is not available")
         for (batch in readings.chunked(500)) {
-            client.insertRecords(batch.map { reading ->
+            client.insertRecords(batch.flatMap { reading ->
                 val at = Instant.ofEpochMilli(reading.epochMs)
-                WeightRecord(
+                buildList<androidx.health.connect.client.records.Record> { add(WeightRecord(
                     time = at,
                     zoneOffset = ZoneId.systemDefault().rules.getOffset(at),
                     weight = Mass.kilograms(reading.kg),
-                    metadata = Metadata.manualEntry(),
-                )
+                    metadata = Metadata.manualEntry(clientRecordId = "delta-import-weight-${reading.epochMs}-${reading.kg}"),
+                ))
+                reading.bodyFatPercent?.let { add(BodyFatRecord(at, ZoneId.systemDefault().rules.getOffset(at), Percentage(it), Metadata.manualEntry())) }
+                }
             })
         }
     }

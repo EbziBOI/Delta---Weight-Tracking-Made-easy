@@ -41,6 +41,8 @@ class SettingsStore(context: Context) {
 
     private object Keys {
         val ONBOARDED = booleanPreferencesKey("onboarded")
+        val BODY_FAT = stringPreferencesKey("body_fat_v1")
+        val TARGET_BODY_FAT = doublePreferencesKey("target_body_fat")
         val TARGET_KG = doublePreferencesKey("target_kg")
         val START_DAY = longPreferencesKey("start_day")
         val START_KG = doublePreferencesKey("start_kg")
@@ -59,6 +61,7 @@ class SettingsStore(context: Context) {
         val WIDGET_OPACITY_LIGHT = floatPreferencesKey("widget_opacity_light")
         val LAST_SYNC = longPreferencesKey("last_sync")
         val WEIGHTS = stringPreferencesKey("weights")
+        val APP_ICON = stringPreferencesKey("app_icon")
         val APPEARANCE = stringPreferencesKey("appearance_v1")
         val GLASS_APPEARANCE = stringPreferencesKey("glass_appearance_v1")
         val TUBIK_APPEARANCE = stringPreferencesKey("tubik_appearance_v1")
@@ -79,6 +82,31 @@ class SettingsStore(context: Context) {
         appContext.settingsStore.edit { prefs -> encode(transform(decode(prefs)), prefs) }
     }
 
+    val bodyFat: Flow<List<BodyFatEntry>> = appContext.weightStore.data
+        .catch { if (it is IOException) emit(emptyPreferences()) else throw it }
+        .map { prefs ->
+            runCatching {
+                val array = org.json.JSONArray(prefs[Keys.BODY_FAT] ?: "[]")
+                (0 until array.length()).mapNotNull { index ->
+                    runCatching {
+                        val j = array.getJSONObject(index)
+                        BodyFatEntry(j.getLong("time"), j.getDouble("percent"), j.optBoolean("own"), j.getString("id"))
+                            .takeIf { BodyFat.valid(it.percent) }
+                    }.getOrNull()
+                }.sortedBy { it.epochMs }
+            }.getOrDefault(emptyList())
+        }.distinctUntilChanged()
+
+    suspend fun saveBodyFat(readings: List<BodyFatEntry>) {
+        appContext.weightStore.edit { p ->
+            val json = org.json.JSONArray()
+            readings.filter { BodyFat.valid(it.percent) }.sortedBy { it.epochMs }.forEach { r ->
+                json.put(org.json.JSONObject().put("time", r.epochMs).put("percent", r.percent).put("own", r.own).put("id", r.id))
+            }
+            p[Keys.BODY_FAT] = json.toString()
+        }
+    }
+
     suspend fun saveWeights(entries: List<WeightEntry>) {
         appContext.weightStore.edit { prefs -> prefs[Keys.WEIGHTS] = encodeWeights(entries) }
     }
@@ -89,6 +117,7 @@ class SettingsStore(context: Context) {
         return AppSettings(
             onboardingDone = prefs[Keys.ONBOARDED] ?: false,
             targetKg = prefs[Keys.TARGET_KG],
+            targetBodyFat = prefs[Keys.TARGET_BODY_FAT]?.takeIf(BodyFat::valid),
             startEpochDay = prefs[Keys.START_DAY],
             targetEpochDay = prefs[Keys.TARGET_DAY],
             unit = named(prefs[Keys.UNIT], defaults.unit),
@@ -108,6 +137,7 @@ class SettingsStore(context: Context) {
             savedGlassUsesLegacy = prefs[Keys.GLASS_LEGACY] ?: false,
             savedGlassAppearance = decodeAppearance(prefs[Keys.GLASS_APPEARANCE]),
             savedTubikAppearance = decodeAppearance(prefs[Keys.TUBIK_APPEARANCE]),
+            appIcon = prefs[Keys.APP_ICON] ?: "Classic",
             appearance = decodeAppearance(prefs[Keys.APPEARANCE]) ?: if (prefs[Keys.THEME] == null) AppAppearance() else null,
         )
     }
@@ -115,6 +145,7 @@ class SettingsStore(context: Context) {
     private fun encode(settings: AppSettings, prefs: MutablePreferences) {
         prefs[Keys.ONBOARDED] = settings.onboardingDone
         put(prefs, Keys.TARGET_KG, settings.targetKg)
+        put(prefs, Keys.TARGET_BODY_FAT, settings.targetBodyFat?.takeIf(BodyFat::valid))
         put(prefs, Keys.START_DAY, settings.startEpochDay)
         // A starting weight typed in by hand is no longer used: the first weigh-in always is.
         prefs.remove(Keys.START_KG)
@@ -132,6 +163,7 @@ class SettingsStore(context: Context) {
         prefs[Keys.WIDGET_OPACITY_DARK] = opacity(settings.widgetOpacityDark, settings.widgetGlass.defaultDark)
         prefs[Keys.WIDGET_OPACITY_LIGHT] = opacity(settings.widgetOpacityLight, settings.widgetGlass.defaultLight)
         prefs[Keys.LAST_SYNC] = settings.lastSyncMs
+        prefs[Keys.APP_ICON] = settings.appIcon
         put(prefs, Keys.APPEARANCE, settings.appearance?.let(::encodeAppearance))
         put(prefs, Keys.GLASS_APPEARANCE, settings.savedGlassAppearance?.let(::encodeAppearance))
         put(prefs, Keys.TUBIK_APPEARANCE, settings.savedTubikAppearance?.let(::encodeAppearance))

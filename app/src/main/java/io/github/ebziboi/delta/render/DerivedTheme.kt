@@ -144,7 +144,7 @@ object AppearanceEngine {
         }
         if (a.designStyle == DesignStyle.TUBIK && kind != null) {
             val panel = settings.widgetBackgroundOverride ?: when (kind) {
-                WidgetKind.PROGRESS -> TubikTokens.SAGE
+                WidgetKind.PROGRESS, WidgetKind.BODY_FAT -> TubikTokens.SAGE
                 WidgetKind.SUMMARY -> TubikTokens.CORAL
                 WidgetKind.JOURNEY, WidgetKind.TREND -> TubikTokens.VIOLET
                 WidgetKind.PACE -> a.backgroundBase
