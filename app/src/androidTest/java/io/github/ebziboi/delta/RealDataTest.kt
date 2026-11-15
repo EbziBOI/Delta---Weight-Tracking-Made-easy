@@ -70,22 +70,34 @@ class RealDataTest {
         }
         // A double tap on the graph switches its style, and the choice is saved.
         val before = runBlocking { SettingsStore(context).settings.first() }.appChart
-        repeat(8) { swipeDown() }
-        var graph: androidx.test.uiautomator.UiObject2? = null
-        for (step in 0 until 8) {
-            graph = device.findObject(By.desc("Weight graph"))?.takeIf {
-                val centre = it.visibleCenter.y
-                centre > device.displayHeight / 5 && centre < device.displayHeight * 7 / 10
-            }
-            if (graph != null) break
-            swipeUp(short = true)
+        // Bring the whole graph into view, clear of the status bar and the floating tab bar (which
+        // covers the bottom of the page), stepping a little at a time from the top of the page.
+        // Reopen the app so Progress starts at the top, then step down to the graph.
+        context.startActivity(intent)
+        assertTrue(device.wait(Until.hasObject(By.text("History")), 20_000))
+        Thread.sleep(2_000)
+        fun clearGraph() = device.findObject(By.desc("Weight graph"))?.takeIf {
+            val b = it.visibleBounds
+            b.top > device.displayHeight / 10 && b.bottom < device.displayHeight * 85 / 100
         }
-        if (graph == null) throw AssertionError("The graph never came into view")
+        var graph = clearGraph()
+        for (step in 0 until 20) {
+            if (graph != null) break
+            val x = device.displayWidth / 2
+            device.swipe(x, device.displayHeight * 62 / 100, x, device.displayHeight * 54 / 100, 140)
+            device.waitForIdle(1_000)
+            graph = clearGraph()
+        }
+        if (graph == null) {
+            val seen = device.findObject(By.desc("Weight graph"))?.visibleBounds
+            device.takeScreenshot(File(out, "failed-graph.png"))
+            println("Graph bounds when giving up: $seen")
+            device.dumpWindowHierarchy(File(out, "failed-graph.xml"))
+            throw AssertionError("The graph never came into view (last seen at $seen)")
+        }
         run {
-            // Two clicks injected back to back land well inside the double-tap window.
-            val centre = graph.visibleCenter
-            device.click(centre.x, centre.y)
-            device.click(centre.x, centre.y)
+            val centre = graph!!.visibleCenter
+            doubleTap(centre.x.toFloat(), centre.y.toFloat())
             Thread.sleep(1_500)
             device.takeScreenshot(File(out, "4-graph-switched.png"))
             val after = runBlocking { SettingsStore(context).settings.first() }.appChart
@@ -101,16 +113,35 @@ class RealDataTest {
         assertEquals("Delta must still be in front", context.packageName, device.currentPackageName)
     }
 
+    /** Two taps 80 ms apart, injected directly so nothing waits between them, as a finger would. */
+    private fun doubleTap(x: Float, y: Float) {
+        val automation = instrumentation.uiAutomation
+        var time = android.os.SystemClock.uptimeMillis()
+        repeat(2) {
+            val down = android.view.MotionEvent.obtain(time, time, android.view.MotionEvent.ACTION_DOWN, x, y, 0)
+            val up = android.view.MotionEvent.obtain(time, time + 40, android.view.MotionEvent.ACTION_UP, x, y, 0)
+            down.source = android.view.InputDevice.SOURCE_TOUCHSCREEN
+            up.source = android.view.InputDevice.SOURCE_TOUCHSCREEN
+            automation.injectInputEvent(down, true)
+            automation.injectInputEvent(up, true)
+            down.recycle(); up.recycle()
+            time += 120
+            Thread.sleep(80)
+        }
+    }
+
     private fun swipeUp(short: Boolean = false) {
         val x = device.displayWidth / 2
         val to = if (short) device.displayHeight * 5 / 10 else device.displayHeight * 3 / 10
-        device.swipe(x, device.displayHeight * 7 / 10, x, to, 40)
+        // A short step is a slow drag, so the page moves exactly that far instead of flinging past.
+        device.swipe(x, device.displayHeight * 7 / 10, x, to, if (short) 120 else 40)
         device.waitForIdle(1_000)
     }
 
-    private fun swipeDown() {
+    private fun swipeDown(short: Boolean = false) {
         val x = device.displayWidth / 2
-        device.swipe(x, device.displayHeight * 3 / 10, x, device.displayHeight * 7 / 10, 24)
+        val to = if (short) device.displayHeight * 5 / 10 else device.displayHeight * 7 / 10
+        device.swipe(x, device.displayHeight * 3 / 10, x, to, if (short) 120 else 24)
         device.waitForIdle(1_000)
     }
 }
