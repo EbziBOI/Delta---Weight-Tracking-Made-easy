@@ -124,18 +124,26 @@ object Spacing {
 // ---- Material ------------------------------------------------------------------------------
 
 /**
- * Paints [shape] as a pane of glass: a body that is brighter at the top, a rim
- * that catches the light at the top left and fades round to the bottom right,
- * and a thin specular line just inside the top edge. [glow] adds a wash of
- * colour inside the pane, as if a light behind it were shining through.
- * [elevated] lifts it with a soft shadow, for things that float over content.
+ * Paints [shape] as a pane of glass lit from above. The light rule, for every
+ * pane in the app and on the widgets:
+ *
+ * - the top edge carries the brightest rim, strongest at its centre;
+ * - the light wraps round the upper corners and runs a little way down the
+ *   sides, fading as it goes;
+ * - the bottom edge has almost no rim, and the lower part of the body is
+ *   shaded slightly darker, as glass is where the light runs out;
+ * - a thin, faint outline keeps the shape readable all the way round;
+ * - the accent may tint the crest of the top rim, then fades out.
+ *
+ * [glow] adds a wash of colour inside the pane, as if a light behind it were
+ * shining through. [elevated] lifts it with a soft shadow, for things that
+ * float over content.
  */
 fun Modifier.glass(
     shape: Shape,
     colors: DrawColors,
     glow: Color? = null,
     elevated: Boolean = true,
-    directional: Boolean = true,
 ): Modifier {
     val g = colors.glass
     var result = this
@@ -147,10 +155,7 @@ fun Modifier.glass(
     }
     result = result
         .clip(shape)
-        .background(Brush.linearGradient(
-            listOf(Color(g.fillTop), Color(g.fill), Color(g.fill)),
-            start = Offset.Zero, end = Offset.Infinite,
-        ))
+        .background(Brush.verticalGradient(listOf(Color(g.fillTop), Color(g.fill), Color(g.fill))))
     if (glow != null) {
         result = result.drawBehind {
             drawCircle(
@@ -166,43 +171,59 @@ fun Modifier.glass(
             )
         }
     }
-    if (directional) {
-        result = result.drawBehind {
-            drawRect(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.13f)),
-                startY = size.height * 0.55f, endY = size.height))
-        }.drawWithCache {
-            val outline = shape.createOutline(size, layoutDirection, this)
-            val rim = Brush.verticalGradient(listOf(
-                Color(g.highlight).copy(alpha = if (colors.isLight) 0.22f else 0.64f),
-                Color(g.highlight).copy(alpha = if (colors.isLight) 0.10f else 0.24f),
-                Color(g.highlight).copy(alpha = 0.025f), Color.Transparent),
-                startY = 0f, endY = size.height * 0.86f)
-            val reflection = Brush.verticalGradient(listOf(
-                (glow ?: Color(colors.accent)).copy(alpha = (glow?.alpha ?: 0.1f) * 0.55f), Color.Transparent),
-                endY = size.height * 0.55f)
+    val light = Color(g.highlight)
+    // White rims barely show on light glass, so light themes lean on the outline instead.
+    val crestAlpha = if (colors.isLight) 0.95f else 0.78f
+    val sideAlpha = if (colors.isLight) 0.55f else 0.34f
+    val outline = if (colors.isLight) Color(g.edgeFaint) else Color(g.edge).copy(alpha = 0.10f)
+    val tint = glow ?: Color(colors.accent).copy(alpha = 0.12f)
+    return result
+        .drawBehind {
+            // The lower body sits in the glass's own shadow.
+            drawRect(
+                Brush.verticalGradient(
+                    listOf(Color.Transparent, Color.Black.copy(alpha = if (colors.isLight) 0.05f else 0.14f)),
+                    startY = size.height * 0.5f,
+                    endY = size.height,
+                ),
+            )
+        }
+        .drawWithCache {
+            val path = shape.createOutline(size, layoutDirection, this)
+            val hairline = 1.dp.toPx()
+            val rim = 1.5.dp.toPx()
+            // Down the sides: bright at the top corners, gone before the bottom edge.
+            val sides = Brush.verticalGradient(
+                0f to light.copy(alpha = sideAlpha),
+                0.28f to light.copy(alpha = sideAlpha * 0.45f),
+                0.62f to light.copy(alpha = sideAlpha * 0.08f),
+                0.8f to Color.Transparent,
+                startY = 0f,
+                endY = size.height,
+            )
+            // The crest: a pool of light centred on the top edge, so the top outshines the sides.
+            val reach = maxOf(size.width * 0.62f, 1f)
+            val crest = Brush.radialGradient(
+                0f to light.copy(alpha = crestAlpha),
+                0.55f to light.copy(alpha = crestAlpha * 0.35f),
+                1f to Color.Transparent,
+                center = Offset(size.width / 2f, 0f),
+                radius = reach,
+            )
+            val accentCrest = Brush.radialGradient(
+                0f to tint.copy(alpha = tint.alpha * 0.9f),
+                1f to Color.Transparent,
+                center = Offset(size.width / 2f, 0f),
+                radius = maxOf(size.width * 0.4f, 1f),
+            )
             onDrawWithContent {
                 drawContent()
-                drawOutline(outline, Color(g.edge).copy(alpha = 0.08f), style = Stroke(1.dp.toPx()))
-                drawOutline(outline, rim, style = Stroke(1.5.dp.toPx()))
-                drawOutline(outline, reflection, style = Stroke(1.dp.toPx()))
+                drawOutline(path, outline, style = Stroke(hairline))
+                drawOutline(path, sides, style = Stroke(rim))
+                drawOutline(path, crest, style = Stroke(rim))
+                drawOutline(path, accentCrest, style = Stroke(hairline))
             }
         }
-        return result
-    }
-    return result
-        .innerShadow(shape, Shadow(radius = 1.5.dp, color = Color(g.highlight), offset = DpOffset(0.dp, 1.dp)))
-        .border(
-            width = 1.dp,
-            brush = Brush.linearGradient(
-                0f to Color(g.edge),
-                0.28f to Color(g.edgeFaint),
-                0.82f to Color(g.edgeFaint),
-                1f to Color(g.edge).copy(alpha = Color(g.edge).alpha * 0.55f),
-                start = Offset.Zero,
-                end = Offset.Infinite,
-            ),
-            shape = shape,
-        )
 }
 
 /** Shrinks a little while pressed, so glass feels like it gives under the finger. */

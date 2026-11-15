@@ -292,12 +292,10 @@ class SmokeTest {
         shot("19-graphs-connected")
         device.pressBack()
 
+        // Widget looks are edited from the home screen; here the page only adds widgets.
         tap("Widgets")
-        waitFor("Frosted")
+        waitFor("Changing a widget's look")
         shot("20-widgets")
-        tap("Clear")
-        shot("21-widgets-clear")
-        tap("Frosted")
         device.pressBack()
         waitFor("Target weight")
         swipeUp()
@@ -314,7 +312,7 @@ class SmokeTest {
         tap("Settings")
         waitFor("Target weight")
         tap("Widgets")
-        waitFor("Frosted")
+        waitFor("Changing a widget's look")
         repeat(6) { swipeUp() }
         shot("23-settings-widgets")
 

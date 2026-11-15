@@ -94,6 +94,25 @@ enum class TypeStyle(val label: String, val detail: String) {
     TECHNICAL("Technical", "Monospaced numbers and headings"),
 }
 
+/** The colour of a widget's text: chosen for contrast with its background, or always light or dark. */
+enum class TextContrast(val label: String) { AUTO("Automatic"), LIGHT("Light"), DARK("Dark") }
+
+/**
+ * What a single home-screen widget shows besides its main figure. These are set
+ * per widget from the home screen and never saved with the app's own settings.
+ */
+data class WidgetContent(
+    /** The secondary line: how far there is to go. */
+    val showDetail: Boolean = true,
+    /** The progress bar on the Journey widget. */
+    val showBar: Boolean = true,
+    /** The target beside the graph on the Trend and Journey widgets. */
+    val showTarget: Boolean = true,
+    /** Ahead, on track or behind, on the Pace widget. */
+    val showStatus: Boolean = true,
+    val text: TextContrast = TextContrast.AUTO,
+)
+
 data class AppSettings(
     val onboardingDone: Boolean = false,
     val targetKg: Double? = null,
@@ -124,4 +143,6 @@ data class AppSettings(
     val lastSyncMs: Long = 0L,
     /** Null preserves a saved legacy theme until appearance controls are first changed. */
     val appearance: AppAppearance? = null,
+    /** Per-widget display options, filled in only while drawing a widget that has its own style. */
+    val widgetContent: WidgetContent = WidgetContent(),
 )

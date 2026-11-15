@@ -157,7 +157,7 @@ fun SettingsScreen(
             GlassDivider()
             NavRow(io.github.ebziboi.delta.R.drawable.ic_show_chart, "Graphs", subtitle = "Line style and path to your goal", onClick = { section = "Graphs" })
             GlassDivider()
-            NavRow(io.github.ebziboi.delta.R.drawable.ic_widgets, "Widgets", subtitle = "Glass, light and dark modes, and home-screen widgets", onClick = { section = "Widgets" })
+            NavRow(io.github.ebziboi.delta.R.drawable.ic_widgets, "Widgets", subtitle = "Add widgets to your home screen", onClick = { section = "Widgets" })
         }
 
         // Health Connect
@@ -317,27 +317,18 @@ private fun SettingsDetail(
                         Modifier.fillMaxWidth().height(190.dp))
                 }
                 GlassCard {
-                    Caption("On widgets")
-                    ChoiceRow(ChartStyle.entries, settings.widgetChart, { it.label }) { chosen -> vm.update { it.copy(widgetChart = chosen) } }
                     ToggleRow("Path to the goal", settings.showProjection, { enabled -> vm.update { it.copy(showProjection = enabled) } },
                         note = "A dashed line to your target at your current pace.")
+                    Text("Widgets have their own graph style: touch and hold one on your home screen and choose Settings.",
+                        color = Color(colors.textDim))
                 }
             }
             "Widgets" -> {
                 GlassCard {
-                    Caption("Glass")
-                    ChoiceRow(WidgetGlass.entries, settings.widgetGlass, { it.label }) { chosen ->
-                        vm.update { it.copy(widgetGlass = chosen, widgetOpacityDark = chosen.defaultDark, widgetOpacityLight = chosen.defaultLight) }
-                    }
-                    Text(settings.widgetGlass.detail, color = Color(colors.textDim))
-                    OpacityControl("Dark glass opacity", settings.widgetOpacityDark, settings.widgetGlass != WidgetGlass.SOLID) { value ->
-                        vm.update { it.copy(widgetOpacityDark = value) }
-                    }
-                    OpacityControl("Light glass opacity", settings.widgetOpacityLight, settings.widgetGlass != WidgetGlass.SOLID) { value ->
-                        vm.update { it.copy(widgetOpacityLight = value) }
-                    }
-                    Caption("Light and dark")
-                    ChoiceRow(WidgetTheme.entries, settings.widgetTheme, { it.label }) { chosen -> vm.update { it.copy(widgetTheme = chosen) } }
+                    Caption("Changing a widget's look")
+                    Text("Touch and hold a Delta widget on your home screen and choose Settings. " +
+                        "You'll see it over your own wallpaper while you change its glass, opacity, colours and graph, " +
+                        "and each widget keeps its own look.", color = Color(colors.textDim))
                 }
                 for (kind in WidgetKind.entries) {
                     GlassCard {
@@ -356,10 +347,4 @@ private fun SettingsDetail(
             }
         }
     }
-}
-
-@Composable
-private fun OpacityControl(title: String, stored: Float, enabled: Boolean, save: (Float) -> Unit) {
-    var value by remember(stored) { mutableStateOf(stored) }
-    SliderRow(title, value, "${(value * 100).toInt()}%", { value = it }, { save(value) }, enabled = enabled)
 }

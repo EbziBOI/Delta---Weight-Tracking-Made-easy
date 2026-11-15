@@ -34,6 +34,34 @@ class RenderContractTest {
         return bitmap
     }
 
+    @Test fun perWidgetPhotoTextAndContentOptionsReachTheWidget() {
+        // A plain red "photo" in Delta's storage, where the widget editor puts imported photos.
+        val file = java.io.File(context.filesDir, "${WidgetStyleStore.PHOTO_PREFIX}test-${System.nanoTime()}.png")
+        val photo = Bitmap.createBitmap(64, 64, Bitmap.Config.ARGB_8888).apply { eraseColor(android.graphics.Color.RED) }
+        file.outputStream().use { photo.compress(Bitmap.CompressFormat.PNG, 100, it) }
+        try {
+            val app = settings.copy(widgetGlass = WidgetGlass.SOLID)
+            val appearance = AppearanceEngine.resolve(context, app)
+            fun draw(style: WidgetStyle) = WidgetBitmaps.render(context, WidgetKind.PROGRESS, 170f, 170f, snapshot,
+                style.apply(app, appearance), night = true)
+            val base = WidgetStyle.from(app)
+            val mesh = draw(base.copy(backgroundStyle = BackgroundStyle.MESH))
+            val photographed = draw(base.copy(backgroundStyle = BackgroundStyle.IMAGE,
+                backgroundImage = android.net.Uri.fromFile(file).toString()))
+            val corner = photographed.getPixel(photographed.width / 8, photographed.height * 3 / 4)
+            assertTrue("The photo must show through: ${Integer.toHexString(corner)}",
+                android.graphics.Color.red(corner) > android.graphics.Color.blue(corner) + 40)
+            assertFalse(mesh.sameAs(photographed))
+            assertFalse("Text colour must follow the widget's choice",
+                draw(base.copy(content = WidgetContent(text = TextContrast.LIGHT)))
+                    .sameAs(draw(base.copy(content = WidgetContent(text = TextContrast.DARK)))))
+            assertFalse("Hiding the detail line must change the widget",
+                draw(base).sameAs(draw(base.copy(content = WidgetContent(showDetail = false)))))
+        } finally {
+            file.delete()
+        }
+    }
+
     @Test fun graphControlsChangeTheRenderedGraph() {
         val base = ChartSpec.journey(snapshot, ChartStyle.TREND, WeightUnit.KG, false)
         val trend = chart(base)

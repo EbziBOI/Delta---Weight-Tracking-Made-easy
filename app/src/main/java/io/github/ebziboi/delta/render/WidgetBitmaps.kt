@@ -32,7 +32,13 @@ object WidgetBitmaps {
         val scale = min(context.resources.displayMetrics.density, maxSidePx / max(widthDp, heightDp))
         val bitmap = Bitmap.createBitmap(max(1, (widthDp * scale).roundToInt()), max(1, (heightDp * scale).roundToInt()), Bitmap.Config.ARGB_8888)
         val palette = Palettes.forWidget(context, settings, night)
-        val colors = if (settings.widgetGlass == WidgetGlass.CLEAR) palette.copy(textDim = palette.text, textFaint = palette.text) else palette
+        val readable = if (settings.widgetGlass == WidgetGlass.CLEAR) palette.copy(textDim = palette.text, textFaint = palette.text) else palette
+        // A widget may ask for light or dark text whatever its background; automatic keeps the contrast-derived colours.
+        val colors = when (settings.widgetContent.text) {
+            TextContrast.AUTO -> readable
+            TextContrast.LIGHT -> readable.copy(text = Color.WHITE, textDim = 0xFFDCDDE5.toInt(), textFaint = 0xFFB6B8C4.toInt())
+            TextContrast.DARK -> readable.copy(text = 0xFF0E0F14.toInt(), textDim = 0xFF383A46.toInt(), textFaint = 0xFF5A5D6A.toInt())
+        }
         val type = DeltaFonts.canvas(context, settings.typeStyle)
         val canvas = Canvas(bitmap)
         canvas.scale(scale, scale)
@@ -59,6 +65,7 @@ object WidgetBitmaps {
     ) {
         val pad = 14f
         val unit get() = settings.unit
+        val show get() = settings.widgetContent
         fun text(value: String, x: Float, y: Float, size: Float = 12f, color: Int = colors.text,
                  face: Typeface = type.number, align: Paint.Align = Paint.Align.LEFT, room: Float = w - pad * 2) {
             val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.SUBPIXEL_TEXT_FLAG).apply {
@@ -110,11 +117,12 @@ object WidgetBitmaps {
                 val room = w - left - pad
                 label("NOW", left, h / 2 - 20f, room = room)
                 text(snap.currentKg?.let { Units.weightShort(it, unit) } ?: "—", left, h / 2 + 6f, 24f, face = type.numberBold, room = room)
-                text(remaining(), left, h / 2 + 25f, color = colors.textDim, face = type.body, room = room)
+                if (show.showDetail) text(remaining(), left, h / 2 + 25f, color = colors.textDim, face = type.body, room = room)
             } else {
-                val size = min(w - pad * 2, h - 52f)
-                mark((w - size) / 2, pad + (h - 52f - size) / 2, size)
-                text(remaining(), w / 2, h - pad, 12f, align = Paint.Align.CENTER, face = type.body)
+                val footer = if (show.showDetail) 52f else pad * 2
+                val size = min(w - pad * 2, h - footer)
+                mark((w - size) / 2, pad + (h - footer - size) / 2, size)
+                if (show.showDetail) text(remaining(), w / 2, h - pad, 12f, align = Paint.Align.CENTER, face = type.body)
             }
         }
         fun summary() {
@@ -129,25 +137,35 @@ object WidgetBitmaps {
                     type.numberBold, aligns[i], (w - pad * 2) / 3 - 6)
             }
             bar(pad, center + 18, w - pad)
-            if (h >= 115) text(remaining(), w / 2, center + 43, color = colors.textDim, align = Paint.Align.CENTER)
+            if (h >= 115 && show.showDetail) text(remaining(), w / 2, center + 43, color = colors.textDim, align = Paint.Align.CENTER)
         }
         fun trend(journey: Boolean) {
             val compact = h < 110
             val header = if (compact) 27f else 38f
             text(snap.currentKg?.let { Units.weightShort(it, unit) } ?: "Weight trend", pad, pad + 15, 19f,
                 face = type.numberBold, room = (w - pad * 2) * 0.55f)
-            snap.targetKg?.let { text("Target ${Units.weightShort(it, unit)}", w - pad, pad + 13, 10f,
+            snap.targetKg?.takeIf { show.showTarget }?.let { text("Target ${Units.weightShort(it, unit)}", w - pad, pad + 13, 10f,
                 colors.accent, align = Paint.Align.RIGHT, room = (w - pad * 2) * 0.42f) }
-            val footer = if (journey && !compact) 37f else 0f
+            val footer = when {
+                !journey || compact -> 0f
+                show.showBar && show.showDetail -> 37f
+                show.showBar -> 18f
+                show.showDetail -> 20f
+                else -> 0f
+            }
             TrendChart.draw(c, RectF(pad - 3, header + pad, w - pad, h - pad - footer),
                 ChartSpec.journey(snap, settings.widgetChart, unit, settings.showProjection), colors, type, 1f,
                 labels = h >= 150 && w >= 240, contrastShadow = settings.widgetGlass != WidgetGlass.SOLID)
             if (journey) {
-                if (compact) bar(pad, h - 9, w - pad, 3f) else {
-                    bar(pad, h - pad - 24, w - pad)
-                    text(remaining(), pad, h - pad, 11f, colors.textDim, room = (w - pad * 2) * 0.8f)
-                    text(snap.fraction?.let { "${(it * 100).roundToInt()}%" } ?: "—", w - pad, h - pad, 11f,
-                        colors.accent, type.numberBold, Paint.Align.RIGHT, (w - pad * 2) * 0.18f)
+                if (compact) {
+                    if (show.showBar) bar(pad, h - 9, w - pad, 3f)
+                } else {
+                    if (show.showBar) bar(pad, h - pad - (if (show.showDetail) 24 else 6), w - pad)
+                    if (show.showDetail) {
+                        text(remaining(), pad, h - pad, 11f, colors.textDim, room = (w - pad * 2) * 0.8f)
+                        text(snap.fraction?.let { "${(it * 100).roundToInt()}%" } ?: "—", w - pad, h - pad, 11f,
+                            colors.accent, type.numberBold, Paint.Align.RIGHT, (w - pad * 2) * 0.18f)
+                    }
                 }
             }
         }
@@ -162,7 +180,8 @@ object WidgetBitmaps {
             val rows = listOf("WEEKLY" to (snap.weeklyRateKg?.let { Units.rate(it, unit) } ?: "—"),
                 "GOAL BY" to goal, "STREAK" to "${snap.streakDays} days")
             val wide = w > h * 1.8f
-            val rowHeight = min(52f, (h - pad * 2 - if (snap.pace != null && !wide) 18f else 0f) / 3)
+            val status = snap.pace?.takeIf { show.showStatus }
+            val rowHeight = min(52f, (h - pad * 2 - if (status != null && !wide) 18f else 0f) / 3)
             val top = if (wide) h / 2 - 15 else (h - rowHeight * 3) / 2
             rows.forEachIndexed { i, (title, value) ->
                 val left = if (wide) pad + i * (w - pad * 2) / 3 else pad
@@ -172,7 +191,7 @@ object WidgetBitmaps {
                 text(value, left, y + min(31f, rowHeight - 2), 17f, if (i == 0) colors.accent else colors.text,
                     type.numberBold, room = room)
             }
-            if (!wide) snap.pace?.let {
+            if (!wide) status?.let {
                 val title = when (it) { Pace.AHEAD -> "Ahead"; Pace.ON_TRACK -> "On track"; Pace.BEHIND -> "Behind" }
                 text(title, w - pad, h - 7, 9f, if (it == Pace.BEHIND) colors.warn else colors.good,
                     type.label, Paint.Align.RIGHT)

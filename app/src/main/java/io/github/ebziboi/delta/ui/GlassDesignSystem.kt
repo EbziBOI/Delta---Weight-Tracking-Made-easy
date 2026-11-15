@@ -28,7 +28,7 @@ import io.github.ebziboi.delta.render.DrawColors
 @Composable
 fun Modifier.refractiveGlass(
     shape: Shape, colors: DrawColors = LocalDeltaColors.current,
-    glow: Color? = null, elevated: Boolean = true, directional: Boolean = true,
+    glow: Color? = null, elevated: Boolean = true,
 ): Modifier {
     val a = LocalAppearance.current
     val backdrop = LocalGlassBackdrop.current
@@ -46,7 +46,7 @@ fun Modifier.refractiveGlass(
         }
     }
     return result.glass(shape, colors, glow ?: Color(colors.accent).copy(alpha = a.accentIntensity * 0.22f),
-        elevated = elevated && !live, directional = directional)
+        elevated = elevated && !live)
 }
 
 @Composable
@@ -118,7 +118,7 @@ fun GlassListItem(modifier: Modifier = Modifier, onClick: (() -> Unit)? = null, 
 @Composable
 fun GlassBottomNavBar(modifier: Modifier = Modifier, content: @Composable RowScope.() -> Unit) {
     NavigationBar(modifier.padding(horizontal = 16.dp).navigationBarsPadding().padding(bottom = 12.dp)
-        .refractiveGlass(RoundedCornerShape((LocalAppearance.current.cornerRadius + 4).dp), directional = false),
+        .refractiveGlass(RoundedCornerShape((LocalAppearance.current.cornerRadius + 4).dp)),
         windowInsets = WindowInsets(0), containerColor = Color.Transparent, tonalElevation = 0.dp, content = content)
 }
 

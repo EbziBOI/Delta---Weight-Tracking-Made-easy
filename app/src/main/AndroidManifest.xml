@@ -33,8 +33,11 @@
 
         <activity
             android:name=".widget.WidgetConfigurationActivity"
-            android:exported="true"
+            android:exported="false"
+            android:excludeFromRecents="true"
             android:label="Widget settings"
+            android:taskAffinity=""
+            android:theme="@style/Theme.Delta.WidgetSettings"
             android:windowSoftInputMode="adjustResize">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_CONFIGURE" />

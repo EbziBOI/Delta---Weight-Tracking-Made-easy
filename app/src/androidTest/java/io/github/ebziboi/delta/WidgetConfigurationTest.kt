@@ -73,14 +73,13 @@ class WidgetConfigurationTest {
         try {
             store.save(id, WidgetStyle.from(app))
             open(id)
-            tap("Use app widget settings")
             assertTrue(device.wait(Until.hasObject(By.text("Frosted")), 5_000))
             val before = preview("before")
             tap("Solid")
             val after = preview("solid-preview")
             assertFalse("Live preview must reflect the unsaved material", before.sameAs(after))
             before.recycle(); after.recycle()
-            assertTrue("Preview must not save changes", store.style(id).first()!!.useAppSettings)
+            assertEquals("Preview must not save changes", app.widgetGlass, store.style(id).first()!!.glass)
             tap("Save")
             assertTrue("Save should return to the launcher", device.wait(Until.gone(By.text("Widget settings")), 20_000))
             kotlinx.coroutines.withTimeout(15_000) { store.style(id).first { it?.glass == WidgetGlass.SOLID && !it.useAppSettings } }

@@ -7,4 +7,14 @@
         <item name="android:statusBarColor">@android:color/transparent</item>
         <item name="android:navigationBarColor">@android:color/transparent</item>
     </style>
+
+    <!-- The widget editor, opened from a widget's long-press Settings on the home
+         screen. The window shows the wallpaper itself behind the preview, so a
+         widget's glass can be judged against the real home screen. -->
+    <style name="Theme.Delta.WidgetSettings" parent="Theme.Delta">
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:windowShowWallpaper">true</item>
+        <item name="android:windowIsTranslucent">false</item>
+        <item name="android:windowAnimationStyle">@android:style/Animation.Dialog</item>
+    </style>
 </resources>
