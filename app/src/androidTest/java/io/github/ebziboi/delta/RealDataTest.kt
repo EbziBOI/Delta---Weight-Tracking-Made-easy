@@ -82,15 +82,21 @@ class RealDataTest {
         }
         if (graph == null) throw AssertionError("The graph never came into view")
         run {
+            // Two clicks injected back to back land well inside the double-tap window.
             val centre = graph.visibleCenter
-            instrumentation.uiAutomation.executeShellCommand("input tap ${centre.x} ${centre.y}").close()
-            Thread.sleep(80)
-            instrumentation.uiAutomation.executeShellCommand("input tap ${centre.x} ${centre.y}").close()
+            device.click(centre.x, centre.y)
+            device.click(centre.x, centre.y)
             Thread.sleep(1_500)
             device.takeScreenshot(File(out, "4-graph-switched.png"))
             val after = runBlocking { SettingsStore(context).settings.first() }.appChart
             assertTrue("Double tap should switch the graph style ($before → $after)", after != before)
         }
+        // Stone and pounds must fit the main weight on one line.
+        runBlocking { SettingsStore(context).update { it.copy(unit = io.github.ebziboi.delta.data.WeightUnit.ST_LB) } }
+        repeat(8) { swipeDown() }
+        Thread.sleep(1_500)
+        device.takeScreenshot(File(out, "5-stone-and-pounds.png"))
+        runBlocking { SettingsStore(context).update { it.copy(unit = io.github.ebziboi.delta.data.WeightUnit.KG) } }
         Thread.sleep(2_000)
         assertEquals("Delta must still be in front", context.packageName, device.currentPackageName)
     }

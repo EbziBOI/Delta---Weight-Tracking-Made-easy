@@ -62,6 +62,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.onClick
@@ -127,107 +128,22 @@ object Spacing {
 // ---- Material ------------------------------------------------------------------------------
 
 /**
- * Paints [shape] as a pane of glass lit from above. The light rule, for every
- * pane in the app and on the widgets:
- *
- * - the top edge carries the brightest rim, strongest at its centre;
- * - the light wraps round the upper corners and runs a little way down the
- *   sides, fading as it goes;
- * - the bottom edge has almost no rim, and the lower part of the body is
- *   shaded slightly darker, as glass is where the light runs out;
- * - a thin, faint outline keeps the shape readable all the way round;
- * - the accent may tint the crest of the top rim, then fades out.
- *
- * [glow] adds a wash of colour inside the pane, as if a light behind it were
- * shining through. [elevated] lifts it with a soft shadow, for things that
- * float over content.
+ * The surface for things you touch: a translucent dark tile (light on light
+ * themes) with no outline, rim or glow, like the floating bars in One UI. It
+ * reads as part of the screen rather than sitting on top of it. [glow] and
+ * [elevated] are kept for callers but no longer change the look.
  */
+@Suppress("UNUSED_PARAMETER")
 fun Modifier.glass(
     shape: Shape,
     colors: DrawColors,
     glow: Color? = null,
     elevated: Boolean = true,
-): Modifier {
-    val g = colors.glass
-    var result = this
-    if (elevated && (g.shadow ushr 24) > 0) {
-        result = result.dropShadow(
-            shape,
-            Shadow(radius = 24.dp, color = Color(g.shadow), offset = DpOffset(0.dp, 9.dp)),
-        )
-    }
-    result = result
-        .clip(shape)
-        .background(Brush.verticalGradient(listOf(Color(g.fillTop), Color(g.fill), Color(g.fill))))
-    if (glow != null) {
-        result = result.drawBehind {
-            drawCircle(
-                brush = Brush.radialGradient(
-                    0f to glow.copy(alpha = glow.alpha * 0.34f),
-                    0.55f to glow.copy(alpha = glow.alpha * 0.10f),
-                    1f to Color.Transparent,
-                    center = Offset(size.width * 0.9f, size.height * 0.05f),
-                    radius = size.maxDimension * 0.8f,
-                ),
-                radius = size.maxDimension * 0.8f,
-                center = Offset(size.width * 0.9f, size.height * 0.05f),
-            )
-        }
-    }
-    val light = Color(g.highlight)
-    // White rims barely show on light glass, so light themes lean on the outline instead.
-    val crestAlpha = if (colors.isLight) 0.95f else 0.78f
-    val sideAlpha = if (colors.isLight) 0.55f else 0.34f
-    val outline = if (colors.isLight) Color(g.edgeFaint) else Color(g.edge).copy(alpha = 0.10f)
-    val tint = glow ?: Color(colors.accent).copy(alpha = 0.12f)
-    return result
-        .drawBehind {
-            // The lower body sits in the glass's own shadow.
-            drawRect(
-                Brush.verticalGradient(
-                    listOf(Color.Transparent, Color.Black.copy(alpha = if (colors.isLight) 0.05f else 0.14f)),
-                    startY = size.height * 0.5f,
-                    endY = size.height,
-                ),
-            )
-        }
-        .drawWithCache {
-            val path = shape.createOutline(size, layoutDirection, this)
-            val hairline = 1.dp.toPx()
-            val rim = 1.5.dp.toPx()
-            // Down the sides: bright at the top corners, gone before the bottom edge.
-            val sides = Brush.verticalGradient(
-                0f to light.copy(alpha = sideAlpha),
-                0.28f to light.copy(alpha = sideAlpha * 0.45f),
-                0.62f to light.copy(alpha = sideAlpha * 0.08f),
-                0.8f to Color.Transparent,
-                startY = 0f,
-                endY = size.height,
-            )
-            // The crest: a pool of light centred on the top edge, so the top outshines the sides.
-            val reach = maxOf(size.width * 0.62f, 1f)
-            val crest = Brush.radialGradient(
-                0f to light.copy(alpha = crestAlpha),
-                0.55f to light.copy(alpha = crestAlpha * 0.35f),
-                1f to Color.Transparent,
-                center = Offset(size.width / 2f, 0f),
-                radius = reach,
-            )
-            val accentCrest = Brush.radialGradient(
-                0f to tint.copy(alpha = tint.alpha * 0.9f),
-                1f to Color.Transparent,
-                center = Offset(size.width / 2f, 0f),
-                radius = maxOf(size.width * 0.4f, 1f),
-            )
-            onDrawWithContent {
-                drawContent()
-                drawOutline(path, outline, style = Stroke(hairline))
-                drawOutline(path, sides, style = Stroke(rim))
-                drawOutline(path, crest, style = Stroke(rim))
-                drawOutline(path, accentCrest, style = Stroke(hairline))
-            }
-        }
-}
+): Modifier = clip(shape).background(glassTile(colors))
+
+/** The tile colour behind controls: the raised surface, see-through enough to hint at what is behind. */
+fun glassTile(colors: DrawColors): Color =
+    Color(colors.surfaceHigh).copy(alpha = if (colors.isLight) 0.86f else 0.78f)
 
 /** Shrinks a little while pressed, so glass feels like it gives under the finger. */
 @Composable
@@ -578,10 +494,10 @@ fun StatTile(
 ) {
     val colors = LocalDeltaColors.current
     val type = LocalDeltaType.current
-    // An open figure, not a tile: label, value and note set straight onto the background.
-    Box(modifier = modifier) {
+    // A key figure on its own translucent tile, without an outline, like the controls.
+    Box(modifier = modifier.glass(RoundedCornerShape(Radii.tile), colors)) {
         Column(
-            modifier = Modifier.padding(vertical = 8.dp),
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
@@ -731,9 +647,11 @@ fun TrendChartView(spec: ChartSpec, modifier: Modifier = Modifier, labels: Boole
             reveal.snapTo(1f)
         }
     }
+    // Read through updated state so a recomposition between the two taps does not restart the gesture.
+    val doubleTap by rememberUpdatedState(onDoubleTap)
     val tappable = if (onDoubleTap == null) modifier else modifier
-        .pointerInput(onDoubleTap) { detectTapGestures(onDoubleTap = { onDoubleTap() }) }
-        .semantics { onClick(label = "Switch graph style") { onDoubleTap(); true } }
+        .pointerInput(Unit) { detectTapGestures(onDoubleTap = { doubleTap?.invoke() }) }
+        .semantics { onClick(label = "Switch graph style") { doubleTap?.invoke(); true } }
     Canvas(modifier = tappable.semantics { contentDescription = "Weight graph" }) {
         drawIntoCanvas { canvas ->
             TrendChart.draw(

@@ -24,6 +24,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.ebziboi.delta.R
 import io.github.ebziboi.delta.data.AppSettings
@@ -44,7 +45,8 @@ import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
-private val RANGES = listOf("1M", "3M", "All")
+/** "Journey" is since the start date; "All" is every weigh-in on record, from before the journey too. */
+private val RANGES = listOf("1M", "3M", "Journey", "All")
 private val EYEBROW: DateTimeFormatter = DateTimeFormatter.ofPattern("EEE d MMM", Locale.ENGLISH)
 
 /**
@@ -176,8 +178,7 @@ private fun HeroCard(snap: ProgressSnapshot, insights: Insights, unit: WeightUni
                     Text("No weigh-ins yet", style = type.title)
                     Text("Log a weight, or sync to pull in your history.", color = Color(colors.textDim), style = type.bodySmall)
                 } else {
-                    ValueWithUnit(Units.weightValue(current, unit), Units.suffix(unit),
-                        style = type.numberLarge.copy(fontSize = type.numberLarge.fontSize * 1.9f, lineHeight = type.numberLarge.fontSize * 2f))
+                    HeroWeight(current, unit, type.numberLarge.copy(fontSize = type.numberLarge.fontSize * 1.9f, lineHeight = type.numberLarge.fontSize * 2f))
                     snap.currentMs?.let {
                         Text(Format.moment(it), color = Color(colors.textDim), style = type.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
@@ -206,6 +207,37 @@ private fun HeroCard(snap: ProgressSnapshot, insights: Insights, unit: WeightUni
             Text(summary, style = type.bodyStrong, color = Color(colors.text))
         }
     }
+}
+
+/**
+ * The current weight, as large as the space allows. Stone and pounds show both
+ * figures large with small units ("14 st 13.1 lb"), and the whole line shrinks
+ * step by step only as far as it must to fit on one line.
+ */
+@Composable
+private fun HeroWeight(kg: Double, unit: WeightUnit, style: androidx.compose.ui.text.TextStyle) {
+    val colors = LocalDeltaColors.current
+    val small = LocalDeltaType.current.label.toSpanStyle().merge(androidx.compose.ui.text.SpanStyle(color = Color(colors.textDim)))
+    val text = androidx.compose.ui.text.buildAnnotatedString {
+        if (unit == WeightUnit.ST_LB) {
+            val (stone, pounds) = Units.stoneParts(kg)
+            append(stone.toString())
+            pushStyle(small); append(" st  "); pop()
+            append(String.format(Locale.US, "%.1f", pounds))
+            pushStyle(small); append(" lb"); pop()
+        } else {
+            append(Units.weightValue(kg, unit))
+            pushStyle(small); append(" ${Units.suffix(unit)}"); pop()
+        }
+    }
+    androidx.compose.foundation.text.BasicText(
+        text = text,
+        style = style.copy(color = Color(colors.text)),
+        maxLines = 1,
+        autoSize = androidx.compose.foundation.text.TextAutoSize.StepBased(
+            minFontSize = 22.sp, maxFontSize = style.fontSize, stepSize = 1.sp,
+        ),
+    )
 }
 
 /** A change with a sign and a colour: green towards the target, amber away from it. */
@@ -268,20 +300,23 @@ private fun KeyFigures(snap: ProgressSnapshot, insights: Insights, unit: WeightU
 
 @Composable
 private fun TrendCard(snap: ProgressSnapshot, unit: WeightUnit, settings: AppSettings, modifier: Modifier, onSwitchStyle: () -> Unit) {
-    var range by rememberSaveable { mutableStateOf("All") }
-    val points = remember(snap.points, range) {
-        val days = when (range) { "1M" -> 30L; "3M" -> 90L; else -> null }
-        if (days == null) snap.points else {
-            val cutoff = System.currentTimeMillis() - days * 86_400_000L
-            snap.points.filter { it.epochMs >= cutoff }
+    var range by rememberSaveable { mutableStateOf("Journey") }
+    val points = remember(snap.points, snap.history, range) {
+        when (range) {
+            "Journey" -> snap.points
+            "All" -> snap.history
+            else -> {
+                val days = if (range == "1M") 30L else 90L
+                val cutoff = System.currentTimeMillis() - days * 86_400_000L
+                snap.history.filter { it.epochMs >= cutoff }
+            }
         }
     }
     ContentSection(modifier) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("Trend", style = LocalDeltaType.current.title, modifier = Modifier.weight(1f))
-            SegmentedControl(RANGES, range, { it }) { range = it }
-        }
-        val whole = range == "All"
+        Text("Trend", style = LocalDeltaType.current.title)
+        SegmentedControl(RANGES, range, { it }, Modifier.fillMaxWidth()) { range = it }
+        // Only the journey view is scaled from start to target, with the percentage tagged.
+        val whole = range == "Journey"
         TrendChartView(
             spec = ChartSpec.journey(snap, settings.appChart, unit, settings.showProjection)
                 .copy(points = points, startKg = if (whole) snap.startKg else null, fraction = if (whole) snap.fraction else null),

@@ -33,6 +33,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.background
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
@@ -165,6 +171,7 @@ private fun MainScreen(
                 1 -> HistoryScreen(vm, settings, padding)
                 else -> SettingsScreen(vm, settings, health, padding, requestAccess)
             }
+            EdgeShading()
         }
     }
 
@@ -179,6 +186,26 @@ private fun MainScreen(
             },
         )
     }
+}
+
+/**
+ * Soft shading at the top and bottom of the screen, as One UI does: content fades
+ * into the background under the status bar and behind the tab bar, which shows
+ * where the screen ends and that there is more to scroll.
+ */
+@Composable
+private fun androidx.compose.foundation.layout.BoxScope.EdgeShading() {
+    val edge = Color(LocalDeltaColors.current.bg)
+    val top = androidx.compose.foundation.layout.WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+    val bottom = androidx.compose.foundation.layout.WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+    androidx.compose.foundation.layout.Box(
+        Modifier.align(androidx.compose.ui.Alignment.TopCenter).fillMaxWidth().height(top + 40.dp)
+            .background(androidx.compose.ui.graphics.Brush.verticalGradient(listOf(edge.copy(alpha = 0.9f), edge.copy(alpha = 0f)))),
+    )
+    androidx.compose.foundation.layout.Box(
+        Modifier.align(androidx.compose.ui.Alignment.BottomCenter).fillMaxWidth().height(bottom + 150.dp)
+            .background(androidx.compose.ui.graphics.Brush.verticalGradient(listOf(edge.copy(alpha = 0f), edge.copy(alpha = 0.92f)))),
+    )
 }
 
 /** Dark themes want light status-bar icons and light themes dark ones. */

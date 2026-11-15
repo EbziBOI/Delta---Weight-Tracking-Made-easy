@@ -24,7 +24,7 @@ import dev.chrisbanes.haze.HazeTint
 import dev.chrisbanes.haze.hazeEffect
 import io.github.ebziboi.delta.render.DrawColors
 
-/** Blur only the shared backdrop. Older devices retain the same translucent shading and luminous rim. */
+/** The tab bar's surface: a frosted blur of the backdrop where supported, otherwise the plain translucent tile. */
 @Composable
 fun Modifier.refractiveGlass(
     shape: Shape, colors: DrawColors = LocalDeltaColors.current,
@@ -33,20 +33,16 @@ fun Modifier.refractiveGlass(
     val a = LocalAppearance.current
     val backdrop = LocalGlassBackdrop.current
     val live = Build.VERSION.SDK_INT >= 31 && a.glassBlurRadius > 0f && !a.reduceTransparency && backdrop != null
-    var result = this
-    if (live) {
-        if (elevated) result = result.dropShadow(shape,
-            Shadow(radius = 20.dp, color = Color(colors.glass.shadow), offset = DpOffset(0.dp, 7.dp)))
-        result = result.clip(shape).hazeEffect(backdrop) {
-            backgroundColor = Color(colors.bg)
-            blurRadius = a.glassBlurRadius.dp
-            noiseFactor = 0.012f
-            tints = emptyList()
-            fallbackTint = HazeTint(Color(colors.glass.fillTop))
-        }
+    if (!live) return glass(shape, colors)
+    // Where the phone can blur, the tile is a frosted blur of what is behind it, tinted
+    // with the same translucent tone as every other control, and still with no outline.
+    return clip(shape).hazeEffect(backdrop) {
+        backgroundColor = Color(colors.bg)
+        blurRadius = a.glassBlurRadius.dp
+        noiseFactor = 0.01f
+        tints = listOf(HazeTint(glassTile(colors)))
+        fallbackTint = HazeTint(glassTile(colors))
     }
-    return result.glass(shape, colors, glow ?: Color(colors.accent).copy(alpha = a.accentIntensity * 0.22f),
-        elevated = elevated && !live)
 }
 
 /**

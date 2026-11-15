@@ -46,6 +46,8 @@ data class ProgressSnapshot(
     /** Weigh-ins since the start day. */
     val weighIns: Int,
     val points: List<TrendPoint>,
+    /** Every weigh-in on record with its trend, including those before the start day. */
+    val history: List<TrendPoint>,
 )
 
 object ProgressCalculator {
@@ -158,6 +160,7 @@ object ProgressCalculator {
             streakDays = streak(sorted, zone, today),
             weighIns = sinceStart.size,
             points = trend(sinceStart),
+            history = trend(sorted),
         )
     }
 
