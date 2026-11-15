@@ -61,6 +61,8 @@ class SettingsStore(context: Context) {
         val WIDGET_OPACITY_LIGHT = floatPreferencesKey("widget_opacity_light")
         val LAST_SYNC = longPreferencesKey("last_sync")
         val WEIGHTS = stringPreferencesKey("weights")
+        val PROGRESS_DISPLAY = stringPreferencesKey("progress_display")
+        val PROGRESS_BAR_STYLE = stringPreferencesKey("progress_bar_style")
         val PERCENTAGE_DESIGN = stringPreferencesKey("percentage_design")
         val APP_ICON = stringPreferencesKey("app_icon")
         val APPEARANCE = stringPreferencesKey("appearance_v1")
@@ -138,6 +140,8 @@ class SettingsStore(context: Context) {
             savedGlassUsesLegacy = prefs[Keys.GLASS_LEGACY] ?: false,
             savedGlassAppearance = decodeAppearance(prefs[Keys.GLASS_APPEARANCE]),
             savedTubikAppearance = decodeAppearance(prefs[Keys.TUBIK_APPEARANCE]),
+            progressDisplay = named(prefs[Keys.PROGRESS_DISPLAY], defaults.progressDisplay),
+            progressBarStyle = named(prefs[Keys.PROGRESS_BAR_STYLE], defaults.progressBarStyle),
             percentageDesign = named(prefs[Keys.PERCENTAGE_DESIGN], PercentageDesign.ADAPTIVE),
             appIcon = prefs[Keys.APP_ICON] ?: "Classic",
             appearance = decodeAppearance(prefs[Keys.APPEARANCE]) ?: if (prefs[Keys.THEME] == null) AppAppearance() else null,
@@ -165,6 +169,8 @@ class SettingsStore(context: Context) {
         prefs[Keys.WIDGET_OPACITY_DARK] = opacity(settings.widgetOpacityDark, settings.widgetGlass.defaultDark)
         prefs[Keys.WIDGET_OPACITY_LIGHT] = opacity(settings.widgetOpacityLight, settings.widgetGlass.defaultLight)
         prefs[Keys.LAST_SYNC] = settings.lastSyncMs
+        prefs[Keys.PROGRESS_DISPLAY] = settings.progressDisplay.name
+        prefs[Keys.PROGRESS_BAR_STYLE] = settings.progressBarStyle.name
         prefs[Keys.PERCENTAGE_DESIGN] = settings.percentageDesign.name
         prefs[Keys.APP_ICON] = settings.appIcon
         put(prefs, Keys.APPEARANCE, settings.appearance?.let(::encodeAppearance))

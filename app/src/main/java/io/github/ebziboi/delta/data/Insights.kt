@@ -14,7 +14,7 @@ data class Insights(
     val weekChangeKg: Double?,
     /** Change since the last weigh-in thirty days or more ago. */
     val monthChangeKg: Double?,
-    /** Mean of the last seven days' weigh-ins, and of the seven days before. */
+    /** Mean of recorded daily means in the last seven calendar days, and the seven before. */
     val average7Kg: Double?,
     val averagePrevious7Kg: Double?,
     val lowestKg: Double?,
@@ -65,10 +65,13 @@ object InsightsCalculator {
             return latest?.let { it.kg - before.kg }
         }
         fun average(fromDaysAgo: Long, toDaysAgo: Long): Double? {
-            val from = nowMs - fromDaysAgo * DAY_MS
-            val to = nowMs - toDaysAgo * DAY_MS
-            val window = readings.filter { it.epochMs in from..to }
-            return if (window.isEmpty()) null else window.sumOf { it.kg } / window.size
+            val from = today.minusDays(fromDaysAgo - 1)
+            val to = today.minusDays(toDaysAgo)
+            val daily = readings.filter {
+                Instant.ofEpochMilli(it.epochMs).atZone(zone).toLocalDate() in from..to
+            }.groupBy { Instant.ofEpochMilli(it.epochMs).atZone(zone).toLocalDate() }
+                .values.map { day -> day.map { it.kg }.average() }
+            return daily.takeIf { it.isNotEmpty() }?.average()
         }
 
         val startMs = snap.startDay.atStartOfDay(zone).toInstant().toEpochMilli()

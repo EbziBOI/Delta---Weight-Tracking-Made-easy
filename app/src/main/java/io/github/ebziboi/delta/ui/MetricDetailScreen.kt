@@ -1,0 +1,161 @@
+package io.github.ebziboi.delta.ui
+
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.foundation.*
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.pager.*
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Text
+import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.*
+import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import io.github.ebziboi.delta.data.*
+import io.github.ebziboi.delta.render.ChartSpec
+import kotlinx.coroutines.launch
+import java.time.*
+import java.time.format.DateTimeFormatter
+import java.time.temporal.ChronoUnit
+import kotlin.math.abs
+
+@Composable
+fun MetricDetailScreen(vm: AppViewModel, settings: AppSettings, initial: DetailMetric, padding: PaddingValues, onBack: () -> Unit) {
+    val entries by vm.entries.collectAsStateWithLifecycle()
+    val snap by vm.snapshot.collectAsStateWithLifecycle()
+    val metrics = listOf(DetailMetric.RATE,DetailMetric.AVERAGE,DetailMetric.STREAK)
+    val pager = rememberPagerState(initialPage = metrics.indexOf(initial).coerceAtLeast(0), pageCount = {3})
+    val scope = rememberCoroutineScope(); val motion = LocalMotion.current
+    var weekEpoch by rememberSaveable { mutableStateOf(MetricDetails.monday(LocalDate.now()).toEpochDay()) }
+    var selectedEpoch by rememberSaveable { mutableStateOf(LocalDate.now().toEpochDay()) }
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(top=padding.calculateTopPadding())
+        .padding(horizontal=Spacing.screen).padding(bottom=60.dp), verticalArrangement=Arrangement.spacedBy(18.dp)) {
+        TextAction("Back",onBack)
+        if (initial == DetailMetric.GOAL) {
+            ScreenHeader("Your forecast", eyebrow="GOAL BY")
+            snap?.let { ForecastDetail(it,entries,settings) }
+        } else {
+            ScreenHeader("Your rhythm",eyebrow="PROGRESS DETAILS")
+            SegmentedControl(metrics,metrics[pager.currentPage],{ when(it) { DetailMetric.RATE -> "Rate"; DetailMetric.AVERAGE -> "Average"; else -> "Streak" } },Modifier.fillMaxWidth()) {
+                scope.launch { if(motion) pager.animateScrollToPage(metrics.indexOf(it)) else pager.scrollToPage(metrics.indexOf(it)) }
+            }
+            HorizontalPager(pager,Modifier.fillMaxWidth(),verticalAlignment=Alignment.Top) { page ->
+                MetricCalendar(metrics[page],entries,settings,weekEpoch,{weekEpoch=it},selectedEpoch,{selectedEpoch=it})
+            }
+        }
+    }
+}
+
+@Composable
+private fun MetricCalendar(metric: DetailMetric, entries: List<WeightEntry>, settings: AppSettings,
+                           weekEpoch: Long, onWeek: (Long) -> Unit, selectedEpoch: Long, onDay: (Long) -> Unit) {
+    val today=LocalDate.now();val currentWeek=MetricDetails.monday(today)
+    val first=entries.minOfOrNull { Instant.ofEpochMilli(it.epochMs).atZone(ZoneId.systemDefault()).toLocalDate() } ?: today
+    val firstWeek=MetricDetails.monday(minOf(first,today))
+    val week=LocalDate.ofEpochDay(weekEpoch).coerceIn(firstWeek,currentWeek)
+    val days=remember(entries,settings,week,today) { MetricDetails.days(entries,settings,week,today) }
+    val selected=days.firstOrNull { it.day.toEpochDay()==selectedEpoch } ?: days.last { it.day<=today }
+    val c=LocalDeltaColors.current; val type=LocalDeltaType.current
+    fun value(day: MetricDay): String = when(metric) {
+        DetailMetric.RATE -> day.rateKg?.let { Units.rate(it,settings.unit) } ?: "—"
+        DetailMetric.AVERAGE -> day.averageKg?.let { Units.weightShort(it,settings.unit) } ?: "—"
+        else -> "${day.streak} ${if(day.streak==1) "day" else "days"}"
+    }
+    Column(Modifier.fillMaxWidth(),verticalArrangement=Arrangement.spacedBy(18.dp)) {
+        ContentSection(tone=ModuleTone.SAGE,framed=true) {
+            val panel=LocalDeltaColors.current
+            Caption(metric.label)
+            if(LocalMotion.current) AnimatedContent(value(selected),label="daily-value") { Text(it,style=type.numberLarge) }
+            else Text(value(selected),style=type.numberLarge)
+            Text(Format.day(selected.day),style=type.bodySmall,color=Color(panel.textDim))
+            Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(16.dp,Alignment.CenterHorizontally)) {
+                TextAction("Previous week",{onWeek(week.minusWeeks(1).toEpochDay());onDay(week.minusWeeks(1).toEpochDay())},enabled=week>firstWeek)
+                TextAction("Next week",{onWeek(week.plusWeeks(1).toEpochDay());onDay(minOf(week.plusDays(13),today).toEpochDay())},enabled=week<currentWeek)
+            }
+            Text("${Format.day(week)} – ${Format.day(week.plusDays(6))}",style=type.bodyStrong)
+            Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(3.dp)) {
+                days.forEach { day ->
+                    val active=day.day==selected.day;val available=day.day<=today
+                    Column(Modifier.weight(1f).clip(RoundedCornerShape(16.dp))
+                        .background(if(active) Color(panel.accent).copy(alpha=.22f) else Color(panel.text).copy(alpha=.05f))
+                        .clickable(enabled=available,role=Role.Button) { onDay(day.day.toEpochDay()) }
+                        .semantics { contentDescription="${Format.day(day.day)}, ${value(day)}";this.selected=active }
+                        .padding(vertical=12.dp),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.spacedBy(8.dp)) {
+                        Text(day.day.dayOfWeek.name.take(1),style=type.label,color=Color(panel.textDim).copy(alpha=if(available) 1f else .35f))
+                        Text(day.day.dayOfMonth.toString(),style=type.bodyStrong,color=Color(panel.text).copy(alpha=if(available) 1f else .35f))
+                        Box(Modifier.size(6.dp).background(if(day.readings>0) Color(panel.accent) else Color(panel.textDim).copy(alpha=.2f),RoundedCornerShape(3.dp)))
+                    }
+                }
+            }
+        }
+        ContentSection {
+            Text(when(metric) { DetailMetric.RATE -> "How your pace is changing";DetailMetric.AVERAGE -> "A clearer daily signal";else -> "Consistency, one day at a time" },style=type.title)
+            Text(when(metric) {
+                DetailMetric.RATE -> "The rate is fitted to the recent 28 days, using only readings recorded by the selected day. When data is sparse, it uses up to 56 days, then your journey. At least six days of measurements are needed."
+                DetailMetric.AVERAGE -> "The average covers the selected day and the six days before it. Each recorded day counts equally, so several readings on one day cannot dominate the result."
+                else -> "Your streak counts consecutive days with a weigh-in. Yesterday’s streak stays active until the end of today. A missing completed day breaks the run."
+            },style=type.body,color=Color(c.textDim))
+            Text(selected.kg?.let { "Selected day: ${Units.weight(it,settings.unit)} · ${selected.readings} ${if(selected.readings==1) "reading" else "readings"}" }
+                ?: "No weigh-in on this day. Missing measurements are left empty.",style=type.bodyStrong)
+        }
+        ContentSection {
+            Caption("This week")
+            days.filter { it.day<=today }.forEach { day ->
+                Row(Modifier.fillMaxWidth().clickable { onDay(day.day.toEpochDay()) }.padding(vertical=8.dp),horizontalArrangement=Arrangement.SpaceBetween) {
+                    Text(day.day.format(DateTimeFormatter.ofPattern("EEE d")),style=type.body)
+                    Text(value(day),style=type.bodyStrong)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ForecastDetail(snap: ProgressSnapshot, entries: List<WeightEntry>, settings: AppSettings) {
+    val c=LocalDeltaColors.current;val type=LocalDeltaType.current
+    val today=LocalDate.now();val zone=ZoneId.systemDefault()
+    val dayWeights=remember(entries) { InsightsCalculator.distinctReadings(entries).groupBy { Instant.ofEpochMilli(it.epochMs).atZone(zone).toLocalDate() }
+        .filterKeys { it<=today }.toSortedMap().mapValues { (_,v) -> v.map { it.kg }.average() } }
+    fun recentRate(days:Long):Double? {
+        val list=dayWeights.filterKeys { it>=today.minusDays(days-1) }.entries.toList()
+        if(list.size<3) return null
+        val span=ChronoUnit.DAYS.between(list.first().key,list.last().key)
+        return if(span>=6) (list.last().value-list.first().value)/span*7 else null
+    }
+    val recent=recentRate(7);val fortnight=recentRate(14)
+    val recentDate=MetricDetails.project(snap.currentKg,snap.targetKg,recent)
+    ContentSection(tone=ModuleTone.SAGE,framed=true) {
+        Caption(if(snap.reached) "Goal reached" else "At your recent pace")
+        Text(when { snap.reached -> "You made it";snap.targetKg==null -> "Choose a target";else -> snap.projectedDay?.let(Format::day) ?: "No date yet" },style=type.number)
+        Text(snap.weeklyRateKg?.let { "${Units.rate(it,settings.unit)} · recent fitted rate" } ?: "More recorded days are needed for a forecast.",style=type.bodySmall)
+        if(snap.targetKg!=null) Text("Target ${Units.weight(snap.targetKg,settings.unit)}",style=type.bodyStrong)
+    }
+    ContentSection(tone=ModuleTone.VIOLET) {
+        Text("The path ahead",style=type.title)
+        InteractiveChart(ChartSpec.journey(snap,settings.appChart,settings.unit,true).copy(showFullProjection=true),Modifier.fillMaxWidth().height(280.dp))
+        Text("Recorded measurements and the projected path to your target.",style=type.bodySmall,color=Color(c.textDim))
+    }
+    ContentSection {
+        Text("Recent signals",style=type.title)
+        Text(recent?.let { "Last 7 days: ${Units.rate(it,settings.unit)}." } ?: "The last 7 days do not yet contain enough measurements to compare pace.",style=type.body)
+        fortnight?.let { Text("Last 14 days: ${Units.rate(it,settings.unit)}.",style=type.body) }
+        if(recentDate!=null) Text("If the last week’s pace continued: ${Format.day(recentDate)}. The main forecast uses a longer fitted trend.",style=type.body)
+        if(recent!=null && snap.weeklyRateKg!=null && abs(recent-snap.weeklyRateKg)>.2)
+            Text("Your latest week differs from the longer trend. A short change can move the estimate sharply; compare several weeks before treating it as a new pace.",style=type.bodyStrong)
+        snap.requiredRateKg?.let { Text("Your chosen date needs ${Units.rate(it,settings.unit)} from here.",style=type.body) }
+    }
+    ContentSection {
+        Text("What can skew the estimate",style=type.title)
+        val recentDays=dayWeights.keys.count { it>=today.minusDays(27) }
+        Text("$recentDays recorded days in the last 28. ${if(recentDays<8) "Sparse measurements make the forecast more sensitive to individual readings." else "More consistently recorded days give a steadier picture."}",style=type.body)
+        val last=dayWeights.keys.lastOrNull();val age=last?.let { ChronoUnit.DAYS.between(it,today) }
+        if(age!=null && age>1) Text("Your latest reading is $age days old, so the forecast may lag behind recent changes.",style=type.body)
+        val times=entries.filter { Instant.ofEpochMilli(it.epochMs).atZone(zone).toLocalDate()>=today.minusDays(27) }.map { Instant.ofEpochMilli(it.epochMs).atZone(zone).hour }
+        if(times.isNotEmpty() && times.max()-times.min()>=6) Text("Your recent measurements span different times of day. That can add variation unrelated to the underlying trend.",style=type.body)
+        Text("The projection extends your measured trend; it cannot identify the cause of a change or promise a completion date.",style=type.bodySmall,color=Color(c.textDim))
+    }
+}

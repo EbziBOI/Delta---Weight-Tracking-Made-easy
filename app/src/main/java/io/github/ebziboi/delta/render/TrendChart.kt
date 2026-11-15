@@ -48,6 +48,7 @@ data class ChartSpec(
     /** The goal date, marked on the time axis when it falls inside the graph. */
     val targetEpochMs: Long? = null,
     val metric: ChartMetric = ChartMetric.WEIGHT,
+    val showFullProjection: Boolean = false,
     val viewport: GraphViewport? = null,
     val selectedPoint: TrendPoint? = null,
 ) {
@@ -177,7 +178,7 @@ object TrendChart {
         // Keep at least two thirds of the width for recorded data.
         val horizon = dataEnd + max(7 * DAY_MS, (dataEnd - fullFirst) / 2)
         val projection = spec.projection?.takeIf { it.atEpochMs > points.last().epochMs }
-        val fullLast = projection?.let { min(it.atEpochMs, horizon) }?.coerceAtLeast(dataEnd) ?: dataEnd
+        val fullLast = projection?.let { if (spec.showFullProjection) it.atEpochMs else min(it.atEpochMs, horizon) }?.coerceAtLeast(dataEnd) ?: dataEnd
         val firstMs = spec.viewport?.first ?: fullFirst
         val lastMs = spec.viewport?.last ?: fullLast
         fun x(epochMs: Long): Float =

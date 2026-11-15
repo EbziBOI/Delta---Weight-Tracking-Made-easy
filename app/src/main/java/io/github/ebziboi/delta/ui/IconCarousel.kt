@@ -52,7 +52,6 @@ fun IconCarousel(selected: String, onApply: (String) -> Unit) {
             Text(current.title, style = LocalDeltaType.current.bodyStrong)
             Text("${pager.currentPage + 1} / ${icons.size}", style = LocalDeltaType.current.label, color = Color(c.textDim))
         }
-        Text("Swipe to explore. Hold or double-tap an icon to use it.", color = Color(c.textDim), style = LocalDeltaType.current.bodySmall)
         AccentButton(if (current.id == selected) "Current app icon" else "Use ${current.title}", { apply(pager.currentPage) },
             enabled = current.id != selected, modifier = Modifier.fillMaxWidth())
     }

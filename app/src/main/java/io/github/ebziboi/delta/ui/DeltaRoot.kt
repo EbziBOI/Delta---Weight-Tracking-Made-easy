@@ -130,6 +130,8 @@ private fun MainScreen(
 ) {
     val colors = LocalDeltaColors.current
     var tab by rememberSaveable { mutableStateOf(0) }
+    val screens = androidx.compose.runtime.saveable.rememberSaveableStateHolder()
+    var metric by rememberSaveable { mutableStateOf<io.github.ebziboi.delta.data.DetailMetric?>(null) }
     var logging by remember { mutableStateOf(false) }
     val snap by vm.snapshot.collectAsStateWithLifecycle()
 
@@ -146,6 +148,7 @@ private fun MainScreen(
             return Offset.Zero
         }
     } }
+    BackHandler(enabled = metric != null) { metric = null }
     BackHandler(enabled = tab == 2) { tab = 0 }
     Scaffold(
         modifier = Modifier.nestedScroll(dockScroll),
@@ -153,21 +156,21 @@ private fun MainScreen(
             Row(Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 20.dp, vertical = 4.dp), horizontalArrangement = Arrangement.End) {
                 GlassIconButton(io.github.ebziboi.delta.R.drawable.ic_sync, "Sync with Health Connect", { vm.refresh(announce = true) })
                 Spacer(Modifier.size(8.dp))
-                GlassIconButton(io.github.ebziboi.delta.R.drawable.ic_settings, "Settings", { tab = 2 })
+                GlassIconButton(io.github.ebziboi.delta.R.drawable.ic_settings, "Settings", { metric = null; tab = 2 })
             }
         },
         containerColor = Color.Transparent,
         contentColor = Color(colors.text),
         snackbarHost = { SnackbarHost(snackbar) },
         bottomBar = {
-            AnimatedVisibility(dockVisible,
+            AnimatedVisibility(dockVisible && metric == null,
                 enter = if (LocalMotion.current) slideInVertically { it } else androidx.compose.animation.EnterTransition.None,
                 exit = if (LocalMotion.current) slideOutVertically { it } else androidx.compose.animation.ExitTransition.None) {
             GlassBottomNavBar {
                 TABS.forEachIndexed { index, item ->
                     NavigationBarItem(
                         selected = tab == index,
-                        onClick = { tab = index },
+                        onClick = { metric = null; tab = index },
                         icon = {
                             when (index) {
                                 0 -> Icon(androidx.compose.ui.res.painterResource(io.github.ebziboi.delta.R.drawable.ic_delta_mark), contentDescription = null, modifier = Modifier.size(20.dp))
@@ -190,7 +193,7 @@ private fun MainScreen(
             }
         },
         floatingActionButton = {
-            if (tab != 2) {
+            if (tab != 2 && metric == null) {
                 AccentButton(
                     text = "Log weight", icon = io.github.ebziboi.delta.R.drawable.ic_add,
                     modifier = Modifier.semantics { contentDescription = "Log weight" },
@@ -202,10 +205,12 @@ private fun MainScreen(
         // Screens run the full height, so content scrolls on behind the floating glass bar
         // (their padding keeps the last item clear of it) instead of stopping at a hard edge.
         androidx.compose.foundation.layout.Box(Modifier.fillMaxSize()) {
-            when (tab) {
-                0 -> ProgressScreen(vm, settings, health, padding, requestAccess, onOpenSettings = { tab = 2 })
+            if (metric != null) MetricDetailScreen(vm,settings,metric!!,padding) { metric=null }
+            else screens.SaveableStateProvider("tab-$tab") { when (tab) {
+                0 -> ProgressScreen(vm, settings, health, padding, requestAccess, onOpenSettings = { tab = 2 }, onMetric = { metric=it })
                 1 -> HistoryScreen(vm, settings, padding)
                 else -> SettingsScreen(vm, settings, health, padding, requestAccess)
+            }
             }
             EdgeShading()
         }

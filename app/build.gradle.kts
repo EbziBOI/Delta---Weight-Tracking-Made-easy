@@ -7,7 +7,8 @@ plugins {
 }
 
 // CI passes a build number so every APK can install over the previous one.
-val buildNumber = (System.getenv("GITHUB_RUN_NUMBER") ?: "1").toInt()
+val releaseVersionCode = 28
+val buildNumber = maxOf(releaseVersionCode, (System.getenv("GITHUB_RUN_NUMBER") ?: releaseVersionCode.toString()).toInt())
 
 // CI points these at a keystore. Without them (for example in Android Studio)
 // the release build falls back to the local debug key.
@@ -103,4 +104,12 @@ dependencies {
     androidTestImplementation("androidx.test.ext:junit:1.2.1")
     androidTestImplementation("androidx.test:runner:1.6.2")
     androidTestImplementation("androidx.test.uiautomator:uiautomator:2.3.0")
+}
+
+// Also produce a versioned local file after Android's packaging and listing tasks finish.
+tasks.matching { it.name == "assembleRelease" }.configureEach {
+    doLast {
+        val apkDirectory = layout.buildDirectory.dir("outputs/apk/release").get().asFile
+        apkDirectory.resolve("app-release.apk").copyTo(apkDirectory.resolve("Delta-0.1.$buildNumber.apk"), overwrite = true)
+    }
 }

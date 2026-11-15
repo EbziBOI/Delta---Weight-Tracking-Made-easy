@@ -34,6 +34,10 @@ background and blur when you switch back. The visual reference is
 - A smaller Progress/History dock that hides on downward scrolling and returns on upward scrolling, top-right Settings beside refresh, and a body-composition dashboard
 - A single Health Connect status pill opens its dedicated access and sync page
 - Short, equally sized top/bottom fades retain fully black ends while content scrolls behind the toolbar
+- Tap Weekly rate, 7-day average or Streak for a swipeable daily calendar; tap Goal by for the full projection and recent pace/data-quality insights
+- Choose a complication, smooth/segmented/dotted bar, curved card-perimeter progress or both in Appearance
+- Glass dashboard panels, animated progress fills and press feedback respect Reduce motion
+- Vertical graph drags scroll the page even after zooming; horizontal pans change dates, with centered disabled boundary controls
 - A larger home percentage complication anchors the progress dashboard
 - Frameless adaptive launcher icons with smaller marks and full-bleed gradients
 - Per-widget graph ranges: 1 week, 1 month, 3 months, 1 year or the full journey
@@ -106,3 +110,5 @@ can remove local settings and cached data; record your goal and start date first
 - Icons: Material Symbols, under the Apache License 2.0.
 - Backdrop blur: [Haze](https://github.com/chrisbanes/haze) by Chris Banes, under
   the Apache License 2.0.
+
+Release APKs include the version in their filename (for example `Delta-0.1.28.apk`) and Android package metadata. GitHub builds keep increasing the version code and use the stored signing key for in-place updates. `Delta.apk` remains as a compatibility download. Local release builds also write a versioned copy next to the standard Android Studio output.

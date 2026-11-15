@@ -27,6 +27,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.ebziboi.delta.R
+import io.github.ebziboi.delta.data.DetailMetric
+import io.github.ebziboi.delta.data.ProgressDisplay
 import io.github.ebziboi.delta.data.AppSettings
 import io.github.ebziboi.delta.data.ChartStyle
 import io.github.ebziboi.delta.data.HealthAvailability
@@ -62,6 +64,7 @@ fun ProgressScreen(
     padding: PaddingValues,
     onConnect: () -> Unit,
     onOpenSettings: () -> Unit,
+    onMetric: (DetailMetric) -> Unit = {},
 ) {
     val snapshot by vm.snapshot.collectAsStateWithLifecycle()
     val entries by vm.entries.collectAsStateWithLifecycle()
@@ -90,7 +93,7 @@ fun ProgressScreen(
         if (health != null && !health.connected) ConnectCard(health, onConnect)
 
         if (snap != null && insights != null) {
-            HeroCard(snap, insights, unit, Modifier.entrance(0), settings.percentageDesign)
+            HeroCard(snap, insights, unit, Modifier.entrance(0), settings)
             if (snap.targetKg == null) {
                 ContentSection(Modifier.entrance(1)) {
                     Text("Set a target weight", style = LocalDeltaType.current.title)
@@ -99,7 +102,7 @@ fun ProgressScreen(
                     PrimaryButton("Open settings", onOpenSettings)
                 }
             }
-            KeyFigures(snap, insights, unit, Modifier.entrance(1))
+            KeyFigures(snap, insights, unit, Modifier.entrance(1),onMetric)
             TrendCard(snap, unit, settings, Modifier.entrance(2)) {
                 vm.update { it.copy(appChart = if (it.appChart == ChartStyle.TREND) ChartStyle.CONNECTED else ChartStyle.TREND) }
             }
@@ -161,10 +164,10 @@ private fun ConnectCard(health: HealthState, onConnect: () -> Unit) {
 
 /** Where you are now, the week's change, the delta, and the journey from start to target. */
 @Composable
-private fun HeroCard(snap: ProgressSnapshot, insights: Insights, unit: WeightUnit, modifier: Modifier, design: io.github.ebziboi.delta.data.PercentageDesign) {
+private fun HeroCard(snap: ProgressSnapshot, insights: Insights, unit: WeightUnit, modifier: Modifier, settings: AppSettings) {
     val colors = LocalDeltaColors.current
     val type = LocalDeltaType.current
-    ContentSection(modifier, accent = Color(colors.accent), spacing = 14.dp, tone = ModuleTone.SAGE) {
+    ContentSection(modifier.cardPerimeter(settings.progressDisplay == ProgressDisplay.PERIMETER,snap.fraction), accent = Color(colors.accent), spacing = 14.dp, tone = ModuleTone.SAGE,framed=true) {
         val colors = LocalDeltaColors.current
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -180,7 +183,7 @@ private fun HeroCard(snap: ProgressSnapshot, insights: Insights, unit: WeightUni
                     }
                 }
             }
-            PercentageComplication(snap.fraction, design, Modifier.size((androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp * 0.5f).coerceIn(144f, 208f).dp))
+            if(settings.progressDisplay in listOf(ProgressDisplay.COMPLICATION,ProgressDisplay.BOTH)) PercentageComplication(snap.fraction, settings.percentageDesign, Modifier.size((androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp * 0.5f).coerceIn(144f, 208f).dp))
         }
         insights.weekChangeKg?.let { change -> ChangePill(change, "this week", snap.losing, unit) }
         snap.bodyFat.lastOrNull()?.let { reading ->
@@ -188,7 +191,7 @@ private fun HeroCard(snap: ProgressSnapshot, insights: Insights, unit: WeightUni
                 style = type.bodySmall, color = Color(colors.textDim))
         }
         if (snap.targetKg != null && snap.startKg != null) {
-            ProgressRail(snap.fraction)
+            if(settings.progressDisplay in listOf(ProgressDisplay.BAR,ProgressDisplay.BOTH)) ProgressRail(snap.fraction,barStyle=settings.progressBarStyle)
             Row {
                 Column(Modifier.weight(1f)) {
                     Caption("Start")
@@ -259,7 +262,7 @@ private fun ChangePill(changeKg: Double, label: String, losing: Boolean, unit: W
 
 /** The four numbers worth checking every day, in a two-by-two grid. */
 @Composable
-private fun KeyFigures(snap: ProgressSnapshot, insights: Insights, unit: WeightUnit, modifier: Modifier) {
+private fun KeyFigures(snap: ProgressSnapshot, insights: Insights, unit: WeightUnit, modifier: Modifier, onMetric: (DetailMetric) -> Unit) {
     val colors = LocalDeltaColors.current
     val rate = snap.weeklyRateKg
     val rateTint = when {
@@ -286,14 +289,14 @@ private fun KeyFigures(snap: ProgressSnapshot, insights: Insights, unit: WeightU
     Column(modifier, verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             StatTile("Weekly rate", rate?.let { Units.rate(it, unit) } ?: "—", Modifier.weight(1f),
-                valueColor = rateTint, note = if (rate == null) "Needs a week of data" else "Recent trend", icon = R.drawable.ic_speed)
-            StatTile("Goal by", goal, Modifier.weight(1f), note = goalNote, icon = R.drawable.ic_flag)
+                valueColor = rateTint, note = if (rate == null) "Needs a week of data" else "Recent trend", icon = R.drawable.ic_speed, onClick = { onMetric(DetailMetric.RATE) })
+            StatTile("Goal by", goal, Modifier.weight(1f), note = goalNote, icon = R.drawable.ic_flag, onClick = { onMetric(DetailMetric.GOAL) })
         }
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             StatTile("7-day average", average?.let { Units.weightShort(it, unit) } ?: "—", Modifier.weight(1f),
-                note = averageNote, icon = R.drawable.ic_insights)
+                note = averageNote, icon = R.drawable.ic_insights, onClick = { onMetric(DetailMetric.AVERAGE) })
             StatTile("Streak", when (streak) { 0 -> "—"; 1 -> "1 day"; else -> "$streak days" }, Modifier.weight(1f),
-                note = "${insights.daysWeighedThisWeek} of the last 7 days", icon = R.drawable.ic_local_fire_department)
+                note = "${insights.daysWeighedThisWeek} of the last 7 days", icon = R.drawable.ic_local_fire_department, onClick = { onMetric(DetailMetric.STREAK) })
         }
     }
 }
@@ -323,8 +326,6 @@ private fun TrendCard(snap: ProgressSnapshot, unit: WeightUnit, settings: AppSet
             modifier = Modifier.fillMaxWidth().height(230.dp),
             bodyFat = snap.bodyFat, onDoubleTap = onSwitchStyle,
         )
-        Text("${settings.appChart.label}  ·  double-tap the graph to switch",
-            style = LocalDeltaType.current.bodySmall, color = Color(LocalDeltaColors.current.textDim))
     }
 }
 

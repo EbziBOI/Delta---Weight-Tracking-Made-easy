@@ -2,6 +2,7 @@ package io.github.ebziboi.delta.ui
 
 import android.os.Build
 import androidx.compose.animation.core.*
+import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.*
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
@@ -57,6 +58,7 @@ fun Modifier.refractiveGlass(
 fun ContentSection(
     modifier: Modifier = Modifier, onClick: (() -> Unit)? = null,
     accent: Color? = null, spacing: Dp = 12.dp, tone: ModuleTone = ModuleTone.NEUTRAL,
+    framed: Boolean = false,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     if (LocalAppearance.current.designStyle == DesignStyle.TUBIK) {
@@ -64,6 +66,13 @@ fun ContentSection(
         return
     }
     val colors = LocalDeltaColors.current
+    if (framed) {
+        CompositionLocalProvider(LocalContentColor provides Color(colors.text)) {
+            Column(modifier.fillMaxWidth().then(if(LocalMotion.current) Modifier.animateContentSize() else Modifier).glass(RoundedCornerShape(Radii.card),colors).padding(20.dp),
+                verticalArrangement = Arrangement.spacedBy(spacing),content=content)
+        }
+        return
+    }
     val rule = Color(colors.text).copy(alpha = if (colors.isLight) 0.12f else 0.14f)
     var section = modifier.fillMaxWidth().drawBehind {
         val y = 0.5.dp.toPx()

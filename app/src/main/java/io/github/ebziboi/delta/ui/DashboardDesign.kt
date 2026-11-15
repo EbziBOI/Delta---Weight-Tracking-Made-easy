@@ -1,5 +1,8 @@
 package io.github.ebziboi.delta.ui
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -35,7 +38,7 @@ fun DashboardModule(modifier: Modifier = Modifier, tone: ModuleTone = ModuleTone
     }
     val theme = remember(appearance, base) { DerivedTheme.derive(appearance.copy(backgroundBase = base, backgroundSecondary = base)) }
     val colors = theme.drawColors()
-    var pane = modifier.fillMaxWidth().clip(RoundedCornerShape(Radii.card)).background(Color(colors.bg))
+    var pane = modifier.then(if(LocalMotion.current) Modifier.animateContentSize() else Modifier).fillMaxWidth().clip(RoundedCornerShape(Radii.card)).background(Color(colors.bg))
     if (onClick != null) pane = pane.clickable(role = Role.Button, onClick = onClick)
     CompositionLocalProvider(LocalDeltaColors provides colors, LocalDerivedTheme provides theme,
         LocalContentColor provides Color(colors.text)) {
@@ -78,8 +81,10 @@ fun <T> DashboardSegments(options: List<T>, selected: T, label: (T) -> String, m
         horizontalArrangement = Arrangement.spacedBy(4.dp)) {
         options.forEach { option ->
             val active = option == selected
+            val motion=LocalMotion.current
+            val fill by animateColorAsState(if(active) Color(c.text) else Color.Transparent,tween(if(motion) 200 else 0),label="dashboard-segment")
             Box(Modifier.weight(1f).heightIn(min = 48.dp).clip(RoundedCornerShape(Radii.control))
-                .background(if (active) Color(c.text) else Color.Transparent)
+                .background(fill)
                 .clickable(role = Role.RadioButton) { onSelect(option) }.semantics { this.selected = active },
                 contentAlignment = Alignment.Center) {
                 Text(label(option), style = LocalDeltaType.current.bodySmall,

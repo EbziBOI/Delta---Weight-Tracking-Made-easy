@@ -90,6 +90,7 @@ import androidx.compose.ui.graphics.shadow.Shadow
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.SpanStyle
@@ -459,15 +460,15 @@ fun SecondaryButton(
 
 /** The lightest action: accent-coloured text, for things like "Remove target date". */
 @Composable
-fun TextAction(text: String, onClick: () -> Unit, modifier: Modifier = Modifier, color: Color = Color(LocalDeltaColors.current.accent)) {
+fun TextAction(text: String, onClick: () -> Unit, modifier: Modifier = Modifier, color: Color = Color(LocalDeltaColors.current.accent), enabled: Boolean = true) {
     Text(
         text = text,
         modifier = modifier.heightIn(min = 48.dp)
             .clip(RoundedCornerShape(Radii.control))
-            .clickable(role = Role.Button, onClick = onClick)
+            .clickable(enabled = enabled, role = Role.Button, onClick = onClick)
             .padding(horizontal = 4.dp, vertical = 8.dp),
         style = LocalDeltaType.current.bodyStrong,
-        color = color,
+        color = if (enabled) color else Color(LocalDeltaColors.current.textDim).copy(alpha = 0.38f),
     )
 }
 
@@ -500,11 +501,14 @@ fun StatTile(
     valueColor: Color = Color.Unspecified,
     note: String? = null,
     icon: Int? = null,
+    onClick: (() -> Unit)? = null,
 ) {
     val colors = LocalDeltaColors.current
     val type = LocalDeltaType.current
+    val source = remember { MutableInteractionSource() }
+    val tile = if (onClick == null) modifier else modifier.pressScale(source).clickable(interactionSource = source, indication = ripple(), role = Role.Button, onClick = onClick)
     // A key figure on its own translucent tile, without an outline, like the controls.
-    Box(modifier = modifier.glass(RoundedCornerShape(Radii.tile), colors)) {
+    Box(modifier = tile.glass(RoundedCornerShape(Radii.tile), colors)) {
         Column(
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp),
@@ -537,7 +541,7 @@ fun StatTile(
  * target, with a glowing bead where you are now.
  */
 @Composable
-fun ProgressRail(fraction: Float?, modifier: Modifier = Modifier, height: Dp = 10.dp) {
+fun ProgressRail(fraction: Float?, modifier: Modifier = Modifier, height: Dp = 10.dp, barStyle: io.github.ebziboi.delta.data.ProgressBarStyle? = null) {
     val colors = LocalDeltaColors.current
     val motion = LocalMotion.current
     val dashboard = LocalAppearance.current.designStyle == io.github.ebziboi.delta.data.DesignStyle.TUBIK
@@ -553,7 +557,13 @@ fun ProgressRail(fraction: Float?, modifier: Modifier = Modifier, height: Dp = 1
             .height(height + 12.dp)
             .semantics { contentDescription = spoken },
     ) {
-        if (dashboard) {
+        if (barStyle == io.github.ebziboi.delta.data.ProgressBarStyle.DOTS) {
+            val count = 28
+            repeat(count) { i -> drawCircle(if ((i + .5f) / count <= shown) Color(colors.accent) else Color(colors.text).copy(alpha = .14f),
+                radius = 2.8.dp.toPx(), center = Offset((i + .5f) * size.width / count, size.height / 2)) }
+            return@Canvas
+        }
+        if (barStyle == io.github.ebziboi.delta.data.ProgressBarStyle.SEGMENTS || (barStyle == null && dashboard)) {
             val count = 32
             val gap = 2.dp.toPx()
             val width = ((size.width - gap * (count - 1)) / count).coerceAtLeast(0f)
@@ -714,7 +724,7 @@ fun <T> SegmentedControl(
     val index = options.indexOf(selected).coerceAtLeast(0)
     val position by animateFloatAsState(
         targetValue = index.toFloat(),
-        animationSpec = spring(dampingRatio = 0.78f, stiffness = Spring.StiffnessMediumLow),
+        animationSpec = if(LocalMotion.current) spring(dampingRatio = 0.78f, stiffness = Spring.StiffnessMediumLow) else tween(0),
         label = "segment",
     )
     val shape = RoundedCornerShape(Radii.control)
@@ -740,6 +750,7 @@ fun <T> SegmentedControl(
             val isSelected = i == index
             val ink by animateColorAsState(
                 targetValue = if (isSelected) Color(colors.onAccent) else Color(colors.textDim),
+                animationSpec = tween(if(LocalMotion.current) 180 else 0),
                 label = "segment-ink",
             )
             Box(
@@ -747,6 +758,7 @@ fun <T> SegmentedControl(
                     .weight(1f)
                     .clip(shape)
                     .clickable(role = Role.Tab) { onSelect(option) }
+                    .semantics { this.selected = isSelected }
                     .padding(horizontal = 14.dp, vertical = 8.dp),
                 contentAlignment = Alignment.Center,
             ) {

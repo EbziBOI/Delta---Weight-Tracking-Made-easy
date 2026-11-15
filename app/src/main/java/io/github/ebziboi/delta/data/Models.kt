@@ -10,6 +10,9 @@ data class WeightEntry(
     val id: String,
 )
 
+enum class ProgressDisplay(val label: String) { COMPLICATION("Complication"), BAR("Bar"), PERIMETER("Perimeter"), BOTH("Both") }
+enum class ProgressBarStyle(val label: String) { SMOOTH("Smooth"), SEGMENTS("Segments"), DOTS("Dots") }
+
 enum class PercentageDesign(val label: String) { ADAPTIVE("Signature"), ORBIT("Orbit"), BLOOM("Bloom"), CONTOURS("Contours"), RIBBON("Ribbon"), MOSAIC("Mosaic"), SUMMIT("Summit") }
 
 enum class WeightUnit(val label: String) {
@@ -145,6 +148,8 @@ data class AppSettings(
     val lastSyncMs: Long = 0L,
     /** The selected launcher icon alias, independent of the app theme. */
     val appIcon: String = "Classic",
+    val progressDisplay: ProgressDisplay = ProgressDisplay.COMPLICATION,
+    val progressBarStyle: ProgressBarStyle = ProgressBarStyle.SMOOTH,
     val percentageDesign: PercentageDesign = PercentageDesign.ADAPTIVE,
     /** Null preserves a saved legacy theme until appearance controls are first changed. */
     val appearance: AppAppearance? = null,

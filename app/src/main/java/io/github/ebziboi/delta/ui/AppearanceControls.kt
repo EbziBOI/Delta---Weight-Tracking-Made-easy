@@ -177,6 +177,18 @@ fun AppearanceControls(vm: AppViewModel, settings: AppSettings) {
         }
     }
     ContentSection {
+        Caption("Progress card")
+        ChoiceRow(ProgressDisplay.entries, settings.progressDisplay, { it.label }) { chosen -> vm.update { it.copy(progressDisplay=chosen) } }
+        if (settings.progressDisplay in listOf(ProgressDisplay.BAR,ProgressDisplay.BOTH)) {
+            ChoiceRow(ProgressBarStyle.entries,settings.progressBarStyle,{it.label}) { chosen -> vm.update { it.copy(progressBarStyle=chosen) } }
+            ProgressRail(.64f,barStyle=settings.progressBarStyle)
+        }
+        if (settings.progressDisplay == ProgressDisplay.PERIMETER) {
+            ContentSection(Modifier.cardPerimeter(true,.64f),framed=true) {
+                Text("64% of your journey",style=LocalDeltaType.current.number)
+                Text("Progress follows the card’s curved perimeter.",style=LocalDeltaType.current.bodySmall)
+            }
+        }
         Caption("Percentage complications")
         ChoiceRow(PercentageDesign.entries, settings.percentageDesign, { it.label }) { chosen -> vm.update { it.copy(percentageDesign = chosen) } }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
