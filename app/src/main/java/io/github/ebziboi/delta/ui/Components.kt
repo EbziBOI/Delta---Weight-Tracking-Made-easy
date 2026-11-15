@@ -64,6 +64,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.onClick
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.dropShadow
@@ -715,7 +718,7 @@ fun DeltaTrack(fraction: Float?, modifier: Modifier = Modifier, glow: Boolean = 
  * changes, unless motion is off.
  */
 @Composable
-fun TrendChartView(spec: ChartSpec, modifier: Modifier = Modifier, labels: Boolean = true) {
+fun TrendChartView(spec: ChartSpec, modifier: Modifier = Modifier, labels: Boolean = true, onDoubleTap: (() -> Unit)? = null) {
     val colors = LocalDeltaColors.current
     val canvasType = LocalCanvasType.current
     val motion = LocalMotion.current
@@ -728,7 +731,10 @@ fun TrendChartView(spec: ChartSpec, modifier: Modifier = Modifier, labels: Boole
             reveal.snapTo(1f)
         }
     }
-    Canvas(modifier = modifier.semantics { contentDescription = "Weight graph" }) {
+    val tappable = if (onDoubleTap == null) modifier else modifier
+        .pointerInput(onDoubleTap) { detectTapGestures(onDoubleTap = { onDoubleTap() }) }
+        .semantics { onClick(label = "Switch graph style") { onDoubleTap(); true } }
+    Canvas(modifier = tappable.semantics { contentDescription = "Weight graph" }) {
         drawIntoCanvas { canvas ->
             TrendChart.draw(
                 canvas = canvas.nativeCanvas,

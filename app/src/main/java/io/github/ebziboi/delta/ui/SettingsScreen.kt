@@ -127,18 +127,9 @@ fun SettingsScreen(
             SettingRow(
                 title = "Starting weight",
                 value = snapshot?.startKg?.let { Units.weight(it, unit) } ?: "—",
-                note = if (settings.startKgOverride != null) {
-                    "Set by you"
-                } else {
-                    "Your first weigh-in on or after the start date"
-                },
-                onClick = { editing = "startWeight" },
+                note = snapshot?.startMs?.let { "Your first weigh-in from the start date, on ${Format.moment(it)}" }
+                    ?: "Your first weigh-in on or after the start date",
             )
-            if (settings.startKgOverride != null) {
-                TextButton(onClick = { vm.update { it.copy(startKgOverride = null) } }) {
-                    Text("Use my first weigh-in instead")
-                }
-            }
         }
 
         // Units
@@ -215,17 +206,6 @@ fun SettingsScreen(
             onDismiss = { editing = "" },
             onConfirm = { kg ->
                 vm.update { it.copy(targetKg = kg) }
-                editing = ""
-            },
-            confirmLabel = "Set",
-        )
-        "startWeight" -> WeightDialog(
-            title = "Starting weight",
-            initialKg = snapshot?.startKg,
-            unit = unit,
-            onDismiss = { editing = "" },
-            onConfirm = { kg ->
-                vm.update { it.copy(startKgOverride = kg) }
                 editing = ""
             },
             confirmLabel = "Set",

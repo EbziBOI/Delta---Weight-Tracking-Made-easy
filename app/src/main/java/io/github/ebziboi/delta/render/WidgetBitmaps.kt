@@ -104,6 +104,26 @@ object WidgetBitmaps {
             snap.fraction?.let { DeltaMark.drawLabel(c, left, top, size, "${(it * 100).roundToInt()}", "%", colors.text, type.numberBold,
                 shadowColor = if (settings.widgetGlass == WidgetGlass.SOLID) null else if (colors.isLight) Color.WHITE else Color.BLACK) }
         }
+        /** Change over the last week of weigh-ins, from the latest back to the last one a week or more before. */
+        fun weekChange(): Double? {
+            val last = snap.points.lastOrNull() ?: return null
+            val before = snap.points.lastOrNull { it.epochMs <= last.epochMs - 7 * 86_400_000L } ?: return null
+            return last.kg - before.kg
+        }
+        /** Green towards the target, amber away from it, dim when there is no real change. */
+        fun changeTint(change: Double) = when {
+            kotlin.math.abs(change) < 0.05 -> colors.textDim
+            (change < 0) == snap.losing -> colors.good
+            else -> colors.warn
+        }
+        fun weekLine() = weekChange()?.let { "${Units.signed(it, unit)} this week" }
+        fun goalLine(): String? = when {
+            snap.reached -> "Target reached"
+            snap.projectedDay == null -> null
+            snap.projectedDay.year == LocalDate.now().year -> "Goal ${snap.projectedDay.format(shortDate)}"
+            else -> "Goal ${snap.projectedDay.format(DateTimeFormatter.ofPattern("MMM yyyy", Locale.ENGLISH))}"
+        }
+
         fun remaining() = when {
             snap.reached -> "Target reached"
             snap.remainingKg != null -> "${Units.amount(snap.remainingKg, unit)} to go"
@@ -118,11 +138,23 @@ object WidgetBitmaps {
                 label("NOW", left, h / 2 - 20f, room = room)
                 text(snap.currentKg?.let { Units.weightShort(it, unit) } ?: "—", left, h / 2 + 6f, 24f, face = type.numberBold, room = room)
                 if (show.showDetail) text(remaining(), left, h / 2 + 25f, color = colors.textDim, face = type.body, room = room)
+                // With height to spare: the week's change and the projected goal date.
+                if (h >= 110) {
+                    val week = weekChange()
+                    val line = listOfNotNull(weekLine(), goalLine()).joinToString("  ·  ")
+                    if (line.isNotEmpty()) text(line, left, h / 2 + 42f, 10.5f,
+                        week?.let { changeTint(it) } ?: colors.textDim, type.body, room = room)
+                }
             } else {
-                val footer = if (show.showDetail) 52f else pad * 2
+                val week = weekChange().takeIf { h >= 150 }
+                val lines = (if (show.showDetail) 1 else 0) + (if (week != null) 1 else 0)
+                val footer = when (lines) { 0 -> pad * 2; 1 -> 52f; else -> 68f }
                 val size = min(w - pad * 2, h - footer)
                 mark((w - size) / 2, pad + (h - footer - size) / 2, size)
-                if (show.showDetail) text(remaining(), w / 2, h - pad, 12f, align = Paint.Align.CENTER, face = type.body)
+                val bottom = h - pad
+                if (week != null) text(weekLine()!!, w / 2, bottom, 10.5f, changeTint(week), type.body, Paint.Align.CENTER)
+                if (show.showDetail) text(remaining(), w / 2, if (week != null) bottom - 17f else bottom, 12f,
+                    align = Paint.Align.CENTER, face = type.body)
             }
         }
         fun summary() {
@@ -137,15 +169,28 @@ object WidgetBitmaps {
                     type.numberBold, aligns[i], (w - pad * 2) / 3 - 6)
             }
             bar(pad, center + 18, w - pad)
-            if (h >= 115 && show.showDetail) text(remaining(), w / 2, center + 43, color = colors.textDim, align = Paint.Align.CENTER)
+            if (h >= 115) {
+                // A line of detail under the bar: what is left, how far along, and the week's change.
+                val third = (w - pad * 2) / 3 - 6
+                if (show.showDetail) text(remaining(), pad, center + 43, 11f, colors.textDim, type.body, room = third)
+                snap.fraction?.let { text("${(it * 100).roundToInt()}%", w / 2, center + 43, 11f, colors.accent,
+                    type.numberBold, Paint.Align.CENTER, third) }
+                weekChange()?.let { text(weekLine()!!, w - pad, center + 43, 11f, changeTint(it), type.body, Paint.Align.RIGHT, third) }
+            }
         }
         fun trend(journey: Boolean) {
             val compact = h < 110
-            val header = if (compact) 27f else 38f
+            // A second header line (the week's change and the goal date) once there is room for it.
+            val detailed = !compact && h >= 150
+            val header = when { compact -> 27f; detailed -> 54f; else -> 38f }
             text(snap.currentKg?.let { Units.weightShort(it, unit) } ?: "Weight trend", pad, pad + 15, 19f,
                 face = type.numberBold, room = (w - pad * 2) * 0.55f)
             snap.targetKg?.takeIf { show.showTarget }?.let { text("Target ${Units.weightShort(it, unit)}", w - pad, pad + 13, 10f,
                 colors.accent, align = Paint.Align.RIGHT, room = (w - pad * 2) * 0.42f) }
+            if (detailed) {
+                weekChange()?.let { text(weekLine()!!, pad, pad + 33, 10.5f, changeTint(it), type.body, room = (w - pad * 2) * 0.55f) }
+                goalLine()?.let { text(it, w - pad, pad + 31, 10f, colors.textDim, type.body, Paint.Align.RIGHT, (w - pad * 2) * 0.42f) }
+            }
             val footer = when {
                 !journey || compact -> 0f
                 show.showBar && show.showDetail -> 37f
@@ -162,7 +207,8 @@ object WidgetBitmaps {
                 } else {
                     if (show.showBar) bar(pad, h - pad - (if (show.showDetail) 24 else 6), w - pad)
                     if (show.showDetail) {
-                        text(remaining(), pad, h - pad, 11f, colors.textDim, room = (w - pad * 2) * 0.8f)
+                        val pace = snap.weeklyRateKg?.let { "  ·  ${Units.rate(it, unit)}" }.orEmpty()
+                        text(remaining() + pace, pad, h - pad, 11f, colors.textDim, room = (w - pad * 2) * 0.8f)
                         text(snap.fraction?.let { "${(it * 100).roundToInt()}%" } ?: "—", w - pad, h - pad, 11f,
                             colors.accent, type.numberBold, Paint.Align.RIGHT, (w - pad * 2) * 0.18f)
                     }
@@ -177,19 +223,35 @@ object WidgetBitmaps {
                 snap.projectedDay.year == LocalDate.now().year -> snap.projectedDay.format(shortDate)
                 else -> snap.projectedDay.format(DateTimeFormatter.ofPattern("d MMM yyyy", Locale.ENGLISH))
             }
-            val rows = listOf("WEEKLY" to (snap.weeklyRateKg?.let { Units.rate(it, unit) } ?: "—"),
-                "GOAL BY" to goal, "STREAK" to "${snap.streakDays} days")
+            val week = weekChange()
+            val cells = listOf(
+                Triple("WEEKLY", snap.weeklyRateKg?.let { Units.rate(it, unit) } ?: "—", colors.accent),
+                Triple("THIS WEEK", week?.let { Units.signed(it, unit) } ?: "—", week?.let { changeTint(it) } ?: colors.text),
+                Triple("GOAL BY", goal, colors.text),
+                Triple("STREAK", "${snap.streakDays} days", colors.text),
+            )
             val wide = w > h * 1.8f
             val status = snap.pace?.takeIf { show.showStatus }
-            val rowHeight = min(52f, (h - pad * 2 - if (status != null && !wide) 18f else 0f) / 3)
-            val top = if (wide) h / 2 - 15 else (h - rowHeight * 3) / 2
-            rows.forEachIndexed { i, (title, value) ->
-                val left = if (wide) pad + i * (w - pad * 2) / 3 else pad
-                val y = if (wide) top else top + rowHeight * i
-                val room = if (wide) (w - pad * 2) / 3 - 8 else w - pad * 2
-                label(title, left, y + 8, room = room)
-                text(value, left, y + min(31f, rowHeight - 2), 17f, if (i == 0) colors.accent else colors.text,
-                    type.numberBold, room = room)
+            if (wide) {
+                // A row of figures across the widget: four when it is wide enough, else the first three.
+                val shown = if (w >= 300) cells else cells.filter { it.first != "THIS WEEK" }
+                val column = (w - pad * 2) / shown.size
+                shown.forEachIndexed { i, (title, value, tint) ->
+                    val left = pad + i * column
+                    label(title, left, h / 2 - 7, room = column - 8)
+                    text(value, left, h / 2 + 16, 17f, tint, type.numberBold, room = column - 8)
+                }
+            } else {
+                // Two columns, two rows.
+                val footer = if (status != null) 18f else 0f
+                val rowHeight = (h - pad * 2 - footer) / 2
+                val column = (w - pad * 2) / 2
+                cells.forEachIndexed { i, (title, value, tint) ->
+                    val left = pad + (i % 2) * column
+                    val y = pad + (i / 2) * rowHeight + max(0f, (rowHeight - 40f) / 2)
+                    label(title, left, y + 8, room = column - 8)
+                    text(value, left, y + 31f, 17f, tint, type.numberBold, room = column - 8)
+                }
             }
             if (!wide) status?.let {
                 val title = when (it) { Pace.AHEAD -> "Ahead"; Pace.ON_TRACK -> "On track"; Pace.BEHIND -> "Behind" }

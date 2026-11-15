@@ -118,8 +118,6 @@ data class AppSettings(
     val targetKg: Double? = null,
     /** Day the journey started. Null until onboarding, when it defaults to 1 September. */
     val startEpochDay: Long? = null,
-    /** Set only when the user corrects the starting weight; otherwise the first weigh-in is used. */
-    val startKgOverride: Double? = null,
     /** Optional goal date. */
     val targetEpochDay: Long? = null,
     val unit: WeightUnit = WeightUnit.KG,

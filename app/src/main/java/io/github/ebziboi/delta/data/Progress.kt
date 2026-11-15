@@ -17,7 +17,10 @@ data class TrendPoint(val epochMs: Long, val kg: Double, val trendKg: Double)
 /** Everything the screens and widgets show, worked out once from weigh-ins and settings. */
 data class ProgressSnapshot(
     val startDay: LocalDate,
+    /** The first weigh-in on or after the start day, whichever app or import it came from. */
     val startKg: Double?,
+    /** When that first weigh-in was taken. */
+    val startMs: Long?,
     val currentKg: Double?,
     val currentMs: Long?,
     val targetKg: Double?,
@@ -73,7 +76,9 @@ object ProgressCalculator {
         val startMs = startDay.atStartOfDay(zone).toInstant().toEpochMilli()
         val sinceStart = sorted.filter { it.epochMs >= startMs }
 
-        val startKg = settings.startKgOverride ?: sinceStart.firstOrNull()?.kg
+        // The journey starts at the first weigh-in on or after the start day, from any source:
+        // Health Connect, another app, or an imported scale export.
+        val startKg = sinceStart.firstOrNull()?.kg
         val latest = sorted.lastOrNull()
         val currentKg = latest?.kg
         val targetKg = settings.targetKg
@@ -137,6 +142,7 @@ object ProgressCalculator {
             startDay = startDay,
             startKg = startKg,
             currentKg = currentKg,
+            startMs = sinceStart.firstOrNull()?.epochMs,
             currentMs = latest?.epochMs,
             targetKg = targetKg,
             losing = losing,

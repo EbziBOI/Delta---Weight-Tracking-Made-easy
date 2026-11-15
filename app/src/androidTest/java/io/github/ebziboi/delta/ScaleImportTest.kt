@@ -42,6 +42,24 @@ class ScaleImportTest {
         assertTrue(error is ScaleImportException)
     }
 
+    @Test fun startIsTheFirstWeighInAfterTheStartDateFromAnySource() {
+        val zone = ZoneOffset.UTC
+        val day = java.time.LocalDate.of(2026, 9, 1)
+        fun at(date: String) = java.time.LocalDateTime.parse(date).atZone(zone).toInstant().toEpochMilli()
+        val entries = listOf(
+            io.github.ebziboi.delta.data.WeightEntry(at("2026-08-20T08:00"), 101.0, own = false, id = "before-start"),
+            io.github.ebziboi.delta.data.WeightEntry(at("2026-10-05T09:00"), 97.9, own = false, id = "health-connect"),
+            io.github.ebziboi.delta.data.WeightEntry(at("2026-09-23T11:49"), 98.85, own = true, id = "scale-import"),
+            io.github.ebziboi.delta.data.WeightEntry(at("2026-11-13T13:36"), 94.9, own = false, id = "latest"),
+        )
+        val settings = io.github.ebziboi.delta.data.AppSettings(targetKg = 80.0, startEpochDay = day.toEpochDay())
+        val snap = io.github.ebziboi.delta.data.ProgressCalculator.compute(entries, settings, zone,
+            java.time.Instant.parse("2026-11-15T12:00:00Z"))
+        assertEquals("The imported weigh-in is the first after the start date", 98.85, snap.startKg!!, 1e-9)
+        assertEquals(at("2026-09-23T11:49"), snap.startMs)
+        assertEquals((98.85 - 94.9) / (98.85 - 80.0), snap.fraction!!.toDouble(), 1e-4)
+    }
+
     @Test fun importingTwiceAddsNothingTheSecondTime() = runBlocking {
         val instrumentation = InstrumentationRegistry.getInstrumentation()
         val context = instrumentation.targetContext

@@ -87,7 +87,6 @@ class SettingsStore(context: Context) {
             onboardingDone = prefs[Keys.ONBOARDED] ?: false,
             targetKg = prefs[Keys.TARGET_KG],
             startEpochDay = prefs[Keys.START_DAY],
-            startKgOverride = prefs[Keys.START_KG],
             targetEpochDay = prefs[Keys.TARGET_DAY],
             unit = named(prefs[Keys.UNIT], defaults.unit),
             theme = named(prefs[Keys.THEME], defaults.theme),
@@ -111,7 +110,8 @@ class SettingsStore(context: Context) {
         prefs[Keys.ONBOARDED] = settings.onboardingDone
         put(prefs, Keys.TARGET_KG, settings.targetKg)
         put(prefs, Keys.START_DAY, settings.startEpochDay)
-        put(prefs, Keys.START_KG, settings.startKgOverride)
+        // A starting weight typed in by hand is no longer used: the first weigh-in always is.
+        prefs.remove(Keys.START_KG)
         put(prefs, Keys.TARGET_DAY, settings.targetEpochDay)
         prefs[Keys.UNIT] = settings.unit.name
         prefs[Keys.THEME] = settings.theme.name

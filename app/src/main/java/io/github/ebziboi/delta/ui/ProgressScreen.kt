@@ -27,6 +27,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.ebziboi.delta.R
 import io.github.ebziboi.delta.data.AppSettings
+import io.github.ebziboi.delta.data.ChartStyle
 import io.github.ebziboi.delta.data.HealthAvailability
 import io.github.ebziboi.delta.data.HealthState
 import io.github.ebziboi.delta.data.Insights
@@ -103,7 +104,9 @@ fun ProgressScreen(
                 }
             }
             KeyFigures(snap, insights, unit, Modifier.entrance(1))
-            TrendCard(snap, unit, settings, Modifier.entrance(2))
+            TrendCard(snap, unit, settings, Modifier.entrance(2)) {
+                vm.update { it.copy(appChart = if (it.appChart == ChartStyle.TREND) ChartStyle.CONNECTED else ChartStyle.TREND) }
+            }
             InsightsCard(snap, insights, unit, Modifier.entrance(3))
             if (insights.recent.isNotEmpty()) RecentCard(insights, snap.losing, unit, Modifier.entrance(4))
         }
@@ -264,7 +267,7 @@ private fun KeyFigures(snap: ProgressSnapshot, insights: Insights, unit: WeightU
 }
 
 @Composable
-private fun TrendCard(snap: ProgressSnapshot, unit: WeightUnit, settings: AppSettings, modifier: Modifier) {
+private fun TrendCard(snap: ProgressSnapshot, unit: WeightUnit, settings: AppSettings, modifier: Modifier, onSwitchStyle: () -> Unit) {
     var range by rememberSaveable { mutableStateOf("All") }
     val points = remember(snap.points, range) {
         val days = when (range) { "1M" -> 30L; "3M" -> 90L; else -> null }
@@ -283,7 +286,10 @@ private fun TrendCard(snap: ProgressSnapshot, unit: WeightUnit, settings: AppSet
             spec = ChartSpec.journey(snap, settings.appChart, unit, settings.showProjection)
                 .copy(points = points, startKg = if (whole) snap.startKg else null, fraction = if (whole) snap.fraction else null),
             modifier = Modifier.fillMaxWidth().height(230.dp),
+            onDoubleTap = onSwitchStyle,
         )
+        Text("${settings.appChart.label}  ·  double-tap the graph to switch",
+            style = LocalDeltaType.current.bodySmall, color = Color(LocalDeltaColors.current.textDim))
     }
 }
 

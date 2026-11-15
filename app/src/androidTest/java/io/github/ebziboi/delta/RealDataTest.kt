@@ -7,6 +7,7 @@ import androidx.test.uiautomator.By
 import androidx.test.uiautomator.UiDevice
 import androidx.test.uiautomator.Until
 import io.github.ebziboi.delta.data.SettingsStore
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -67,13 +68,43 @@ class RealDataTest {
             device.takeScreenshot(File(out, "3-$tab.png"))
             repeat(3) { swipeUp() }
         }
+        // A double tap on the graph switches its style, and the choice is saved.
+        val before = runBlocking { SettingsStore(context).settings.first() }.appChart
+        repeat(8) { swipeDown() }
+        var graph: androidx.test.uiautomator.UiObject2? = null
+        for (step in 0 until 8) {
+            graph = device.findObject(By.desc("Weight graph"))?.takeIf {
+                val centre = it.visibleCenter.y
+                centre > device.displayHeight / 5 && centre < device.displayHeight * 7 / 10
+            }
+            if (graph != null) break
+            swipeUp(short = true)
+        }
+        if (graph == null) throw AssertionError("The graph never came into view")
+        run {
+            val centre = graph.visibleCenter
+            instrumentation.uiAutomation.executeShellCommand("input tap ${centre.x} ${centre.y}").close()
+            Thread.sleep(80)
+            instrumentation.uiAutomation.executeShellCommand("input tap ${centre.x} ${centre.y}").close()
+            Thread.sleep(1_500)
+            device.takeScreenshot(File(out, "4-graph-switched.png"))
+            val after = runBlocking { SettingsStore(context).settings.first() }.appChart
+            assertTrue("Double tap should switch the graph style ($before → $after)", after != before)
+        }
         Thread.sleep(2_000)
         assertEquals("Delta must still be in front", context.packageName, device.currentPackageName)
     }
 
-    private fun swipeUp() {
+    private fun swipeUp(short: Boolean = false) {
         val x = device.displayWidth / 2
-        device.swipe(x, device.displayHeight * 7 / 10, x, device.displayHeight * 3 / 10, 24)
+        val to = if (short) device.displayHeight * 5 / 10 else device.displayHeight * 3 / 10
+        device.swipe(x, device.displayHeight * 7 / 10, x, to, 40)
+        device.waitForIdle(1_000)
+    }
+
+    private fun swipeDown() {
+        val x = device.displayWidth / 2
+        device.swipe(x, device.displayHeight * 3 / 10, x, device.displayHeight * 7 / 10, 24)
         device.waitForIdle(1_000)
     }
 }

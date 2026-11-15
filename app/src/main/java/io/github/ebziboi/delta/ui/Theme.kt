@@ -56,10 +56,16 @@ val LocalDerivedTheme = staticCompositionLocalOf { DerivedTheme.derive(AppAppear
 
 /** Geometry follows the active appearance, including dialogs and list rows. */
 object Radii {
-    val card: androidx.compose.ui.unit.Dp @Composable get() = LocalAppearance.current.cornerRadius.dp
-    val tile: androidx.compose.ui.unit.Dp @Composable get() = (LocalAppearance.current.cornerRadius * 0.85f).dp
-    val control: androidx.compose.ui.unit.Dp @Composable get() = (LocalAppearance.current.cornerRadius * 0.65f).dp
-    val pill = 999.dp
+    /**
+     * One corner radius for everything in the app, so buttons, pickers, tiles, the tab
+     * bar and dialogs all curve alike. On short controls it rounds the ends fully.
+     * The names remain so each use says what it is rounding.
+     */
+    val corner: androidx.compose.ui.unit.Dp @Composable get() = LocalAppearance.current.cornerRadius.dp
+    val card: androidx.compose.ui.unit.Dp @Composable get() = corner
+    val tile: androidx.compose.ui.unit.Dp @Composable get() = corner
+    val control: androidx.compose.ui.unit.Dp @Composable get() = corner
+    val pill: androidx.compose.ui.unit.Dp @Composable get() = corner
 }
 
 @Composable
@@ -94,13 +100,11 @@ fun DeltaTheme(settings: AppSettings, content: @Composable () -> Unit) {
         textDim = io.github.ebziboi.delta.render.ThemeContrast.readable(color(target.textDim), raised),
         textFaint = io.github.ebziboi.delta.render.ThemeContrast.readable(color(target.textFaint), raised))
     val scheme = palette.toColorScheme(derived.danger)
-    val shapes = remember(appearance.cornerRadius) { Shapes(
-        extraSmall = RoundedCornerShape((appearance.cornerRadius * 0.4f).dp),
-        small = RoundedCornerShape((appearance.cornerRadius * 0.6f).dp),
-        medium = RoundedCornerShape((appearance.cornerRadius * 0.85f).dp),
-        large = RoundedCornerShape(appearance.cornerRadius.dp),
-        extraLarge = RoundedCornerShape((appearance.cornerRadius + 4).dp),
-    ) }
+    // Material's components (menus, the date picker, text fields) use the same single radius.
+    val shapes = remember(appearance.cornerRadius) {
+        val corner = RoundedCornerShape(appearance.cornerRadius.dp)
+        Shapes(extraSmall = corner, small = corner, medium = corner, large = corner, extraLarge = corner)
+    }
     val type = remember(settings.typeStyle) { deltaType(settings.typeStyle) }
     val typography = remember(type) { type.toMaterial() }
     val canvasType = remember(settings.typeStyle) { DeltaFonts.canvas(context, settings.typeStyle) }

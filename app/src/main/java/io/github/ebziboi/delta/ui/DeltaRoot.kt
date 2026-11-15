@@ -138,7 +138,8 @@ private fun MainScreen(
                         colors = NavigationBarItemDefaults.colors(
                             selectedIconColor = Color(colors.accent),
                             selectedTextColor = Color(colors.accent),
-                            indicatorColor = Color(colors.surfaceHigh),
+                            // No pill behind the selected tab: the accent colour alone shows which one is active.
+                            indicatorColor = Color.Transparent,
                             unselectedIconColor = Color(colors.textDim),
                             unselectedTextColor = Color(colors.textDim),
                         ),
