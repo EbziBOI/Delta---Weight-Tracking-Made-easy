@@ -21,6 +21,7 @@ internal fun FoodSearchPage(vm: NutritionViewModel,state: NutritionState,padding
                             onCustom:()->Unit,onRecipe:()->Unit,onPhoto:()->Unit,ingredientsOnly:Boolean=false) {
     var query by rememberSaveable { mutableStateOf("") };var category by rememberSaveable { mutableStateOf("Recent") }
     val context=LocalContext.current
+    var storeMenu by remember {mutableStateOf(false)}
     val scanner=rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         if(result.resultCode==android.app.Activity.RESULT_OK) result.data?.getStringExtra("barcode")?.let {vm.barcode(it,onFood)}
     }
@@ -28,6 +29,13 @@ internal fun FoodSearchPage(vm: NutritionViewModel,state: NutritionState,padding
     NutritionPage(if(ingredientsOnly) "Ingredient" else "Add food",padding,onBack) {
         SegmentedControl(listOf("Recent","Search","My foods","Recipes"),category,{it}) {category=it}
         if(category=="Search") {
+            Box {
+                SecondaryButton(vm.selectedStore?.let {id->vm.storeOrder.firstOrNull {it.id==id}?.label} ?: "All stores",{storeMenu=true},enabled=!vm.busy)
+                androidx.compose.material3.DropdownMenu(storeMenu,{storeMenu=false}) {
+                    androidx.compose.material3.DropdownMenuItem({Text("All stores")},{vm.chooseStore(null);storeMenu=false})
+                    vm.storeOrder.forEach {store->androidx.compose.material3.DropdownMenuItem({Text(store.label)},{vm.chooseStore(store.id);storeMenu=false})}
+                }
+            }
             GlassTextField(query,{query=it},"Search foods",Modifier.fillMaxWidth())
             Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
                 PrimaryButton("Search",{vm.search(query)},Modifier.weight(1f),enabled=!vm.busy && query.trim().length>=2)

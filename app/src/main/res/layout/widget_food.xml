@@ -1,0 +1,5 @@
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android" android:layout_width="match_parent" android:layout_height="match_parent">
+    <ImageView android:id="@+id/widget_food_image" android:layout_width="match_parent" android:layout_height="match_parent" android:scaleType="fitXY" android:contentDescription="Food widget" />
+    <Chronometer android:id="@+id/widget_food_clock" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_gravity="center" android:fontFamily="sans-serif-medium" android:textSize="26sp" android:visibility="gone" android:contentDescription="Elapsed fasting time" />
+    <TextView android:id="@+id/widget_food_add" android:layout_width="40dp" android:layout_height="40dp" android:layout_gravity="bottom|end" android:layout_margin="10dp" android:gravity="center" android:text="+" android:textSize="26sp" android:background="@drawable/widget_food_button" android:visibility="gone" android:contentDescription="Add food" />
+</FrameLayout>

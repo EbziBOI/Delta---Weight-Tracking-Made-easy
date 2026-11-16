@@ -19,6 +19,8 @@ import java.time.LocalDate
 
 /** A separate transactional database: Health Connect sync never replaces nutrition records. */
 class NutritionRepository(context: Context, name: String = "nutrition.db") {
+    private val appContext=context.applicationContext
+    private val stores=StorePreferences(context)
     private val helper = NutritionDb(context.applicationContext,name)
     private val mutex = Mutex()
     private val mutable = MutableStateFlow(NutritionState())
@@ -34,7 +36,7 @@ class NutritionRepository(context: Context, name: String = "nutrition.db") {
         db.beginTransaction()
         try { block(db); db.setTransactionSuccessful() } finally { db.endTransaction() }
         mutable.value=read(db)
-    } }
+    };io.github.ebziboi.delta.widget.FoodWidgetUpdater.updateAll(appContext) }
     /** Replace only the completed Health Connect read, atomically; local meals are untouched. */
     suspend fun replaceHealthEntries(entries:List<DiaryEntry>,sinceMs:Long?=null) = change {db->
         require(entries.all {it.fromHealthConnect && it.food.source==FoodSource.HEALTH_CONNECT})
@@ -56,6 +58,7 @@ class NutritionRepository(context: Context, name: String = "nutrition.db") {
         require(entries.isNotEmpty() && entries.size <= 500)
         require(entries.none {it.fromHealthConnect}) { "Health Connect entries are read-only" }
         entries.forEach { e -> putFood(db,e.food,replace=false); putEntry(db,e) }
+        stores.record(entries.map {it.food})
     }
     suspend fun updateEntry(entry: DiaryEntry) = change { db ->
         require(!entry.fromHealthConnect) { "Health Connect entries are read-only" }

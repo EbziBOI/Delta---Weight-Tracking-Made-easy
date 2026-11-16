@@ -314,6 +314,8 @@ private fun SettingsDetail(
                     Caption("Changing a widget's look")
                     Text("Hold a home-screen widget, then tap Settings.", color = Color(colors.textDim))
                 }
+                val food by vm.nutrition.collectAsStateWithLifecycle()
+                FoodWidgetSettings(settings,food) {kind->pinWidget(context,io.github.ebziboi.delta.widget.FoodWidgetCatalog.receiver(kind))}
                 for (kind in WidgetKind.entries) {
                     ContentSection {
                         Text(kind.title, style = LocalDeltaType.current.title)

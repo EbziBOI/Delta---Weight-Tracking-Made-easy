@@ -100,7 +100,7 @@ class RenderContractTest {
         val providers = AppWidgetManager.getInstance(context).installedProviders.filter { it.provider.packageName == context.packageName }
         val hidden = android.appwidget.AppWidgetProviderInfo.WIDGET_FEATURE_HIDE_FROM_PICKER
         val offered = providers.filter { it.widgetFeatures and hidden == 0 }
-        assertEquals(WidgetKind.entries.map { ComponentName(context, WidgetCatalog.receiver(it)) }.toSet(), offered.map { it.provider }.toSet())
+        assertEquals((WidgetKind.entries.map {ComponentName(context,WidgetCatalog.receiver(it))}+FoodWidgetKind.entries.map {ComponentName(context,FoodWidgetCatalog.receiver(it))}).toSet(),offered.map {it.provider}.toSet())
         for (retired in listOf(SummaryWidgetReceiver::class.java, JourneyWidgetReceiver::class.java)) {
             val info = providers.single { it.provider == ComponentName(context, retired) }
             assertTrue("${retired.simpleName} must be hidden from the picker", info.widgetFeatures and hidden != 0)
@@ -109,8 +109,8 @@ class RenderContractTest {
         assertEquals(WidgetKind.CARD, WidgetCatalog.kind(SummaryWidgetReceiver::class.java.name))
         assertEquals(WidgetKind.TREND, WidgetCatalog.kind(JourneyWidgetReceiver::class.java.name))
         for (info in offered) {
-            assertTrue("Every widget resizes down to one cell", info.minResizeWidth <= 60 * context.resources.displayMetrics.density &&
-                info.minResizeHeight <= 60 * context.resources.displayMetrics.density)
+            assertTrue("Every widget resizes down to one cell", info.minResizeWidth <= kotlin.math.ceil(60 * context.resources.displayMetrics.density) &&
+                info.minResizeHeight <= kotlin.math.ceil(60 * context.resources.displayMetrics.density))
         }
         val drawn = WidgetKind.entries.map { WidgetBitmaps.render(context, it, 350f, 200f, snapshot, settings) }
         for (i in drawn.indices) for (j in i + 1 until drawn.size) assertFalse("${WidgetKind.entries[i]} and ${WidgetKind.entries[j]} look the same", drawn[i].sameAs(drawn[j]))

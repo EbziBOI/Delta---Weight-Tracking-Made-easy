@@ -21,7 +21,12 @@ import kotlinx.coroutines.launch
 import java.time.Instant
 
 /** Holds what the screens show and carries out what they ask for. */
+data class FoodOpenRequest(val route:String,val token:Long)
 class AppViewModel(application: Application) : AndroidViewModel(application) {
+    private val _foodOpen=MutableStateFlow<FoodOpenRequest?>(null)
+    val foodOpen=_foodOpen.asStateFlow()
+    fun openFood(route:String) {if(route in setOf("diary","search","charts","targets","fasting")) _foodOpen.value=FoodOpenRequest(route,System.nanoTime())}
+    fun consumeFoodOpen() {_foodOpen.value=null}
     private val repo = (application as DeltaApp).repo
     private val nutritionRepo=(application as DeltaApp).nutrition
     val nutrition=nutritionRepo.state

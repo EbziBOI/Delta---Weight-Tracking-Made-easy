@@ -1,7 +1,9 @@
 package io.github.ebziboi.delta.ui
 
-import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.*
+import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -26,7 +28,7 @@ internal enum class HomeSeries(val label:String) {WEIGHT("Weight"),BODY_FAT("Bod
 
 @Composable
 internal fun HomeTrends(weights:List<WeightEntry>,fat:List<BodyFatEntry>,nutrition:NutritionState,settings:AppSettings,
-                        onMetric:(DetailMetric)->Unit) {
+                        onMetric:(DetailMetric)->Unit,onNutrition:()->Unit={}) {
     val context=LocalContext.current
     val prefs=remember {context.getSharedPreferences("home-chart",0)}
     var chosen by rememberSaveable {mutableStateOf(prefs.getString("series",null)?.split(",")?.mapNotNull {name->HomeSeries.entries.find {it.name==name}}?.toSet() ?: setOf(HomeSeries.WEIGHT))}
@@ -39,10 +41,11 @@ internal fun HomeTrends(weights:List<WeightEntry>,fat:List<BodyFatEntry>,nutriti
         .map {(d,v)->RecordedValue(d,v.maxBy {it.epochMs}.percent)}.sortedBy {it.day}}
     val foodValues=remember(nutrition.entries,today) {nutrition.entries.filter {it.day<=today}.groupBy {it.day}.mapNotNull {(d,v)->
         v.total(Nutrient.ENERGY).takeIf {it.reported>0}?.let {RecordedValue(d,it.amount)}}.sortedBy {it.day}}
+    val foodScale=remember(nutrition.entries,today) {nutritionScale(nutrition.entries,today,Nutrient.ENERGY)}
     val allSeries=listOf(
         HomeSeries.WEIGHT to RecordedSeries("weight","Weight",Color(c.accent),weightValues,{Units.weight(it,settings.unit)}),
         HomeSeries.BODY_FAT to RecordedSeries("body-fat","Body fat",Color(c.good),fatValues,{BodyFat.format(it)}),
-        HomeSeries.NUTRITION to RecordedSeries("nutrition","Energy",Color(c.warn),foodValues,{nutrientText(it,Nutrient.ENERGY)},bars=true))
+        HomeSeries.NUTRITION to RecordedSeries("nutrition","Energy",Color(c.warn),foodValues,{nutrientText(it,Nutrient.ENERGY)},bars=true,ceiling=foodScale.ceiling,typical=foodScale.typical))
     val series=allSeries.filter {it.first in chosen}.map {it.second}
     val oldest=series.flatMap {it.values}.minOfOrNull {it.day} ?: today.minusDays(29)
     val start=when(range) {"3M"->today.minusDays(89);"Journey"->settings.startEpochDay?.let(LocalDate::ofEpochDay) ?: oldest;"All"->oldest;else->today.minusDays(29)}.coerceAtMost(today.minusDays(1))
@@ -71,9 +74,24 @@ internal fun HomeTrends(weights:List<WeightEntry>,fat:List<BodyFatEntry>,nutriti
                 else->RecordedChart(series,start,today,"Combined trends graph")
             }
             if(series.size>1) Text("Each series uses its own scale",style=LocalDeltaType.current.bodySmall,color=Color(c.textDim))
-            FlowRow(horizontalArrangement=Arrangement.spacedBy(14.dp)) {
-                if(HomeSeries.WEIGHT in chosen) TextAction("Weight details",{onMetric(DetailMetric.WEIGHT)})
-                if(HomeSeries.BODY_FAT in chosen) TextAction("Body composition",{onMetric(DetailMetric.BODY_FAT)})
+            val motion=LocalMotion.current
+            AnimatedContent(HomeSeries.entries.filter {it in chosen},modifier=Modifier.fillMaxWidth(),transitionSpec={
+                if(motion) (fadeIn()+scaleIn(initialScale=.96f)) togetherWith fadeOut()
+                else EnterTransition.None togetherWith ExitTransition.None
+            },label="detail-links") {visible->
+                Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min),horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+                    visible.forEach {item->
+                        Column(Modifier.weight(1f).fillMaxHeight().heightIn(min=64.dp)
+                            .background(Color(LocalDeltaColors.current.text).copy(alpha=.06f),RoundedCornerShape(Radii.control))
+                            .clickable(role=Role.Button) {when(item) {HomeSeries.WEIGHT->onMetric(DetailMetric.WEIGHT);HomeSeries.BODY_FAT->onMetric(DetailMetric.BODY_FAT);HomeSeries.NUTRITION->onNutrition()}}
+                            .padding(horizontal=4.dp,vertical=10.dp),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.spacedBy(6.dp)) {
+                            DeltaIcon(io.github.ebziboi.delta.R.drawable.ic_chevron_right,contentDescription=null,size=18.dp,
+                                tint=allSeries.first {it.first==item}.second.color)
+                            Text(when(item) {HomeSeries.WEIGHT->"Weight details";HomeSeries.BODY_FAT->"Body composition";HomeSeries.NUTRITION->"Nutrition details"},
+                                style=LocalDeltaType.current.bodySmall,textAlign=androidx.compose.ui.text.style.TextAlign.Center,maxLines=2)
+                        }
+                    }
+                }
             }
         }
     }

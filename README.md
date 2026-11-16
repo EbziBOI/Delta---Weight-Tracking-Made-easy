@@ -23,7 +23,7 @@ background and blur when you switch back. The visual reference is
   your real start date rather than from the day you install
 - Start, current and target weight, with an optional target date
 - Weekly rate, projected goal date, on-track check and weigh-in streak
-- Five widgets, each resizable from a single cell to a whole page: the Progress
+- Five weight widgets, each resizable from a single cell to a whole page: the Progress
   card (the Progress tab's first card), the Complication (the percentage art on
   its own), Trend (graph with an optional progress bar), Pace (weekly rate, goal
   date, 7-day average and streak) and Body fat. The Progress widget grew into
@@ -42,6 +42,11 @@ background and blur when you switch back. The visual reference is
 - Hold a card’s heading and drag to rearrange Home, Weight trend or Body composition. Each page saves its own order, including individual Home metric tiles and detail insight cards. Dragging scrolls the page near its edges; graph and calendar touches retain their own behavior
 - Combined Home trends with independent Weight, Body fat and Nutrition toggles; recorded-only points, today at the right edge and an animated selection marker after date panning
 - Read-only Health Connect food integration, including supported micronutrients; imported totals stay separate from local diary entries
+- Four diet widgets: Energy budget, Macro balance, Food diary with quick add, and a live Fasting clock; all resize with per-widget settings and previews
+- Nutrition bars place the 30-day median of recorded daily totals at 75% height and mark larger values with a neutral overflow triangle, retaining their full values
+- Balanced, animated Home detail links return to Home; Diary chart links return to Diary
+- Your rhythm's week strip swipes independently, with bounded triangle controls for weeks and days
+- Store-filtered food search starts with major UK grocers and learns from local search/logging use
 - A compact Progress/Diary/History dock with an adjacent plus button; both hide on downward scrolling and return together. Active tabs use accent text and icons without a pill
 - A single Health Connect status pill opens its dedicated access and sync page
 - Short, equally sized top/bottom fades retain fully black ends while content scrolls behind the toolbar
@@ -76,7 +81,7 @@ background and blur when you switch back. The visual reference is
 Stage 2 adds a daily breakfast/lunch/dinner/snacks diary, Open Food Facts search
 and an offline camera barcode decoder, custom foods, recipes with cooked yield
 and servings, repeat portions, meal/day copying, gram/energy-percentage macro
-targets, 45 nutrients, daily/weekly intake charts with optional weight comparison,
+targets, available micronutrients, food-only daily/weekly intake charts,
 and a persistent fasting timer with history. Foods and diary snapshots live in a
 separate transactional SQLite database; Health Connect sync does not replace them.
 

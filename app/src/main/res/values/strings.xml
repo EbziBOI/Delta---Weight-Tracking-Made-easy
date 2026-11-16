@@ -17,4 +17,8 @@
     <!-- Retired from the picker; these name widgets that were placed before. -->
     <string name="widget_summary_name">Start, now, target</string>
     <string name="widget_journey_name">Journey</string>
+    <string name="widget_food_energy_desc">Logged energy and your daily budget</string>
+    <string name="widget_food_macro_desc">Protein, carbohydrate and fat against your targets</string>
+    <string name="widget_food_meals_desc">Today’s meals and quick food logging</string>
+    <string name="widget_food_fasting_desc">Live fasting time and your current fasting goal</string>
 </resources>

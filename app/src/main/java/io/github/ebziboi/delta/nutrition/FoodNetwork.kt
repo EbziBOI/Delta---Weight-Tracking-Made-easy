@@ -51,18 +51,20 @@ class OpenFoodFacts {
     private val cache=mutableMapOf<String,List<Food>>()
     private var lastSearch=0L
     private val lock=kotlinx.coroutines.sync.Mutex()
-    private val fields="code,product_name,product_name_en,generic_name,brands,nutriments,serving_size,serving_quantity,serving_quantity_unit,product_quantity,product_quantity_unit,quantity,nutrition_data_per,no_nutrition_data"
-    suspend fun search(query: String): List<Food> {
+    private val fields="code,product_name,product_name_en,generic_name,brands,nutriments,serving_size,serving_quantity,serving_quantity_unit,product_quantity,product_quantity_unit,quantity,nutrition_data_per,no_nutrition_data,stores_tags"
+    suspend fun search(query: String,store:String?=null): List<Food> {
         val q=query.trim().take(120);require(q.length>=2) { "Enter at least two characters" }
+        require(store==null || FoodStores.uk.any {it.id==store})
+        val key=q.lowercase(Locale.ROOT)+"|"+(store ?: "all")
         lock.lock()
         try {
-            cache[q.lowercase()]?.let { return it }
+            cache[key]?.let { return it }
             val elapsed=android.os.SystemClock.elapsedRealtime()
             require(elapsed-lastSearch>=6500 || lastSearch==0L) { "Please wait a moment before searching again" }
             lastSearch=elapsed
-            val response=NutritionHttp.request("https://world.openfoodfacts.org/cgi/search.pl?search_terms=${URLEncoder.encode(q,"UTF-8")}&search_simple=1&action=process&json=1&page_size=24&fields=$fields")
+            val response=NutritionHttp.request(searchUrl(q,store,fields))
             val products=response.optJSONArray("products") ?: return emptyList()
-            return (0 until products.length()).mapNotNull { parse(products.getJSONObject(it)) }.also { cache[q.lowercase()]=it }
+            return (0 until products.length()).mapNotNull { parse(products.getJSONObject(it)) }.also { cache[key]=it }
         } finally { lock.unlock() }
     }
     suspend fun barcode(code: String): Food? {
@@ -71,6 +73,10 @@ class OpenFoodFacts {
         return response.optJSONObject("product")?.let(::parse)
     }
     companion object {
+        internal fun searchUrl(query:String,store:String?,fields:String="code,product_name,nutriments,stores_tags"):String =
+            "https://world.openfoodfacts.org/cgi/search.pl?search_terms=${URLEncoder.encode(query,"UTF-8")}&search_simple=1&action=process&json=1&page_size=24&fields=$fields"+
+                (store?.let {"&tagtype_0=stores&tag_contains_0=contains&tag_0=${URLEncoder.encode(FoodStores.uk.firstOrNull {s->s.id==it}?.queryTag ?: it,"UTF-8")}&tagtype_1=countries&tag_contains_1=contains&tag_1=united-kingdom"} ?: "")
+
         fun parse(p: JSONObject): Food? = runCatching { parseProduct(p) }.getOrNull()
         private fun parseProduct(p: JSONObject): Food? {
             val name=sequenceOf("product_name","product_name_en","generic_name").map { p.optString(it).trim() }.firstOrNull { it.isNotBlank() } ?: return null
@@ -107,7 +113,7 @@ class OpenFoodFacts {
             val textPack=if(multiple!=null) measure(multiple.groupValues[2])?.times(multiple.groupValues[1].toDouble()) else measure(quantity)
             val pack=canonicalPack ?: textPack?.takeIf {it>0 && it<=100000}
             return Food("off:$code",name.take(250),p.optString("brands").take(250),nutrition,unit,
-                serving,servingText.ifBlank { "Serving" }.take(100),pack,FoodSource.OPEN_FOOD_FACTS,code)
+                serving,servingText.ifBlank { "Serving" }.take(100),pack,FoodSource.OPEN_FOOD_FACTS,code,stores=p.optJSONArray("stores_tags")?.let {a->(0 until a.length()).map {a.getString(it).take(100)}.take(50)} ?: emptyList())
         }
     }
 }

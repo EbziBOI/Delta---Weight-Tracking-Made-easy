@@ -69,7 +69,7 @@ internal fun NutritionChartsPage(state:NutritionState,weights:List<WeightEntry>,
             val coverage=logged.total(nutrient)
             if(coverage.partial) Text("Partial labels · ${coverage.reported} of ${coverage.count} foods report ${nutrient.label.lowercase()}",style=LocalDeltaType.current.bodySmall)
             if(points.none {it.hasValue}) Text("No reported ${nutrient.label.lowercase()} in this period.",style=LocalDeltaType.current.body)
-            else IntakeChart(points) {selected=it}
+            else IntakeChart(points,nutritionScale(state.entries,end,nutrient)) {selected=it}
             val detail=points.getOrNull(selected)
             if(detail!=null) {
                 Text(if(weekly) "${detail.days.first().format(dayFormat)} – ${detail.days.last().format(DateTimeFormatter.ofPattern("d MMM"))} · ${detail.reportedDays} days reported"
@@ -96,11 +96,11 @@ internal fun NutritionChartsPage(state:NutritionState,weights:List<WeightEntry>,
 }
 
 @Composable
-private fun IntakeChart(points:List<IntakePoint>,onSelect:(Int)->Unit) {
+private fun IntakeChart(points:List<IntakePoint>,scale:NutritionScale,onSelect:(Int)->Unit) {
     val c=LocalDeltaColors.current
     val values=points.filter {it.hasValue}.map {p->RecordedValue(p.entries.filter {p.nutrient in it.food.per100}.maxOf {it.day},p.value)}
     RecordedChart(listOf(RecordedSeries("intake",points.first().nutrient.label,Color(c.accent),values,
-        {nutrientText(it,points.first().nutrient)},bars=true)),points.first().start,points.last().days.last(),"Daily intake graph") {day->
+        {nutrientText(it,points.first().nutrient)},bars=true,ceiling=scale.ceiling,typical=scale.typical)),points.first().start,points.last().days.last(),"Daily intake graph") {day->
         onSelect(points.indexOfFirst {day in it.days})
     }
 }

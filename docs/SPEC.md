@@ -115,7 +115,7 @@ past (the first use is a journey that began in September).
 - Custom charts, with PDF and CSV export
 - Water, supplement, exercise and sleep tracking
 - Voice logging
-- Streak widget and food widgets
+- Streak widget (future); four food widgets are available in Beta 3: Energy budget, Macro balance, Food diary/quick add and Fasting clock. Each has independent live-preview configuration and responsive layouts.
 - Writing nutrition to Health Connect
 - Manual export and import of all data
 
@@ -162,3 +162,27 @@ separate table, upserting by source record ID without replacing local meals.
 Existing nutrition databases migrate in place, and saved launcher aliases are
 restored on package replacement.
 See [BETA.md](BETA.md) for installation and reproduction details.
+
+### Beta 3 nutrition presentation and widgets
+
+Nutrition bar charts anchor their scale to a 30-day median of reported daily
+intake, with that typical nonzero value at 75% height. Empty dates and unknown
+labels are excluded; explicit reported zeros remain real data. Visual overflow
+uses neutral upward markers without altering recorded values. Panning does not
+recompute the scale. Weight/body-fat series remain independent.
+
+Home detail links share an adaptive row in Weight, Body fat, Nutrition order.
+Home's nutrition charts have a separate navigation entry that returns to Home;
+Diary's chart route still returns to Diary. Week-strip swipes change the week,
+while the rest of Your rhythm retains metric-page swiping.
+
+Open Food Facts store filters use retailer and UK country tags. The initial
+retailer ordering is based on major GB grocers, then adjusted locally for
+successful searches and diary use; this does not claim current stock availability.
+Food metadata stores retailer tags in backward-compatible diary snapshots.
+
+Food widgets read the local diary and targets, use truthful unknown/partial-label
+states, and never write to Health Connect. They share widget material/corner
+rules and per-instance style storage. Large fasting widgets use Android's native
+chronometer, while bounded background work refreshes their snapshots. Widget
+removal/restoration delegates broadcast ownership to Glance.

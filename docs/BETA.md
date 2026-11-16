@@ -4,6 +4,27 @@ This is a separate app, **Delta Beta** (`io.github.ebziboi.delta.beta`). It inst
 beside **Delta** (`io.github.ebziboi.delta`). The normal release and its download
 are unchanged. This prerelease adds the Stage 2 food diary in Glass and Tubik.
 
+## Beta 3 changes
+
+- Nutrition bars use the median of recorded daily totals from the 30 days ending
+  at the chart's end date. Typical nonzero intake sits at 75% height. Missing days
+  and unknown labels are absent; the scale stays fixed while zooming/panning.
+  Larger values are capped visually with a neutral upward triangle; selecting
+  them still shows the full actual amount.
+- Home's selected measurements expose neatly ordered, animated detail links.
+  Nutrition details opens the same food charts as Diary, and both Back controls
+  return to Home when opened there. Opening charts from Diary still returns there.
+- Swipe the week strip in Your rhythm to change weeks. Swipes elsewhere retain
+  the Rate/Average/Streak page gesture. Week/day arrow controls disable at bounds.
+- Food search has UK store filters. Major grocers are the initial recommendations;
+  successful searches and logged products promote frequently used stores locally.
+  Store filtering uses Open Food Facts' retailer/country tags, not live stock data.
+- Four independent food widgets: Energy budget, Macro balance, Food diary with
+  quick add, and Fasting clock with a native live elapsed timer at suitable sizes.
+  All resize from a single launcher cell to full grids and offer long-press
+  Settings with a live preview, per-widget material, theme, opacity and corners.
+  Existing weight widgets and their settings stay available.
+
 ## Beta 2 changes
 
 - The home charts are combined, with independent Weight, Body fat and Nutrition
@@ -21,7 +42,7 @@ are unchanged. This prerelease adds the Stage 2 food diary in Glass and Tubik.
 - A narrower tab arrangement leaves more room inside the bottom bar's corners.
   The chosen launcher icon is saved before applying it and restored after updates.
 
-Existing beta users can install the new versioned beta APK over Beta 1. Your
+Existing beta users can install the new versioned beta APK over an earlier beta. Your
 local diary, goals, appearance and selected icon are retained. The transfer
 companion below is only needed when initially copying the original app.
 
@@ -69,3 +90,20 @@ The GitHub prerelease includes both APKs; no changes are merged into main.
 AI photo logging uses your own provider API key. Provider request/response
 contracts are tested with fixtures; authenticated AI requests are not made by
 the test suite.
+
+## Validation
+
+The release build and lint pass, together with 42 device tests covering chart
+scaling, navigation, retailer filters, diary workflows and widget configuration.
+Installing the signed release over the beta also preserves all three selected
+chart channels and restores the saved launcher icon after a simulated reset.
+
+Food widget layouts are checked on all 48 supported cell combinations (1–6 wide,
+1–8 tall), in both design systems, light/dark modes and all three materials:
+2,304 rendered combinations, with audited text bounds. Device checks also cover
+native widget binding, live configuration, Save/Cancel and activity recreation.
+The normal release remains untouched; this channel requests no Health Connect
+write permissions.
+
+Retailer seed references: [Worldpanel GB grocery update](https://worldpanelbynumerator.com/insights/grocery-sales-rise-2-0-but-parents-tighten-belts-on-school-uniform-spend).
+Filter contract: [Open Food Facts search API](https://github.com/openfoodfacts/openfoodfacts-server/blob/main/docs/api/ref/api.yaml).

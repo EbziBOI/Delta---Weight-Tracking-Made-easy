@@ -68,6 +68,7 @@ fun ProgressScreen(
     onConnect: () -> Unit,
     onOpenSettings: () -> Unit,
     onMetric: (DetailMetric) -> Unit = {},
+    onNutrition:()->Unit={},
 ) {
     val snapshot by vm.snapshot.collectAsStateWithLifecycle()
     val entries by vm.entries.collectAsStateWithLifecycle()
@@ -97,7 +98,7 @@ fun ProgressScreen(
                 "progress" -> HeroCard(snap,insights,unit,Modifier,settings)
                 "goal_setup" -> ContentSection {Text("Set a target weight",style=LocalDeltaType.current.title);PrimaryButton("Open settings",onOpenSettings)}
                 "rate","goal","average","streak" -> KeyFigure(id,snap,insights,unit,onMetric)
-                "trend" -> HomeTrends(entries,snap.bodyFat,nutrition,settings,onMetric)
+                "trend" -> HomeTrends(entries,snap.bodyFat,nutrition,settings,onMetric,onNutrition)
                 "insights" -> InsightsCard(snap,entries,settings,Modifier,onMetric)
                 "recent" -> RecentCard(insights,snap.losing,unit,Modifier)
             }

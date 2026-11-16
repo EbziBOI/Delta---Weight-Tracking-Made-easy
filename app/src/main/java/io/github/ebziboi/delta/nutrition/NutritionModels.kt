@@ -56,12 +56,14 @@ data class Food(
     val source: FoodSource = FoodSource.CUSTOM, val barcode: String? = null,
     val ingredients: List<Ingredient> = emptyList(), val recipeServings: Double? = null,
     val yieldGrams: Double? = null, val favourite: Boolean = false, val estimatedOrigin: Boolean = false,
+    val stores:List<String> = emptyList(),
 ) {
     init {
         require(name.isNotBlank() && name.length <= 250) { "Enter a food name" }
         require(per100.values.all { it.validAmount() }) { "Nutrients must be valid positive numbers" }
         require(listOfNotNull(serving, pack, recipeServings, yieldGrams).all { it.isFinite() && it > 0 && it <= 100000 }) { "Enter a valid serving size" }
         require(ingredients.size <= 200)
+        require(stores.size<=50 && stores.all {it.length<=100})
         require(brand.length<=250 && servingLabel.length<=100) { "Food details are too long" }
     }
     val estimated: Boolean get() = estimatedOrigin || source == FoodSource.PHOTO || ingredients.any { it.food.estimated }
@@ -140,7 +142,7 @@ internal fun Food.json(depth: Int = 0): JSONObject = JSONObject().apply {
     require(depth < 10) { "Recipes are nested too deeply" }
     put("id",id); put("name",name); put("brand",brand); put("nutrients",per100.toJson()); put("unit",unit.name)
     put("serving",serving); put("servingLabel",servingLabel); put("pack",pack); put("source",source.name)
-    put("barcode",barcode); put("servings",recipeServings); put("yield",yieldGrams); put("favourite",favourite); put("estimated",estimated)
+    put("barcode",barcode); put("servings",recipeServings); put("yield",yieldGrams); put("favourite",favourite); put("estimated",estimated);put("stores",JSONArray(stores))
     put("ingredients",JSONArray().also { a -> ingredients.forEach { a.put(JSONObject().put("food",it.food.copy(ingredients=emptyList(),estimatedOrigin=it.food.estimated).json(depth+1)).put("amount",it.amount)) } })
 }
 internal fun foodFromJson(j: JSONObject, depth: Int = 0): Food {
@@ -150,5 +152,6 @@ internal fun foodFromJson(j: JSONObject, depth: Int = 0): Food {
         FoodUnit.valueOf(j.optString("unit","GRAMS")),j.positive("serving"),j.optString("servingLabel","Serving"),j.positive("pack"),
         FoodSource.valueOf(j.getString("source")),j.optString("barcode").takeIf { it.isNotBlank() && it != "null" },
         (0 until a.length()).map { a.getJSONObject(it).let { i -> Ingredient(foodFromJson(i.getJSONObject("food"),depth+1),i.getDouble("amount")) } },
-        j.positive("servings"),j.positive("yield"),j.optBoolean("favourite"),j.optBoolean("estimated"))
+        j.positive("servings"),j.positive("yield"),j.optBoolean("favourite"),j.optBoolean("estimated"),
+        j.optJSONArray("stores")?.let {a->(0 until a.length()).map {a.getString(it).take(100)}.take(50)} ?: emptyList())
 }

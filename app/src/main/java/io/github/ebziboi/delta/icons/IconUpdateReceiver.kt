@@ -13,7 +13,7 @@ class IconUpdateReceiver:BroadcastReceiver() {
         if(intent.action!=Intent.ACTION_MY_PACKAGE_REPLACED) return
         val pending=goAsync()
         CoroutineScope(SupervisorJob()+Dispatchers.IO).launch {
-            try {LauncherIcons.apply(context,SettingsStore(context).settings.first().appIcon)}
+            try {LauncherIcons.apply(context,SettingsStore(context).settings.first().appIcon);io.github.ebziboi.delta.widget.FoodWidgetWorker.request(context)}
             finally {pending.finish()}
         }
     }

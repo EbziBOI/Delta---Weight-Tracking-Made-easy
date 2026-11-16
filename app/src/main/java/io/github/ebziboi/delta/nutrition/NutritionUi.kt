@@ -85,7 +85,7 @@ internal fun NutrientProgress(n: Nutrient,total: NutrientTotal,target: Double?,l
 
 @Composable
 fun NutritionScreen(padding: PaddingValues,addSignal: Int=0,onDetailChanged: (Boolean)->Unit={},weights: List<WeightEntry> = emptyList(),
-                    initialRoute: String="diary",weightUnit: io.github.ebziboi.delta.data.WeightUnit=io.github.ebziboi.delta.data.WeightUnit.KG,vm: NutritionViewModel=viewModel()) {
+                    initialRoute: String="diary",openRoute:String="diary",openSignal:Long=0,weightUnit: io.github.ebziboi.delta.data.WeightUnit=io.github.ebziboi.delta.data.WeightUnit.KG,vm: NutritionViewModel=viewModel()) {
     val state by vm.state.collectAsStateWithLifecycle()
     var route by rememberSaveable { mutableStateOf(initialRoute) }
     var parent by rememberSaveable { mutableStateOf("diary") }
@@ -102,6 +102,8 @@ fun NutritionScreen(padding: PaddingValues,addSignal: Int=0,onDetailChanged: (Bo
     val openFood: (Food,String)->Unit={f,p -> vm.selectedFood=f;vm.selectedEntry=null;parent=p;route="portion"}
     LaunchedEffect(route) { onDetailChanged(route!="diary") }
     DisposableEffect(Unit) { onDispose { onDetailChanged(false) } }
+    var handledOpenSignal by rememberSaveable {mutableLongStateOf(0)}
+    LaunchedEffect(openSignal) {if(openSignal!=0L && openSignal!=handledOpenSignal) {handledOpenSignal=openSignal;route=openRoute;parent="diary"}}
     var handledAddSignal by rememberSaveable { mutableIntStateOf(0) }
     LaunchedEffect(addSignal) { if(addSignal>handledAddSignal) { handledAddSignal=addSignal;route="search";parent="diary" } }
     BackHandler(route!="diary",onBack=back)
@@ -242,4 +244,11 @@ private fun HealthFoodPage(entry:DiaryEntry,padding:PaddingValues,onBack:()->Uni
             if(entry.nutrients.isEmpty()) Text("The source app did not supply nutrient values.")
         }
     }
+}
+
+@Composable
+fun HomeNutritionCharts(padding:PaddingValues,weights:List<WeightEntry>,unit:io.github.ebziboi.delta.data.WeightUnit,onBack:()->Unit,vm:NutritionViewModel=viewModel()) {
+    val state by vm.state.collectAsStateWithLifecycle()
+    BackHandler(onBack=onBack)
+    NutritionChartsPage(state,weights,padding,onBack,unit)
 }

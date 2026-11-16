@@ -212,6 +212,25 @@
         </activity-alias>
 
         <!-- The widgets in the picker, in the order Delta lists them. -->
+        <activity android:name=".widget.FoodWidgetConfigurationActivity" android:exported="true" android:screenOrientation="portrait">
+            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_CONFIGURE" /></intent-filter>
+        </activity>
+        <receiver android:name=".widget.EnergyFoodReceiver" android:exported="true" android:label="Energy budget">
+            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_food_energy" />
+        </receiver>
+        <receiver android:name=".widget.MacroFoodReceiver" android:exported="true" android:label="Macro balance">
+            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_food_macro" />
+        </receiver>
+        <receiver android:name=".widget.MealsFoodReceiver" android:exported="true" android:label="Food diary">
+            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_food_meals" />
+        </receiver>
+        <receiver android:name=".widget.FastingFoodReceiver" android:exported="true" android:label="Fasting clock">
+            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_food_fasting" />
+        </receiver>
         <receiver android:name=".widget.ProgressWidgetReceiver" android:exported="true" android:label="@string/widget_progress_name">
             <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>
             <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_progress_info" />

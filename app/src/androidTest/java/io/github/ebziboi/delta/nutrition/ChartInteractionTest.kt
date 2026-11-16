@@ -53,6 +53,15 @@ class ChartInteractionTest {
             val chart=compose.onNodeWithContentDescription("Combined trends graph");chart.performScrollTo()
             assertTrue(chart.fetchSemanticsNode().config[SemanticsProperties.StateDescription].contains("Energy: 1 recorded days"))
             compose.onNodeWithText("Weight · ${Units.weight(92.0,WeightUnit.KG)}").assertExists()
+            val links=listOf("Weight details","Body composition","Nutrition details")
+            compose.onNodeWithText("Nutrition details").performScrollTo();compose.waitForIdle()
+            val bounds=links.map {compose.onNodeWithText(it).fetchSemanticsNode().boundsInWindow}
+            assertTrue("Three detail links share one aligned row",bounds.maxOf {it.center.y}-bounds.minOf {it.center.y}<2f)
+            compose.onNodeWithText("Nutrition").performScrollTo().performClick();compose.waitForIdle()
+            compose.onNodeWithText("Nutrition details").assertDoesNotExist()
+            compose.onNodeWithText("Body fat").performScrollTo().performClick();compose.waitForIdle()
+            compose.onNodeWithText("Body composition").assertDoesNotExist();compose.onNodeWithText("Weight details").assertExists()
+            compose.onNodeWithText("Body fat").performClick();compose.onNodeWithText("Nutrition").performClick();compose.waitForIdle()
             compose.runOnIdle {show=false};compose.waitForIdle();compose.runOnIdle {show=true};compose.waitForIdle()
             compose.onAllNodes(isToggleable() and isOn()).assertCountEquals(3)
         } finally {prefs.edit().apply {if(old==null) remove("series") else putString("series",old)}.commit()}

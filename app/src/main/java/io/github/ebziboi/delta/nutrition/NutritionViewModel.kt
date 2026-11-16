@@ -20,6 +20,10 @@ class NutritionViewModel(app: Application): AndroidViewModel(app) {
     var busy by mutableStateOf(false);private set
     var message by mutableStateOf<String?>(null)
     var results by mutableStateOf<List<Food>>(emptyList());private set
+    var selectedStore by mutableStateOf<String?>(null);private set
+    private val stores=StorePreferences(app)
+    internal var storeOrder by mutableStateOf(stores.ranked());private set
+    fun chooseStore(id:String?) {if(busy) return;selectedStore=id;results=emptyList();searched=false;storeOrder=stores.ranked()}
     var searched by mutableStateOf(false);private set
     var selectedFood by mutableStateOf<Food?>(null)
     var selectedEntry by mutableStateOf<DiaryEntry?>(null)
@@ -47,7 +51,7 @@ class NutritionViewModel(app: Application): AndroidViewModel(app) {
         }
     }
     fun cancel() { generation++;job?.cancel();busy=false }
-    fun search(query: String) = run { results=off.search(query);searched=true }
+    fun search(query: String) = run { results=off.search(query,selectedStore);if(results.isNotEmpty()) selectedStore?.let {stores.recordChoice(it)};searched=true;storeOrder=stores.ranked() }
     fun barcode(code: String,onFound: (Food)->Unit) = run {
         val food=off.barcode(code) ?: throw IllegalArgumentException("Product not found. You can create a custom food from its label.")
         onFound(food)

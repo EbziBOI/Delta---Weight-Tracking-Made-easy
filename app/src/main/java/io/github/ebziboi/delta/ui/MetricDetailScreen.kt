@@ -1,7 +1,10 @@
 package io.github.ebziboi.delta.ui
 
-import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.*
 import androidx.compose.foundation.*
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.pager.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -61,7 +64,7 @@ private fun MetricCalendar(metric: DetailMetric, entries: List<WeightEntry>, set
     val week=LocalDate.ofEpochDay(weekEpoch).coerceIn(firstWeek,currentWeek)
     val days=remember(entries,settings,week,today) { MetricDetails.days(entries,settings,week,today) }
     val selected=days.firstOrNull { it.day.toEpochDay()==selectedEpoch && it.day<=today } ?: days.last { it.day<=today }
-    val c=LocalDeltaColors.current; val type=LocalDeltaType.current
+    val c=LocalDeltaColors.current; val type=LocalDeltaType.current;val motion=LocalMotion.current
     fun value(day: MetricDay): String = when(metric) {
         DetailMetric.RATE -> day.rateKg?.let { Units.rate(it,settings.unit) } ?: "—"
         DetailMetric.AVERAGE -> day.averageKg?.let { Units.weightShort(it,settings.unit) } ?: "—"
@@ -86,23 +89,53 @@ private fun MetricCalendar(metric: DetailMetric, entries: List<WeightEntry>, set
                     }
                 }
             }
-            Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(16.dp,Alignment.CenterHorizontally)) {
-                TextAction("Previous week",{onWeek(week.minusWeeks(1).toEpochDay());onDay(week.minusWeeks(1).toEpochDay())},enabled=week>firstWeek)
-                TextAction("Next week",{onWeek(week.plusWeeks(1).toEpochDay());onDay(minOf(week.plusDays(13),today).toEpochDay())},enabled=week<currentWeek)
+            fun changeWeek(step:Int) {
+                val next=week.plusWeeks(step.toLong()).coerceIn(firstWeek,currentWeek)
+                onWeek(next.toEpochDay());onDay(selected.day.plusWeeks(step.toLong()).coerceIn(next,minOf(next.plusDays(6),today)).toEpochDay())
             }
-            Text("${Format.day(week)} – ${Format.day(week.plusDays(6))}",style=type.bodyStrong)
-            Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(3.dp)) {
-                days.forEach { day ->
-                    val active=day.day==selected.day;val available=day.day<=today
-                    Column(Modifier.weight(1f).clip(RoundedCornerShape(Radii.control))
-                        .background(if(active) Color(panel.accent).copy(alpha=.22f) else Color(panel.text).copy(alpha=.05f))
-                        .clickable(enabled=available,role=Role.Button) { onDay(day.day.toEpochDay()) }
-                        .semantics { contentDescription="${Format.day(day.day)}, ${value(day)}";this.selected=active }
-                        .padding(vertical=10.dp),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.spacedBy(6.dp)) {
-                        Text(day.day.dayOfWeek.name.take(1),style=type.label,color=Color(panel.textDim).copy(alpha=if(available) 1f else .35f))
-                        Text(day.day.dayOfMonth.toString(),style=type.bodyStrong,color=Color(panel.text).copy(alpha=if(available) 1f else .35f))
-                        Box(Modifier.size(5.dp).background(if(day.readings>0) Color(panel.accent) else Color(panel.textDim).copy(alpha=.2f),androidx.compose.foundation.shape.CircleShape))
+            fun changeDay(step:Int) {
+                val next=selected.day.plusDays(step.toLong()).coerceIn(firstWeek,today)
+                onDay(next.toEpochDay());onWeek(MetricDetails.weekStart(next,settings.weekStartsOn).toEpochDay())
+            }
+            Column(Modifier.fillMaxWidth().semantics {contentDescription="Swipe week"}.pointerInput(week,firstWeek,currentWeek) {
+                var distance=0f
+                detectHorizontalDragGestures(onDragStart={distance=0f},onDragEnd={
+                    if(kotlin.math.abs(distance)>40.dp.toPx()) {
+                        if(distance>0 && week>firstWeek) changeWeek(-1)
+                        else if(distance<0 && week<currentWeek) changeWeek(1)
                     }
+                }) {change,amount->change.consume();distance+=amount}
+            },verticalArrangement=Arrangement.spacedBy(12.dp)) {
+                Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically) {
+                    DirectionButton("Previous week",false,week>firstWeek) {changeWeek(-1)}
+                    Text("${Format.day(week)} – ${Format.day(week.plusDays(6))}",Modifier.weight(1f),style=type.bodySmall,textAlign=androidx.compose.ui.text.style.TextAlign.Center)
+                    DirectionButton("Next week",true,week<currentWeek) {changeWeek(1)}
+                }
+                Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically) {
+                    DirectionButton("Previous day",false,selected.day>firstWeek) {changeDay(-1)}
+                    androidx.compose.animation.AnimatedContent(week,modifier=Modifier.weight(1f),transitionSpec={
+                        if(motion) (slideInHorizontally {if(targetState>initialState) it else -it}+fadeIn()) togetherWith
+                            (slideOutHorizontally {if(targetState>initialState) -it else it}+fadeOut())
+                        else EnterTransition.None togetherWith ExitTransition.None
+                    },label="week-dates") {shownWeek->
+                        val shown=MetricDetails.days(entries,settings,shownWeek,today)
+                        Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(3.dp)) {
+                            shown.forEach {day->
+                                val active=day.day==selected.day;val available=day.day<=today
+                                Column(Modifier.weight(1f).clip(RoundedCornerShape(Radii.control))
+                                    .background(if(active) Color(panel.accent).copy(alpha=.22f) else Color(panel.text).copy(alpha=.05f))
+                                    .clickable(enabled=available,role=Role.Button) {onDay(day.day.toEpochDay())}
+                                    .semantics {contentDescription="${Format.day(day.day)}, ${value(day)}";this.selected=active}
+                                    .padding(vertical=10.dp),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.spacedBy(6.dp)) {
+                                    Text(day.day.dayOfWeek.name.take(1),style=type.label,color=Color(panel.textDim).copy(alpha=if(available) 1f else .35f))
+                                    Text(day.day.dayOfMonth.toString(),style=type.bodySmall,color=Color(panel.text).copy(alpha=if(available) 1f else .35f))
+                                    if(day.readings>0) Box(Modifier.size(4.dp).background(Color(panel.accent),androidx.compose.foundation.shape.CircleShape))
+                                    else Spacer(Modifier.height(4.dp))
+                                }
+                            }
+                        }
+                    }
+                    DirectionButton("Next day",true,selected.day<today) {changeDay(1)}
                 }
             }
         }
@@ -165,5 +198,20 @@ private fun ForecastDetail(snap: ProgressSnapshot, entries: List<WeightEntry>, s
         val times=entries.filter { Instant.ofEpochMilli(it.epochMs).atZone(zone).toLocalDate()>=today.minusDays(27) }.map { Instant.ofEpochMilli(it.epochMs).atZone(zone).hour }
         if(times.isNotEmpty() && times.max()-times.min()>=6) Text("Your recent measurements span different times of day. That can add variation unrelated to the underlying trend.",style=type.body)
         Text("Estimate based on your recorded trend.",style=type.bodySmall,color=Color(c.textDim))
+    }
+}
+
+@Composable
+private fun DirectionButton(label:String,right:Boolean,enabled:Boolean,onClick:()->Unit) {
+    val tint=Color(LocalDeltaColors.current.text).copy(alpha=if(enabled) 1f else .3f)
+    androidx.compose.material3.IconButton(onClick,enabled=enabled,modifier=Modifier.size(32.dp).semantics {contentDescription=label}) {
+        Canvas(Modifier.size(11.dp)) {
+            val path=androidx.compose.ui.graphics.Path().apply {
+                if(right) {moveTo(0f,0f);lineTo(size.width,size.height/2);lineTo(0f,size.height)}
+                else {moveTo(size.width,0f);lineTo(0f,size.height/2);lineTo(size.width,size.height)}
+                close()
+            }
+            drawPath(path,tint)
+        }
     }
 }

@@ -25,7 +25,7 @@ import kotlin.math.roundToLong
 
 internal data class RecordedValue(val day:LocalDate,val value:Double)
 internal data class RecordedSeries(val id:String,val label:String,val color:Color,val values:List<RecordedValue>,
-                                   val format:(Double)->String,val bars:Boolean=false)
+                                   val format:(Double)->String,val bars:Boolean=false,val ceiling:Double?=null,val typical:Double?=null)
 internal fun latestRecordedDay(series:List<RecordedSeries>,first:Long,last:Long):LocalDate? = series.flatMap {it.values}
     .filter {it.day.toEpochDay() in first..last}.maxOfOrNull {it.day}
 
@@ -55,14 +55,17 @@ internal fun RecordedChart(series:List<RecordedSeries>,start:LocalDate,end:Local
         FlowRow(horizontalArrangement=Arrangement.spacedBy(16.dp),verticalArrangement=Arrangement.spacedBy(6.dp)) {
             styledSeries.forEach {s->
                 val range=s.values.filter {it.day>=start && it.day<=end}.map {it.value}
-                Text(s.label+if(range.isEmpty()) " · No data" else " · ${s.format(if(s.bars) 0.0 else range.min())} – ${s.format(range.max())}",
+                Text(s.label+if(range.isEmpty()) " · No data" else " · ${s.format(if(s.bars) 0.0 else range.min())} – ${s.format(s.ceiling ?: range.max())}",
                     style=LocalDeltaType.current.bodySmall,color=s.color)
             }
+        }
+        styledSeries.filter {it.bars && it.typical!=null}.forEach {s->
+            Text("30-day median · ${s.format(s.typical!!)}"+(if(s.typical>0) " at 75% height" else ""),style=LocalDeltaType.current.bodySmall,color=Color(colors.textDim))
         }
         Canvas(Modifier.fillMaxWidth().height(220.dp).semantics {
             contentDescription=description
             stateDescription="${LocalDate.ofEpochDay(shownFirst)} to ${LocalDate.ofEpochDay(shownLast)}; "+
-                styledSeries.joinToString {s->"${s.label}: ${s.values.count {it.day.toEpochDay() in shownFirst..shownLast}} recorded days"}+
+                styledSeries.joinToString {s->"${s.label}: ${s.values.count {it.day.toEpochDay() in shownFirst..shownLast}} recorded days"+(s.ceiling?.let {"; scale ceiling $it; ${s.values.count {p->p.value>it && p.day.toEpochDay() in shownFirst..shownLast}} above scale"} ?: "")}+
                 (selected?.let {"; Selected $it"} ?: "")
         }.pointerInput(start,end,styledSeries.map {it.id}) {
             detectTapGestures {tap->
@@ -113,8 +116,8 @@ internal fun RecordedChart(series:List<RecordedSeries>,start:LocalDate,end:Local
             styledSeries.forEach {s->
                 val all=s.values.filter {it.day>=start && it.day<=end};val values=all.filter {it.day.toEpochDay().toDouble() in first..last}
                 val low=if(s.bars) 0.0 else (all.minOfOrNull {it.value} ?: 0.0)-.5
-                val high=(all.maxOfOrNull {it.value} ?: 1.0)+if(s.bars) 0.0 else .5
-                fun y(v:Double)=8.dp.toPx()+(1-(v-low)/(high-low).coerceAtLeast(1.0))*(h-8.dp.toPx())
+                val high=if(s.bars) s.ceiling ?: (all.maxOfOrNull {it.value} ?: 1.0).coerceAtLeast(1e-12) else (all.maxOfOrNull {it.value} ?: 1.0)+.5
+                fun y(v:Double)=8.dp.toPx()+(1-(v.coerceIn(low,high)-low)/(high-low).coerceAtLeast(1e-12))*(h-8.dp.toPx())
                 var previous:RecordedValue?=null
                 values.forEach {p->
                     val px=x(p.day);val py=y(p.value).toFloat()
@@ -122,7 +125,13 @@ internal fun RecordedChart(series:List<RecordedSeries>,start:LocalDate,end:Local
                         val width=(w/(last-first+1)*.55f).toFloat().coerceIn(2.dp.toPx(),26.dp.toPx())
                         if(p.value>0) drawRoundRect(s.color.copy(alpha=.65f),Offset(px-width/2,py),Size(width,(h-py).coerceAtLeast(1f)),androidx.compose.ui.geometry.CornerRadius(3.dp.toPx()))
                     } else previous?.let {prev->drawLine(s.color.copy(alpha=.75f),Offset(x(prev.day),y(prev.value).toFloat()),Offset(px,py),2.dp.toPx(),StrokeCap.Round)}
-                    drawCircle(s.color,2.8.dp.toPx(),Offset(px,py));previous=p
+                    if(s.bars && p.value>high) {
+                        val triangle=androidx.compose.ui.graphics.Path().apply {
+                            moveTo(px,1.dp.toPx());lineTo(px-4.dp.toPx(),7.dp.toPx());lineTo(px+4.dp.toPx(),7.dp.toPx());close()
+                        }
+                        drawPath(triangle,Color(colors.text))
+                    } else drawCircle(s.color,2.8.dp.toPx(),Offset(px,py))
+                    previous=p
                 }
                 selected?.let {day->values.firstOrNull {it.day==day}?.let {p->
                     val px=inset+markerX.coerceIn(0f,1f)*w;val py=y(p.value).toFloat()
@@ -133,6 +142,8 @@ internal fun RecordedChart(series:List<RecordedSeries>,start:LocalDate,end:Local
             }
 
         }
+        if(styledSeries.any {s->s.ceiling?.let {cap->s.values.any {it.value>cap && it.day.toEpochDay().toDouble() in first..last}}==true})
+            Text("△ Above chart scale · select for full value",style=LocalDeltaType.current.bodySmall,color=Color(colors.textDim))
         Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween) {
             Text(LocalDate.ofEpochDay(shownFirst).format(java.time.format.DateTimeFormatter.ofPattern("d MMM")),style=LocalDeltaType.current.bodySmall)
             Text((if(LocalDate.ofEpochDay(shownLast)==LocalDate.now()) "Today · " else "")+LocalDate.ofEpochDay(shownLast).format(java.time.format.DateTimeFormatter.ofPattern("d MMM")),style=LocalDeltaType.current.bodySmall)

@@ -111,6 +111,7 @@ object WidgetUpdater {
 
     /** Redraws every Delta widget on the home screen. Safe to call when there are none. */
     suspend fun updateAll(context: Context) = withContext(Dispatchers.Default) {
+        FoodWidgetUpdater.updateAll(context)
         for (widget in WidgetCatalog.all()) {
             try {
                 widget.updateAll(context)
