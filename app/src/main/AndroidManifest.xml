@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" xmlns:tools="http://schemas.android.com/tools">
 
     <!-- Health Connect: weight and body fat in and out, the full history back to the start
          date, and reads while the app is closed so widgets stay current. -->
@@ -10,7 +10,13 @@
     <uses-permission android:name="android.permission.health.READ_HEALTH_DATA_HISTORY" />
     <uses-permission android:name="android.permission.health.READ_HEALTH_DATA_IN_BACKGROUND" />
 
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+
     <queries>
+        <package android:name="io.github.ebziboi.delta" />
+        <package android:name="io.github.ebziboi.delta.beta" />
         <package android:name="com.google.android.apps.healthdata" />
     </queries>
 
@@ -18,12 +24,17 @@
         android:name=".DeltaApp"
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
-        android:label="@string/app_name"
+        android:label="${appLabel}"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.Delta">
         <property android:name="android.window.PROPERTY_COMPAT_ALLOW_RESTRICTED_RESIZABILITY" android:value="true" />
 
+        <activity android:name=".transfer.TransferOutActivity" android:screenOrientation="portrait" android:exported="true" />
+        <provider android:name="androidx.core.content.FileProvider" android:authorities="${applicationId}.files" android:exported="false" android:grantUriPermissions="true">
+            <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/photo_paths" />
+        </provider>
+        <activity android:name=".nutrition.BarcodeActivity" android:exported="false" android:screenOrientation="portrait" />
         <activity
             android:name=".MainActivity"
             android:screenOrientation="portrait"
@@ -37,7 +48,7 @@
             android:exported="true"
             android:icon="@mipmap/ic_launcher"
             android:roundIcon="@mipmap/ic_launcher"
-            android:label="@string/app_name">
+            android:label="${appLabel}">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
@@ -50,7 +61,7 @@
             android:exported="true"
             android:icon="@mipmap/launcher_01"
             android:roundIcon="@mipmap/launcher_01"
-            android:label="@string/app_name">
+            android:label="${appLabel}">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
@@ -63,7 +74,7 @@
             android:exported="true"
             android:icon="@mipmap/launcher_02"
             android:roundIcon="@mipmap/launcher_02"
-            android:label="@string/app_name">
+            android:label="${appLabel}">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
@@ -76,7 +87,7 @@
             android:exported="true"
             android:icon="@mipmap/launcher_03"
             android:roundIcon="@mipmap/launcher_03"
-            android:label="@string/app_name">
+            android:label="${appLabel}">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
@@ -89,7 +100,7 @@
             android:exported="true"
             android:icon="@mipmap/launcher_04"
             android:roundIcon="@mipmap/launcher_04"
-            android:label="@string/app_name">
+            android:label="${appLabel}">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
@@ -102,7 +113,7 @@
             android:exported="true"
             android:icon="@mipmap/launcher_05"
             android:roundIcon="@mipmap/launcher_05"
-            android:label="@string/app_name">
+            android:label="${appLabel}">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
@@ -115,7 +126,7 @@
             android:exported="true"
             android:icon="@mipmap/launcher_06"
             android:roundIcon="@mipmap/launcher_06"
-            android:label="@string/app_name">
+            android:label="${appLabel}">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
@@ -128,7 +139,7 @@
             android:exported="true"
             android:icon="@mipmap/launcher_07"
             android:roundIcon="@mipmap/launcher_07"
-            android:label="@string/app_name">
+            android:label="${appLabel}">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
@@ -141,7 +152,7 @@
             android:exported="true"
             android:icon="@mipmap/launcher_08"
             android:roundIcon="@mipmap/launcher_08"
-            android:label="@string/app_name">
+            android:label="${appLabel}">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
@@ -154,7 +165,7 @@
             android:exported="true"
             android:icon="@mipmap/launcher_09"
             android:roundIcon="@mipmap/launcher_09"
-            android:label="@string/app_name">
+            android:label="${appLabel}">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />

@@ -77,7 +77,7 @@ private fun Welcome(onNext: () -> Unit) {
         DeltaTrack(fraction = null, modifier = Modifier.size(190.dp))
         Text(text = "Delta", style = LocalDeltaType.current.display)
         Text(
-            text = "Your weight, from where you started to where you're going.",
+            text = "Your food, your weight, your progress.",
             color = Color(colors.textDim),
             fontSize = 16.sp,
             textAlign = TextAlign.Center,
@@ -187,9 +187,9 @@ private fun Goal(vm: AppViewModel, settings: AppSettings, onBack: () -> Unit) {
         ProgressCalculator.compute(entries, settings.copy(startEpochDay = startDay.toEpochDay()))
     }
 
-    Text(text = "Set your goal", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+    Text(text = "Weight goals", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
     Text(
-        text = "Delta measures progress from your first weigh-in on or after your start date.",
+        text = "Add a weight goal now, or set one later in Settings.",
         color = Color(colors.textDim),
     )
 
@@ -243,7 +243,7 @@ private fun Goal(vm: AppViewModel, settings: AppSettings, onBack: () -> Unit) {
                 )
             }
         },
-        enabled = targetKg != null,
+        enabled = true,
         modifier = Modifier.fillMaxWidth(),
     )
     TextButton(onClick = onBack, modifier = Modifier.fillMaxWidth()) { Text("Back") }

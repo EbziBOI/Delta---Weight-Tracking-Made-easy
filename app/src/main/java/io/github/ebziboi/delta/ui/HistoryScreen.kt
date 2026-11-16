@@ -72,9 +72,9 @@ fun HistoryScreen(vm: AppViewModel, settings: AppSettings, padding: PaddingValue
                 SegmentedControl(listOf("Weight", "Body fat"), metric, { it }, Modifier.fillMaxWidth()) { metric = it }
                 if (metric == "Weight") Text(
                     text = when (newestFirst.size) {
-                        0 -> "Weigh-ins from Health Connect will appear here."
-                        1 -> "1 weigh-in from Health Connect"
-                        else -> "${newestFirst.size} weigh-ins from Health Connect"
+                        0 -> if(io.github.ebziboi.delta.BuildConfig.IS_BETA) "Your beta weigh-ins will appear here." else "Weigh-ins from Health Connect will appear here."
+                        1 -> if(io.github.ebziboi.delta.BuildConfig.IS_BETA) "1 beta weigh-in" else "1 weigh-in from Health Connect"
+                        else -> if(io.github.ebziboi.delta.BuildConfig.IS_BETA) "${newestFirst.size} beta weigh-ins" else "${newestFirst.size} weigh-ins from Health Connect"
                     },
                     color = Color(colors.textDim),
                     fontSize = 14.sp,
@@ -111,7 +111,7 @@ fun HistoryScreen(vm: AppViewModel, settings: AppSettings, padding: PaddingValue
         GlassDialog({ deletingFat = null }, "Delete body fat reading?", "Delete", {
             deletingFat = null; vm.deleteBodyFat(entry)
         }, destructive = true) {
-            Text("${io.github.ebziboi.delta.data.BodyFat.format(entry.percent)} on ${Format.moment(entry.epochMs)} will be removed from Health Connect.")
+            Text("${io.github.ebziboi.delta.data.BodyFat.format(entry.percent)} on ${Format.moment(entry.epochMs)} will be removed ${if(io.github.ebziboi.delta.BuildConfig.IS_BETA) "from this beta only" else "from Health Connect"}.")
         }
     }
     val target = deleting
@@ -120,7 +120,7 @@ fun HistoryScreen(vm: AppViewModel, settings: AppSettings, padding: PaddingValue
             onDismissRequest = { deleting = null },
             title = { Text("Delete this weigh-in?") },
             text = {
-                Text("${Units.weight(target.kg, settings.unit)} on ${Format.moment(target.epochMs)} will be removed from Health Connect.")
+                Text("${Units.weight(target.kg, settings.unit)} on ${Format.moment(target.epochMs)} will be removed ${if(io.github.ebziboi.delta.BuildConfig.IS_BETA) "from this beta only" else "from Health Connect"}.")
             },
             confirmButton = {
                 TextButton(

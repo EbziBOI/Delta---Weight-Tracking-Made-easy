@@ -10,6 +10,7 @@ class DeltaApp : Application() {
 
     /** One repository for the screens, the widgets and the background refresh. */
     val repo: WeightRepository by lazy { WeightRepository(this) }
+    val nutrition by lazy { io.github.ebziboi.delta.nutrition.NutritionRepository(this) }
 
     override fun onCreate() {
         super.onCreate()

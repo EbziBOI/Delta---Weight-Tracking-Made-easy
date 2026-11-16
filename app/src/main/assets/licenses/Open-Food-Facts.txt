@@ -1,0 +1,11 @@
+Food label data: Open Food Facts contributors
+https://world.openfoodfacts.org/
+
+The Open Food Facts database is available under the Open Database Licence (ODbL):
+https://opendatacommons.org/licenses/odbl/1-0/
+Individual database contents are available under the Database Contents Licence:
+https://opendatacommons.org/licenses/dbcl/1-0/
+
+Delta identifies Open Food Facts foods in the library and diary food details,
+and links each product back to its source. Community labels may be incomplete;
+unknown nutrients are not inferred as zero.

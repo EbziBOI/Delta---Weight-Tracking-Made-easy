@@ -12,6 +12,7 @@ import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -117,6 +118,51 @@ class SettingsStore(context: Context) {
 
     suspend fun saveWeights(entries: List<WeightEntry>) {
         appContext.weightStore.edit { prefs -> prefs[Keys.WEIGHTS] = encodeWeights(entries) }
+    }
+
+    /** Portable presentation settings only; credentials and widget instance IDs are excluded. */
+    suspend fun exportForBeta(): org.json.JSONArray {
+        val safe = androidx.datastore.preferences.core.mutablePreferencesOf()
+        encode(settings.first(), safe)
+        return org.json.JSONArray().also { a -> safe.asMap().forEach { (key,value) ->
+            a.put(org.json.JSONObject().put("key",key.name).put("type",when(value) {
+                is Boolean -> "boolean"; is Double -> "double"; is Float -> "float"; is Long -> "long"; else -> "string"
+            }).put("value",value))
+        } }
+    }
+
+    suspend fun importForBeta(array: org.json.JSONArray) {
+        require(appContext.packageName=="io.github.ebziboi.delta.beta") { "Only the beta can import a snapshot" }
+        require(array.length()<=100)
+        val allowed=setOf(Keys.ONBOARDED,Keys.TARGET_BODY_FAT,Keys.TARGET_KG,Keys.START_DAY,Keys.TARGET_DAY,Keys.UNIT,Keys.THEME,Keys.ACCENT,Keys.TYPE_STYLE,Keys.MOTION,Keys.WEEK_START,Keys.HOME_CARDS,Keys.WEIGHT_CARDS,Keys.BODY_FAT_CARDS,Keys.BODY_FAT_CHART,Keys.APP_CHART,Keys.WIDGET_CHART,Keys.PROJECTION,Keys.WIDGET_GLASS,Keys.WIDGET_THEME,Keys.WIDGET_OPACITY_DARK,Keys.WIDGET_OPACITY_LIGHT,Keys.LAST_SYNC,Keys.PROGRESS_DISPLAY,Keys.PROGRESS_BAR_STYLE,Keys.PERCENTAGE_DESIGN,Keys.APP_ICON,Keys.APPEARANCE,Keys.GLASS_APPEARANCE,Keys.TUBIK_APPEARANCE,Keys.GLASS_LEGACY).map {it.name}.toSet()
+        val safe=androidx.datastore.preferences.core.mutablePreferencesOf()
+        for(index in 0 until array.length()) {
+            val j=array.getJSONObject(index);val name=j.getString("key")
+            require(name in allowed) { "Unknown setting in transfer" }
+            when(j.getString("type")) {
+                "boolean" -> safe[booleanPreferencesKey(name)]=j.getBoolean("value")
+                "double" -> safe[doublePreferencesKey(name)]=j.getDouble("value").also { require(it.isFinite()) }
+                "float" -> safe[floatPreferencesKey(name)]=j.getDouble("value").toFloat().also { require(it.isFinite()) }
+                "long" -> safe[longPreferencesKey(name)]=j.getLong("value")
+                "string" -> safe[stringPreferencesKey(name)]=j.getString("value").also {require(it.length<=20000)}
+                else -> error("Unknown setting type")
+            }
+        }
+        val decoded=decode(safe)
+        // URI grants belong to the stable app. A photo background is copied separately below.
+        fun appearance(a: AppAppearance?)=a?.copy(backgroundImageUri=null,
+            backgroundStyle=if(a.backgroundStyle==BackgroundStyle.IMAGE) BackgroundStyle.SOLID else a.backgroundStyle)
+        update {current -> decoded.copy(onboardingDone=current.onboardingDone,lastSyncMs=0,appearance=appearance(decoded.appearance),
+            savedGlassAppearance=appearance(decoded.savedGlassAppearance),savedTubikAppearance=appearance(decoded.savedTubikAppearance))}
+    }
+
+    suspend fun saveBetaMeasurements(entries: List<WeightEntry>, fat: List<BodyFatEntry>) {
+        require(appContext.packageName=="io.github.ebziboi.delta.beta")
+        appContext.weightStore.edit { prefs ->
+            prefs[Keys.WEIGHTS]=encodeWeights(entries)
+            prefs[Keys.BODY_FAT]=org.json.JSONArray().also {a->fat.forEach {r->a.put(org.json.JSONObject()
+                .put("time",r.epochMs).put("percent",r.percent).put("own",r.own).put("id",r.id))}}.toString()
+        }
     }
 
     private fun decode(prefs: Preferences): AppSettings {

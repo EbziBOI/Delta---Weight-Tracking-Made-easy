@@ -21,7 +21,7 @@ object LauncherIcons {
     fun apply(context: Context, id: String) {
         val chosen = all.firstOrNull { it.id == id } ?: all.first()
         val pm = context.packageManager
-        fun name(icon: LauncherIcon) = ComponentName(context, "${context.packageName}.Launcher${icon.id}")
+        fun name(icon: LauncherIcon) = ComponentName(context, "io.github.ebziboi.delta.Launcher${icon.id}")
         fun state(icon: LauncherIcon) = if (icon == chosen) PackageManager.COMPONENT_ENABLED_STATE_ENABLED else PackageManager.COMPONENT_ENABLED_STATE_DISABLED
         val pending = all.filter { pm.getComponentEnabledSetting(name(it)) != state(it) }
         if (pending.isEmpty()) return

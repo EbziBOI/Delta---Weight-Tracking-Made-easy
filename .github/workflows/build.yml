@@ -60,7 +60,7 @@ jobs:
           echo "DELTA_KEYSTORE_PASSWORD=$KEYSTORE_PASSWORD" >> "$GITHUB_ENV"
 
       - name: Build
-        run: ./gradlew :app:assembleRelease --stacktrace
+        run: ./gradlew :app:assembleRelease -Pdelta.channel=stable --stacktrace
 
       - name: Collect APK
         run: |

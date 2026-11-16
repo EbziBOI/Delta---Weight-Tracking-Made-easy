@@ -1,0 +1,19 @@
+ZXing core 3.5.3 — barcode decoding
+Copyright ZXing authors
+https://github.com/zxing/zxing
+Licensed under the Apache License, Version 2.0.
+See Apache-2.0-ZXing.txt for the full licence.
+
+Upstream distribution notices:
+--------------------------------------------------------------------------------
+NOTICES FOR BARCODE4J
+--------------------------------------------------------------------------------
+Barcode4J
+Copyright 2002-2010 Jeremias Märki
+Copyright 2005-2006 Dietmar Bürkle
+Portions of this software were contributed under section 5 of the Apache License.
+Contributors: http://barcode4j.sourceforge.net/contributors.html
+--------------------------------------------------------------------------------
+NOTICES FOR JCOMMANDER
+--------------------------------------------------------------------------------
+Copyright 2010 Cedric Beust cedric@beust.com

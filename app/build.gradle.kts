@@ -7,8 +7,10 @@ plugins {
 }
 
 // CI passes a build number so every APK can install over the previous one.
-val releaseVersionCode = 32
-val buildNumber = maxOf(releaseVersionCode, (System.getenv("GITHUB_RUN_NUMBER") ?: releaseVersionCode.toString()).toInt())
+val releaseVersionCode = 34
+val isBeta = providers.gradleProperty("delta.channel").orElse("beta").get() == "beta"
+val ciRun = System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull() ?: 0
+val buildNumber = if(isBeta) releaseVersionCode + ciRun else maxOf(releaseVersionCode,ciRun)
 
 // CI points these at a keystore. Without them (for example in Android Studio)
 // the release build falls back to the local debug key.
@@ -19,14 +21,18 @@ android {
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "io.github.ebziboi.delta"
+        applicationId = if (isBeta) "io.github.ebziboi.delta.beta" else "io.github.ebziboi.delta"
         minSdk = 28
         targetSdk = 36
         versionCode = buildNumber
-        versionName = "0.1.$buildNumber"
+        versionName = "0.2.$buildNumber" + if (isBeta) "-beta.1" else ""
+        buildConfigField("boolean", "IS_BETA", isBeta.toString())
+        manifestPlaceholders["appLabel"] = if(isBeta) "Delta Beta" else "Delta"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
+
+    if(isBeta) listOf("debug", "release").forEach { sourceSets.getByName(it).manifest.srcFile("src/beta/AndroidManifest.xml") }
 
     signingConfigs {
         if (keystorePath != null) {
@@ -57,6 +63,7 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 
     lint {
@@ -78,6 +85,7 @@ kotlin {
 dependencies {
     val composeBom = platform("androidx.compose:compose-bom:2025.12.00")
     implementation(composeBom)
+    androidTestImplementation(composeBom)
 
     implementation("androidx.core:core-ktx:1.17.0")
     implementation("androidx.activity:activity-compose:1.12.0")
@@ -90,6 +98,12 @@ dependencies {
     // Pinned by hand: the icon set stopped at 1.7.8 and does not follow the Compose BOM.
     implementation("androidx.compose.material:material-icons-core:1.7.8")
 
+    implementation("com.google.guava:guava:33.4.8-android")
+    implementation("androidx.camera:camera-camera2:1.5.3")
+    implementation("androidx.camera:camera-lifecycle:1.5.3")
+    implementation("androidx.camera:camera-view:1.5.3")
+    implementation("com.google.zxing:core:3.5.3")
+
     implementation("androidx.datastore:datastore-preferences:1.2.0")
     implementation("androidx.work:work-runtime-ktx:2.11.0")
     implementation("androidx.health.connect:connect-client:1.1.0")
@@ -101,8 +115,11 @@ dependencies {
     implementation("dev.chrisbanes.haze:haze:1.7.2")
 
     // On-device smoke test: launches the app on an emulator and photographs it.
-    androidTestImplementation("androidx.test.ext:junit:1.2.1")
-    androidTestImplementation("androidx.test:runner:1.6.2")
+    androidTestImplementation("androidx.test.espresso:espresso-core:3.7.0")
+    androidTestImplementation("androidx.compose.ui:ui-test-junit4")
+    debugImplementation("androidx.compose.ui:ui-test-manifest")
+    androidTestImplementation("androidx.test.ext:junit:1.3.0")
+    androidTestImplementation("androidx.test:runner:1.7.0")
     androidTestImplementation("androidx.test.uiautomator:uiautomator:2.3.0")
 }
 
@@ -110,6 +127,6 @@ dependencies {
 tasks.matching { it.name == "assembleRelease" }.configureEach {
     doLast {
         val apkDirectory = layout.buildDirectory.dir("outputs/apk/release").get().asFile
-        apkDirectory.resolve("app-release.apk").copyTo(apkDirectory.resolve("Delta-0.1.$buildNumber.apk"), overwrite = true)
+        apkDirectory.resolve("app-release.apk").copyTo(apkDirectory.resolve(if(isBeta) "Delta-Beta-0.2.$buildNumber-beta.1.apk" else "Delta-0.2.$buildNumber.apk"), overwrite = true)
     }
 }

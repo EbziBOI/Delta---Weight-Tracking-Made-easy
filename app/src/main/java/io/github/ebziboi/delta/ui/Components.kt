@@ -773,7 +773,8 @@ fun <T> SegmentedControl(
                     .heightIn(min=44.dp).padding(horizontal = 6.dp, vertical = 8.dp),
                 contentAlignment = Alignment.Center,
             ) {
-                Text(text = label(option), style = type.bodySmall.copy(fontWeight = type.bodyStrong.fontWeight), color = ink, maxLines = 1)
+                androidx.compose.foundation.text.BasicText(text = label(option), style = type.bodySmall.copy(fontWeight = type.bodyStrong.fontWeight,color=ink), maxLines = 1,
+                    autoSize=androidx.compose.foundation.text.TextAutoSize.StepBased(minFontSize=10.sp,maxFontSize=type.bodySmall.fontSize,stepSize=0.5.sp))
             }
         }
     }

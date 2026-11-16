@@ -51,7 +51,7 @@ class PermissionsRationaleActivity : ComponentActivity() {
                             "Access to past data lets it include weigh-ins from before you installed " +
                                 "it. Background access lets widgets stay up to date while the app is closed."
                         )
-                        Text("Delta writes weight and body fat only when you log measurements or import a scale export. Each measurement stays independent; missing body fat is never estimated.")
+                        Text(if(io.github.ebziboi.delta.BuildConfig.IS_BETA) "Delta Beta only reads Health Connect. Test additions and deletions stay in the beta app." else "Delta writes weight and body fat only when you log measurements or import a scale export. Each measurement stays independent; missing body fat is never estimated.")
                         Text(
                             "Your measurements stay on your phone. Delta has no account, no server and " +
                                 "no analytics."

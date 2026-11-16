@@ -20,7 +20,7 @@ past (the first use is a journey that began in September).
 | Build | GitHub Actions builds the APK; each build is published as a release |
 | Weight history | Read from Health Connect, including data from before install (needs the history permission) |
 | Start point | First weigh-in on or after the start date. Start date defaults to 1 September and can be changed; the starting weight can be overridden |
-| Goal | Target weight required; target date optional |
+| Goal | Weight target optional during onboarding; target date optional |
 | Units | kg, lb, or stone and pounds, switchable in settings |
 | Health Connect | Read and write |
 | Storage | Single user, on the phone. Android's built-in backup plus a manual export; no account, no server |
@@ -48,7 +48,7 @@ past (the first use is a journey that began in September).
 - Themes: Ember, Aurora, Midnight, Graphite, Neon, Light, Auto, Material You. Six accent colours
 - Log and delete weigh-ins (written to Health Connect)
 
-### 2. Food diary
+### 2. Food diary (separate Stage 2 beta)
 
 - Food search and barcode scanning against Open Food Facts
 - Custom foods and recipes
@@ -57,6 +57,49 @@ past (the first use is a journey that began in September).
 - Charts
 - Fasting timer
 - Photo logging with an AI vision API and the user's own key
+
+#### Stage 2 data and interaction rules
+
+- Three main destinations: Progress, Diary and History. Settings stays at the top
+  right. The adjacent plus logs food in Diary and weight in the weight screens.
+  Detail screens have their own Back action. Both design systems share the existing
+  animated selectors, typography, surfaces and reduced-motion preferences.
+- Diary dates are local calendar dates. A log stores a complete food/recipe snapshot,
+  amount, unit, meal and creation time. Editing a library food leaves past entries
+  unchanged. Repeating an old portion never replaces a newer library food. Copies
+  create new IDs in a single transaction and require different source/destination dates.
+- Food values are per 100 g or per 100 ml, with optional measured serving/pack
+  amounts. Volume is not assumed to equal mass. OFF's canonical mineral amounts
+  are converted from g into Delta's displayed mg/µg; energy uses kcal or kJ / 4.184.
+  Explicit 100-unit values are used; serving-only fields are not mixed into them.
+- Missing label nutrients remain unknown. Day totals report coverage by food.
+  Recipes calculate a nutrient only when every ingredient reports it. A recipe's
+  finished weight and serving count determine per-100-g and per-serving values;
+  each ingredient scales using its own mass/volume unit. Nested ingredient snapshots
+  keep their computed nutrition and estimate provenance without recursively copying
+  entire recipe trees into every diary entry.
+- Macro targets support grams or energy percentages (sum 100%, with a positive
+  kcal target), using 4/4/9 kcal per gram for protein/carbohydrate/fat. Optional
+  micronutrient targets distinguish daily goals from daily limits.
+- Charts keep unlogged dates as gaps and average across logged days, with coverage
+  shown for incomplete nutrient labels. Incomplete periods are excluded from
+  target/limit success counts. Weekly bins begin at the selected period's
+  first day. Weight uses a separate labelled axis in the selected weight unit. Comparison is not causation.
+- Fasting stores UTC start/end timestamps and an elapsed-hours target; there is one
+  running fast. Timers survive process death, time-zone changes and app restarts.
+  Reaching a target does not silently end a fast. History includes early finishes.
+- OFF searches are submitted explicitly, cached during the session and spaced to
+  respect the public search limit. Food detail links and an in-app source/licence
+  link attribute Open Food Facts (ODbL). The bundled ZXing decoder needs no network
+  or scanner-service download; CameraX owns the preview and releases it on exit.
+- Photo providers are fixed official HTTPS endpoints, with editable model IDs and
+  encrypted, non-backed-up device credentials. Analysis is user-triggered; images
+  are resized/re-encoded to remove EXIF. Results are estimates and require a separate
+  review/log step. Requests, credentials, images and provider response bodies are
+  excluded from error messages/logging. There is no automatic nutrition write to
+  Health Connect in Stage 2.
+- Weight goals can be set later during onboarding, so nutrition does not require
+  Health Connect access or a weight goal. Stage 3 remains separate.
 
 ### 3. The rest of Cronometer's paid tier
 
@@ -103,3 +146,11 @@ same key. The key is kept in repository secrets (`DELTA_KEYSTORE_B64`,
 `DELTA_KEYSTORE_PASSWORD`) and never committed. Release publication fails if those secrets are missing, so a throwaway key can
 never silently break updates. Run `bash ci/setup-signing.sh` once to create and
 configure the permanent signing key.
+
+## Beta testing channel
+
+The Stage 2 test app uses `io.github.ebziboi.delta.beta` and copies Stage 1 data
+only after consent through the optional same-signed transfer helper. Beta
+measurement writes/deletions/imports stay in its own cache. Health Connect is
+read-only; refresh and background widget work preserve the test snapshot.
+See [BETA.md](BETA.md) for installation and reproduction details.

@@ -89,9 +89,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 _messages.tryEmit(
                     when (result) {
                         is SyncResult.Done -> when (result.count) {
-                            0 -> "No weigh-ins found in Health Connect yet"
-                            1 -> "1 weigh-in synced"
-                            else -> "${result.count} weigh-ins synced"
+                            0 -> if(io.github.ebziboi.delta.BuildConfig.IS_BETA) "No beta weigh-ins yet" else "No weigh-ins found in Health Connect yet"
+                            1 -> if(io.github.ebziboi.delta.BuildConfig.IS_BETA) "1 beta weigh-in" else "1 weigh-in synced"
+                            else -> if(io.github.ebziboi.delta.BuildConfig.IS_BETA) "${result.count} beta weigh-ins" else "${result.count} weigh-ins synced"
                         }
                         SyncResult.NoPermission -> "Allow Delta to read weight or body fat in Health Connect"
                         SyncResult.Unavailable -> "Health Connect isn't available on this phone"
@@ -174,16 +174,16 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         val readings = export.people[name].orEmpty()
         _importing.value = true
         try {
-            if (runCatching { repo.health.state() }.getOrNull()?.canWrite != true) {
+            if (!io.github.ebziboi.delta.BuildConfig.IS_BETA && runCatching { repo.health.state() }.getOrNull()?.canWrite != true) {
                 _messages.tryEmit("Allow Delta to write weight in Health Connect, then import again.")
                 return
             }
-            if (readings.any { it.bodyFatPercent != null } && runCatching { repo.health.state() }.getOrNull()?.canWriteBodyFat != true) {
+            if (!io.github.ebziboi.delta.BuildConfig.IS_BETA && readings.any { it.bodyFatPercent != null } && runCatching { repo.health.state() }.getOrNull()?.canWriteBodyFat != true) {
                 _messages.tryEmit("Allow body fat write access in Health Connect before importing this file.")
                 return
             }
             val result = repo.importReadings(readings)
-            _messages.tryEmit(if (result.bodyFatAdded > 0) "Imported ${result.added} weigh-ins and ${result.bodyFatAdded} body fat readings" else when {
+            _messages.tryEmit(if(io.github.ebziboi.delta.BuildConfig.IS_BETA) "Added ${result.added} test weigh-ins and ${result.bodyFatAdded} body-fat readings to beta only" else if (result.bodyFatAdded > 0) "Imported ${result.added} weigh-ins and ${result.bodyFatAdded} body fat readings" else when {
                 result.added == 0 -> "All ${result.alreadyThere} weigh-ins were already in Health Connect"
                 result.alreadyThere == 0 -> "Imported ${result.added} weigh-ins"
                 else -> "Imported ${result.added} weigh-ins; ${result.alreadyThere} were already there"

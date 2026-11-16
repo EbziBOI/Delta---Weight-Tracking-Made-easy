@@ -113,7 +113,7 @@ fun MeasurementDetailScreen(vm:AppViewModel,settings:AppSettings,kind:Measuremen
         else it.copy(bodyFatCardOrder=CardLayouts.mergeVisible(it.bodyFatCardOrder,order,CardLayouts.measurement))
     }},header={
         ScreenHeader(if(kind==MeasurementKind.WEIGHT) "Weight trend" else "Body composition",leading={TextAction("Back",onBack)},trailing={
-            if(kind==MeasurementKind.BODY_FAT) GlassIconButton(io.github.ebziboi.delta.R.drawable.ic_add,"Log body fat",{if(health?.canWriteBodyFat==true) logging=true else onAccess()},size=40.dp)
+            if(kind==MeasurementKind.BODY_FAT) GlassIconButton(io.github.ebziboi.delta.R.drawable.ic_add,"Log body fat",{if(io.github.ebziboi.delta.BuildConfig.IS_BETA || health?.canWriteBodyFat==true) logging=true else onAccess()},size=40.dp)
         })
     }) {id->
         when(id) {

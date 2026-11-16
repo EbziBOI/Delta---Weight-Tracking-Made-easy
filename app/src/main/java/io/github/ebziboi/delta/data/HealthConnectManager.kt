@@ -34,11 +34,11 @@ data class HealthState(
     val missing: Set<String>
         get() = buildSet {
             if (!canReadBodyFat) add(HealthConnectManager.READ_BODY_FAT)
-            if (!canWriteBodyFat) add(HealthConnectManager.WRITE_BODY_FAT)
+            if (!io.github.ebziboi.delta.BuildConfig.IS_BETA && !canWriteBodyFat) add(HealthConnectManager.WRITE_BODY_FAT)
             if (!canRead) add(HealthConnectManager.READ_WEIGHT)
-            if (!canWrite) add(HealthConnectManager.WRITE_WEIGHT)
+            if (!io.github.ebziboi.delta.BuildConfig.IS_BETA && !canWrite) add(HealthConnectManager.WRITE_WEIGHT)
             if (!hasHistory) add(HealthConnectManager.HISTORY)
-            if (!hasBackground) add(HealthConnectManager.BACKGROUND)
+            if (!io.github.ebziboi.delta.BuildConfig.IS_BETA && !hasBackground) add(HealthConnectManager.BACKGROUND)
         }
 }
 
@@ -143,12 +143,14 @@ class HealthConnectManager(context: Context) {
     }
 
     suspend fun writeBodyFat(percent: Double, at: Instant, clientId: String? = null) {
+        check(!io.github.ebziboi.delta.BuildConfig.IS_BETA) { "Beta cannot write to Health Connect" }
         require(BodyFat.valid(percent)) { "Body fat must be greater than 0 and at most 100 percent" }
         val client = client() ?: error("Health Connect is not available")
         client.insertRecords(listOf(BodyFatRecord(at, ZoneId.systemDefault().rules.getOffset(at), Percentage(percent), if (clientId == null) Metadata.manualEntry() else Metadata.manualEntry(clientRecordId = clientId))))
     }
 
     suspend fun writeMeasurement(kg: Double, percent: Double?, at: Instant) {
+        check(!io.github.ebziboi.delta.BuildConfig.IS_BETA) { "Beta cannot write to Health Connect" }
         require(kg.isFinite() && kg in 20.0..400.0)
         require(percent == null || BodyFat.valid(percent))
         val client = client() ?: error("Health Connect is not available")
@@ -159,12 +161,14 @@ class HealthConnectManager(context: Context) {
     }
 
     suspend fun deleteBodyFat(id: String) {
+        check(!io.github.ebziboi.delta.BuildConfig.IS_BETA) { "Beta cannot write to Health Connect" }
         val client = client() ?: error("Health Connect is not available")
         client.deleteRecords(BodyFatRecord::class, listOf(id), emptyList())
     }
 
     /** Writes many weigh-ins at once, in batches Health Connect accepts. */
     suspend fun writeWeights(readings: List<ImportedReading>) {
+        check(!io.github.ebziboi.delta.BuildConfig.IS_BETA) { "Beta cannot write to Health Connect" }
         val client = client() ?: throw IllegalStateException("Health Connect is not available")
         for (batch in readings.chunked(500)) {
             client.insertRecords(batch.flatMap { reading ->
@@ -183,6 +187,7 @@ class HealthConnectManager(context: Context) {
 
     /** Health Connect only lets an app delete what it wrote itself. */
     suspend fun deleteWeight(id: String) {
+        check(!io.github.ebziboi.delta.BuildConfig.IS_BETA) { "Beta cannot write to Health Connect" }
         val client = client() ?: throw IllegalStateException("Health Connect is not available")
         client.deleteRecords(
             recordType = WeightRecord::class,

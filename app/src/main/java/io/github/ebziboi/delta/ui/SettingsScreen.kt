@@ -84,6 +84,11 @@ fun SettingsScreen(
         vm.update { it.copy(targetBodyFat = value) }; fatTarget = false
     }
     var section by rememberSaveable { mutableStateOf("") }
+    if (section == "Nutrition targets" || section == "Photo logging") {
+        androidx.activity.compose.BackHandler { section="" }
+        io.github.ebziboi.delta.nutrition.NutritionSettingsEntry(section,padding,{section=""})
+        return
+    }
     if (section.isNotEmpty()) {
         SettingsDetail(section, vm, settings, snapshot, padding, onBack = { section = "" }, health = health, onConnect = onConnect)
         return
@@ -102,6 +107,7 @@ fun SettingsScreen(
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         ScreenHeader(title = "Settings")
+        if(io.github.ebziboi.delta.BuildConfig.IS_BETA) io.github.ebziboi.delta.transfer.BetaCopyCard(health,onConnect)
 
         ContentSection(tone = ModuleTone.SAGE,framed=true) {
             Caption("Body composition")
@@ -124,9 +130,15 @@ fun SettingsScreen(
                 Text("Health Connect", style = LocalDeltaType.current.title)
                 val ready = health?.availability == HealthAvailability.AVAILABLE && health.missing.isEmpty()
                 val partial = health?.canRead == true || health?.canReadBodyFat == true
-                StatusPill(if (health == null) "Checking" else if (ready) "Connected" else if (partial) "Needs access" else "Not connected",
+                StatusPill(if (health == null) "Checking" else if(io.github.ebziboi.delta.BuildConfig.IS_BETA && ready) "Read only" else if (ready) "Connected" else if (partial) "Needs access" else "Not connected",
                     Color(if (health == null) colors.textDim else if (ready) colors.good else if (partial) colors.warn else LocalDerivedTheme.current.danger))
             }
+        }
+
+        ContentSection {
+            Caption("Nutrition")
+            SettingRow("Daily targets", "Edit", onClick={section="Nutrition targets"})
+            SettingRow("Photo logging", "API keys", onClick={section="Photo logging"})
         }
 
         // Weight goals
@@ -186,7 +198,7 @@ fun SettingsScreen(
 
 
         Text(
-            text = "Delta ${versionName(context)}",
+            text = "${if(io.github.ebziboi.delta.BuildConfig.IS_BETA) "Delta Beta" else "Delta"} ${versionName(context)}",
             color = Color(colors.textDim),
             fontSize = 13.sp,
         )
@@ -377,9 +389,9 @@ private fun HealthConnectDetails(vm: AppViewModel, settings: AppSettings, health
                     AccessRow("Read weight", health.canRead)
                     AccessRow("Past data, back to your start date", health.hasHistory)
                     AccessRow("Background updates for widgets", health.hasBackground)
-                    AccessRow("Write weight", health.canWrite)
+                    if(!io.github.ebziboi.delta.BuildConfig.IS_BETA) AccessRow("Write weight", health.canWrite)
                     AccessRow("Read body fat", health.canReadBodyFat)
-                    AccessRow("Write body fat", health.canWriteBodyFat)
+                    if(!io.github.ebziboi.delta.BuildConfig.IS_BETA) AccessRow("Write body fat", health.canWriteBodyFat)
                     if (health.missing.isNotEmpty()) {
                         PrimaryButton("Allow access",onConnect)
                     }
