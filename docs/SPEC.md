@@ -81,10 +81,14 @@ past (the first use is a journey that began in September).
 - Macro targets support grams or energy percentages (sum 100%, with a positive
   kcal target), using 4/4/9 kcal per gram for protein/carbohydrate/fat. Optional
   micronutrient targets distinguish daily goals from daily limits.
-- Charts keep unlogged dates as gaps and average across logged days, with coverage
+- Charts keep unlogged dates as gaps and average across days with reported intake, with coverage
   shown for incomplete nutrient labels. Incomplete periods are excluded from
   target/limit success counts. Weekly bins begin at the selected period's
-  first day. Weight uses a separate labelled axis in the selected weight unit. Comparison is not causation.
+  first day. Daily intake contains food only. Home combines weight, body fat and
+  energy behind independent toggles outside the chart card; each series has its
+  own labelled scale. Measurement points use the latest actual reading per day.
+  Charts end at today by default and snap selection to the latest visible recorded
+  reading after date zoom/pan; vertical drags remain with the page.
 - Fasting stores UTC start/end timestamps and an elapsed-hours target; there is one
   running fast. Timers survive process death, time-zone changes and app restarts.
   Reaching a target does not silently end a fast. History includes early finishes.
@@ -152,5 +156,9 @@ configure the permanent signing key.
 The Stage 2 test app uses `io.github.ebziboi.delta.beta` and copies Stage 1 data
 only after consent through the optional same-signed transfer helper. Beta
 measurement writes/deletions/imports stay in its own cache. Health Connect is
-read-only; refresh and background widget work preserve the test snapshot.
+read-only; refresh and background widget work preserve the measurement test
+snapshot. Foreground refresh reads permitted Health Connect food records into a
+separate table, upserting by source record ID without replacing local meals.
+Existing nutrition databases migrate in place, and saved launcher aliases are
+restored on package replacement.
 See [BETA.md](BETA.md) for installation and reproduction details.
