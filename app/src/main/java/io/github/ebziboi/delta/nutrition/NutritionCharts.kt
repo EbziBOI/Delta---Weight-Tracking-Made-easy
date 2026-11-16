@@ -5,6 +5,9 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.graphics.Color
 import io.github.ebziboi.delta.data.WeightUnit
 import io.github.ebziboi.delta.data.WeightEntry
@@ -40,67 +43,93 @@ internal fun intakePoints(entries:List<DiaryEntry>,weights:List<WeightEntry>,end
 @Composable
 internal fun NutritionChartsPage(state:NutritionState,weights:List<WeightEntry>,padding:PaddingValues,onBack:()->Unit,weightUnit:WeightUnit=WeightUnit.KG) {
     var nutrient by rememberSaveable {mutableStateOf(Nutrient.ENERGY)}
-    var days by rememberSaveable {mutableIntStateOf(14)}
-    var weekly by rememberSaveable {mutableStateOf(false)}
-    var endOffset by remember {mutableLongStateOf(0)}
-    var selected by rememberSaveable {mutableIntStateOf(-1)}
-    var menu by remember {mutableStateOf(false)}
-    val end=LocalDate.now().plusDays(endOffset)
-    val points=remember(state.entries,weights,end,days,weekly,nutrient) {intakePoints(state.entries,weights,end,days,weekly,nutrient)}
+    var days by rememberSaveable {mutableIntStateOf(30)}
+    var endOffset by rememberSaveable {mutableLongStateOf(0)}
+    var selected by rememberSaveable {mutableIntStateOf(-1)};var menu by remember {mutableStateOf(false)}
+    val end=LocalDate.now().plusDays(endOffset);val start=end.minusDays(days-1L)
+    val points=remember(state.entries,end,days,nutrient) {intakePoints(state.entries,emptyList(),end,days,false,nutrient)}
+    val logged=state.entries.filter {it.day in start..end};val active=points.filter {it.hasValue}
     val c=LocalDeltaColors.current
-    NutritionPage("Nutrition trends",padding,onBack) {
-        Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween) {
-            Box {SecondaryButton("${nutrient.label} ▾",{menu=true});DropdownMenu(menu,{menu=false}) { Nutrient.entries.forEach { n ->DropdownMenuItem({Text(n.label)},{nutrient=n;selected=-1;menu=false})} }}
+    val cards=listOf(CardSlot("intake","Daily intake"),CardSlot("balance","Nutrient balance"),CardSlot("insights","Period insights"),CardSlot("consistency","Logging coverage"),CardSlot("comparison","Recent comparison"),CardSlot("sources","Food contributions"),CardSlot("targets","Target comparison"))
+    val (order,saveOrder)=rememberPageCardOrder("nutrition",cards.map {it.id})
+    ReorderableCards(cards,order,padding,saveOrder,header={
+        Column(verticalArrangement=Arrangement.spacedBy(12.dp)) {
+            ScreenHeader("Nutrition trends",leading={TextAction("Back",onBack,Modifier.semantics {contentDescription="Back"})})
+            Box {SecondaryButton("${nutrient.label} ▾",{menu=true});DropdownMenu(menu,{menu=false}) {Nutrient.entries.forEach {n->DropdownMenuItem({Text(n.label)},{nutrient=n;selected=-1;menu=false})}}}
+            SegmentedControl(listOf(14,30,90),days,{"$it days"}) {days=it;selected=-1}
+            Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.Center) {
+                TextButton({endOffset-=days;selected=-1},enabled=state.entries.minOfOrNull {it.day}?.let {start>it}==true) {Text("Previous")}
+                TextButton({endOffset=minOf(0L,endOffset+days);selected=-1},enabled=end<LocalDate.now()) {Text("Next")}
+            }
+            Text("${start.format(DateTimeFormatter.ofPattern("d MMM"))} – ${end.format(DateTimeFormatter.ofPattern("d MMM yyyy"))}",style=LocalDeltaType.current.bodySmall)
         }
-        SegmentedControl(listOf(14,30,90),days,{"$it days"}) {days=it;selected=-1}
-        SegmentedControl(listOf(false,true),weekly,{if(it) "Weekly" else "Daily"}) {weekly=it;selected=-1}
-        Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.Center) {
-            TextButton({endOffset-=days;selected=-1},enabled=state.entries.minOfOrNull {it.day}?.let {end.minusDays(days.toLong()-1)>it}==true) {Text("Previous")}
-            TextButton({endOffset=minOf(0L,endOffset+days);selected=-1},enabled=end<LocalDate.now()) {Text("Next")}
-        }
-        Text("${end.minusDays(days.toLong()-1).format(DateTimeFormatter.ofPattern("d MMM"))} – ${end.format(DateTimeFormatter.ofPattern("d MMM yyyy"))}",style=LocalDeltaType.current.bodySmall)
-        ContentSection(tone=ModuleTone.VIOLET,framed=true) {
-            Caption(if(weekly) "Daily average by week" else "Daily intake")
-            val available=points.filter {it.hasValue}
-            val logged=state.entries.filter {it.day>=end.minusDays(days.toLong()-1) && it.day<=end}
-            val loggedCount=logged.filter {nutrient in it.food.per100}.map {it.day}.distinct().size
-            ValueWithUnit(if(available.isEmpty()) "—" else amountText(logged.total(nutrient).amount/loggedCount.coerceAtLeast(1)),nutrient.unit,style=LocalDeltaType.current.numberLarge)
-            Text("Average across $loggedCount days with reported intake",style=LocalDeltaType.current.bodySmall)
-            val coverage=logged.total(nutrient)
-            if(coverage.partial) Text("Partial labels · ${coverage.reported} of ${coverage.count} foods report ${nutrient.label.lowercase()}",style=LocalDeltaType.current.bodySmall)
-            if(points.none {it.hasValue}) Text("No reported ${nutrient.label.lowercase()} in this period.",style=LocalDeltaType.current.body)
+    }) {id->when(id) {
+        "intake"->ContentSection(tone=ModuleTone.VIOLET,framed=true) {
+            Caption("Daily intake")
+            val total=logged.total(nutrient);val reported=active.size
+            ValueWithUnit(if(reported==0) "—" else amountText(total.amount/reported),nutrient.unit,style=LocalDeltaType.current.numberLarge)
+            Text("Average across $reported days with reported intake",style=LocalDeltaType.current.bodySmall)
+            if(total.partial) Text("Partial labels · ${total.reported} of ${total.count} foods report ${nutrient.label.lowercase()}",style=LocalDeltaType.current.bodySmall)
+            if(active.isEmpty()) Text("No reported ${nutrient.label.lowercase()} in this period.")
             else IntakeChart(points,nutritionScale(state.entries,end,nutrient)) {selected=it}
-            val detail=points.getOrNull(selected)
-            if(detail!=null) {
-                Text(if(weekly) "${detail.days.first().format(dayFormat)} – ${detail.days.last().format(DateTimeFormatter.ofPattern("d MMM"))} · ${detail.reportedDays} days reported"
-                    else "${detail.entries.size} ${if(detail.entries.size==1) "food" else "foods"}",style=LocalDeltaType.current.bodySmall)
-                if(detail.total.partial) Text("${detail.total.reported} of ${detail.total.count} foods report this nutrient.",style=LocalDeltaType.current.bodySmall)
+            points.getOrNull(selected)?.let {p->Text("${p.entries.size} foods · ${p.total.reported} report this nutrient",style=LocalDeltaType.current.bodySmall)}
+        }
+        "balance"->NutritionPie(logged)
+        "insights"->ContentSection {
+            Text("Period insights",style=LocalDeltaType.current.title)
+            if(active.isEmpty()) Text("No reported values in this period") else {
+                val values=active.map {it.value}.sorted();val median=if(values.size%2==1) values[values.size/2] else (values[values.size/2-1]+values[values.size/2])/2
+                val mean=values.average();val sd=kotlin.math.sqrt(values.sumOf {(it-mean)*(it-mean)}/values.size)
+                NutritionRow("Total reported",nutrientText(values.sum(),nutrient))
+                NutritionRow("Median day",nutrientText(median,nutrient))
+                NutritionRow("Day-to-day spread",nutrientText(sd,nutrient),"Standard deviation across reported dates")
+                val high=active.maxBy {it.value};val low=active.minBy {it.value}
+                NutritionRow("Highest day",nutrientText(high.value,nutrient),high.start.format(dayFormat))
+                NutritionRow("Lowest day",nutrientText(low.value,nutrient),low.start.format(dayFormat))
             }
         }
-        val active=points.filter {it.hasValue}
-        if(active.isNotEmpty()) ContentSection {
-            Caption("Period insights")
-            val highest=active.maxBy {it.value};val lowest=active.minBy {it.value}
-            NutritionRow("Highest ${if(weekly) "week" else "day"}",nutrientText(highest.value,nutrient),highest.start.format(dayFormat))
-            NutritionRow("Lowest ${if(weekly) "week" else "day"}",nutrientText(lowest.value,nutrient),lowest.start.format(dayFormat))
-            val covered=points.sumOf {it.total.reported};val count=points.sumOf {it.total.count}
-            Text("$covered of $count foods report ${nutrient.label.lowercase()}.",style=LocalDeltaType.current.bodySmall)
-            if(state.targets.target(nutrient)!=null) {
-                val target=state.targets.target(nutrient)!!
-                val comparison=points.targetComparison(target,nutrient in state.targets.limits)
-                Text("${comparison.satisfying} of ${comparison.eligible} fully reported ${if(weekly) "weekly averages" else "logged days"} ${if(nutrient in state.targets.limits) "within your limit" else "reached your target"}.",style=LocalDeltaType.current.bodySmall)
-                if(comparison.incomplete>0) Text("${comparison.incomplete} incomplete periods excluded from this comparison.",style=LocalDeltaType.current.bodySmall)
+        "consistency"->ContentSection {
+            Text("Logging coverage",style=LocalDeltaType.current.title)
+            val dates=logged.map {it.day}.distinct();val total=logged.total(nutrient)
+            NutritionRow("Dates logged","${dates.size} / $days")
+            NutritionRow("Days reporting ${nutrient.label.lowercase()}","${active.size}")
+            NutritionRow("Food labels reporting it","${total.reported} / ${total.count}")
+            NutritionRow("Imported foods",logged.count {it.fromHealthConnect}.toString(),"Health Connect records in this period")
+            Text("Unlogged dates are excluded from averages. Reported days may still contain unlogged food.",style=LocalDeltaType.current.bodySmall)
+        }
+        "comparison"->ContentSection {
+            Text("Recent comparison",style=LocalDeltaType.current.title)
+            fun average(from:LocalDate,to:LocalDate)=state.entries.filter {it.day in from..to}.groupBy {it.day}.values.mapNotNull {e->e.total(nutrient).takeIf {it.reported>0}?.amount}.takeIf {it.isNotEmpty()}?.average()
+            val now=average(end.minusDays(6),end);val before=average(end.minusDays(13),end.minusDays(7))
+            NutritionRow("Last 7 days",nutrientText(now,nutrient),"Average per reported date")
+            NutritionRow("Previous 7 days",nutrientText(before,nutrient))
+            if(now!=null && before!=null) NutritionRow("Change",nutrientText(now-before,nutrient))
+            val weekend=active.filter {it.start.dayOfWeek.value>=6};val weekday=active.filter {it.start.dayOfWeek.value<6}
+            if(weekend.isNotEmpty()) NutritionRow("Weekend average",nutrientText(weekend.map {it.value}.average(),nutrient),"${weekend.size} reported dates")
+            if(weekday.isNotEmpty()) NutritionRow("Weekday average",nutrientText(weekday.map {it.value}.average(),nutrient),"${weekday.size} reported dates")
+        }
+        "sources"->ContentSection {
+            Text("Food contributions",style=LocalDeltaType.current.title)
+            val sources=logged.filter {nutrient in it.food.per100}.groupBy {it.food.name}.mapValues {(_,e)->e.total(nutrient).amount}.entries.sortedByDescending {it.value}.take(5)
+            if(sources.isEmpty()) Text("No reported sources in this period")
+            sources.forEach {NutritionRow(it.key,nutrientText(it.value,nutrient))}
+            Meal.entries.forEach {meal->val e=logged.filter {it.meal==meal};if(e.isNotEmpty()) NutritionRow(meal.label,nutrientText(e.total(nutrient).takeIf {it.reported>0}?.amount,nutrient),"${e.size} foods")}
+        }
+        "targets"->ContentSection {
+            Text("Your targets",style=LocalDeltaType.current.title)
+            (state.targets.amounts.keys+if(state.targets.mode==MacroMode.PERCENT) Nutrient.macros else emptyList()).forEach {n->
+                val target=state.targets.target(n) ?: return@forEach
+                val comparison=intakePoints(logged,emptyList(),end,days,false,n).targetComparison(target,n in state.targets.limits)
+                NutritionRow(n.label,"${comparison.satisfying} / ${comparison.eligible}","Fully reported dates ${if(n in state.targets.limits) "within limit" else "reaching target"}; ${comparison.incomplete} incomplete dates excluded")
             }
         }
-    }
+    }}
 }
 
 @Composable
 private fun IntakeChart(points:List<IntakePoint>,scale:NutritionScale,onSelect:(Int)->Unit) {
     val c=LocalDeltaColors.current
-    val values=points.filter {it.hasValue}.map {p->RecordedValue(p.entries.filter {p.nutrient in it.food.per100}.maxOf {it.day},p.value)}
+    val values=points.filter {it.hasValue}.map {p->RecordedValue(p.start,p.value)}
     RecordedChart(listOf(RecordedSeries("intake",points.first().nutrient.label,Color(c.accent),values,
-        {nutrientText(it,points.first().nutrient)},bars=true,ceiling=scale.ceiling,typical=scale.typical)),points.first().start,points.last().days.last(),"Daily intake graph") {day->
-        onSelect(points.indexOfFirst {day in it.days})
-    }
+        {nutrientText(it,points.first().nutrient)},bars=true,ceiling=scale.ceiling,typical=scale.typical)),points.first().start,points.last().days.last(),"Daily intake graph",onSelected={day->onSelect(points.indexOfFirst {day in it.days})})
 }

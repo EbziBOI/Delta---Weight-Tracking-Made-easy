@@ -87,6 +87,15 @@ class NutritionRepository(context: Context, name: String = "nutrition.db") {
         require(now >= fast.start) { "Check your device clock" }; putFast(db,fast.copy(end=now))
     }
     suspend fun deleteFast(id: String) = change { it.delete("fasts","id=?",arrayOf(id)) }
+    internal suspend fun restore(state:NutritionState) = change {db->
+        val checked=NutritionArchive.parse(NutritionArchive.encode(state))
+        listOf("foods","diary","health_diary","fasts","preferences").forEach {db.delete(it,null,null)}
+        checked.foods.asReversed().forEach {putFood(db,it)}
+        checked.entries.forEach {e->db.insertOrThrow(if(e.fromHealthConnect) "health_diary" else "diary",null,e.values())}
+        checked.fasts.forEach {putFast(db,it)}
+        val t=checked.targets
+        db.insertOrThrow("preferences",null,ContentValues().apply {put("id","targets");put("payload",JSONObject().put("amounts",t.amounts.toJson()).put("mode",t.mode.name).put("percentages",t.percentages.toJson()).put("limits",JSONArray(t.limits.map {it.name})).toString())})
+    }
     fun close() = helper.close()
 
     private fun putFood(db: SQLiteDatabase,f: Food,replace: Boolean = true) { db.insertWithOnConflict("foods",null,

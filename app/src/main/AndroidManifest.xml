@@ -34,6 +34,7 @@
         <receiver android:name=".icons.IconUpdateReceiver" android:exported="false">
             <intent-filter><action android:name="android.intent.action.MY_PACKAGE_REPLACED" /></intent-filter>
         </receiver>
+        <activity android:name=".transfer.FullTransferInActivity" android:screenOrientation="portrait" android:exported="true" />
         <activity android:name=".transfer.TransferOutActivity" android:screenOrientation="portrait" android:exported="true" />
         <provider android:name="androidx.core.content.FileProvider" android:authorities="${applicationId}.files" android:exported="false" android:grantUriPermissions="true">
             <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/photo_paths" />

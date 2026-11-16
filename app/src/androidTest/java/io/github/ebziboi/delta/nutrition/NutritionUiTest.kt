@@ -48,7 +48,7 @@ class NutritionUiTest {
                 compose.waitUntil(10000) {repo.state.value.entries.any {it.food.name==foodName && it.amount==125.0}}
                 click("Targets");field("Daily energy (kcal)","2000");click("% of energy");click("Save targets")
                 compose.waitUntil(10000) {repo.state.value.targets.mode==MacroMode.PERCENT}
-                click("Charts");click("Weekly");click("30 days");shot("$style-charts");back()
+                click("Charts");click("30 days");shot("$style-charts");back()
                 click("Fasting");click("Start fast");compose.waitUntil(10000) {repo.state.value.fasts.any {it.end==null}}
                 shot("$style-fasting");click("End fast")
                 compose.onAllNodesWithText("End fast").onLast().performClick()

@@ -7,7 +7,7 @@ plugins {
 }
 
 // CI passes a build number so every APK can install over the previous one.
-val releaseVersionCode = 41
+val releaseVersionCode = 42
 val isBeta = providers.gradleProperty("delta.channel").orElse("beta").get() == "beta"
 val ciRun = System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull() ?: 0
 val buildNumber = maxOf(releaseVersionCode,ciRun)
@@ -25,7 +25,7 @@ android {
         minSdk = 28
         targetSdk = 36
         versionCode = buildNumber
-        versionName = "0.2.$buildNumber" + if (isBeta) "-beta.4" else ""
+        versionName = "0.2.$buildNumber" + if (isBeta) "-beta.5" else ""
         buildConfigField("boolean", "IS_BETA", isBeta.toString())
         manifestPlaceholders["appLabel"] = if(isBeta) "Delta Beta" else "Delta"
 
@@ -128,6 +128,6 @@ dependencies {
 tasks.matching { it.name == "assembleRelease" }.configureEach {
     doLast {
         val apkDirectory = layout.buildDirectory.dir("outputs/apk/release").get().asFile
-        apkDirectory.resolve("app-release.apk").copyTo(apkDirectory.resolve(if(isBeta) "Delta-Beta-0.2.$buildNumber-beta.4.apk" else "Delta-0.2.$buildNumber.apk"), overwrite = true)
+        apkDirectory.resolve("app-release.apk").copyTo(apkDirectory.resolve(if(isBeta) "Delta-Beta-0.2.$buildNumber-beta.5.apk" else "Delta-0.2.$buildNumber.apk"), overwrite = true)
     }
 }

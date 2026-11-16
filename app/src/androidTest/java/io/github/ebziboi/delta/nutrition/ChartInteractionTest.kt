@@ -40,7 +40,7 @@ class ChartInteractionTest {
     }
     @Test fun combinedTogglesAllowAllThreeAndKeepTheirChoice() {
         val context=InstrumentationRegistry.getInstrumentation().targetContext
-        val prefs=context.getSharedPreferences("home-chart",0);val old=prefs.getString("series",null)
+        val prefs=context.getSharedPreferences("home-chart",0);val old=prefs.getString("series",null);val oldTrend=prefs.getBoolean("trend",false)
         val weights=listOf(WeightEntry(today.atTime(12,0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),91.0,false,"weight"),
             WeightEntry(today.atTime(13,0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),92.0,false,"later-weight"))
         val fat=listOf(BodyFatEntry(weights.first().epochMs,25.0,false,"fat"))
@@ -51,26 +51,31 @@ class ChartInteractionTest {
             compose.onNodeWithText("Body fat").performClick();compose.onNodeWithText("Nutrition").performClick()
             compose.onAllNodes(isToggleable() and isOn()).assertCountEquals(3)
             val chart=compose.onNodeWithContentDescription("Combined trends graph");chart.performScrollTo()
+            val beforeTrend=chart.fetchSemanticsNode().config[SemanticsProperties.StateDescription].contains("Smoothed trend")
+            chart.performTouchInput {doubleClick()};compose.waitForIdle()
+            assertNotEquals(beforeTrend,chart.fetchSemanticsNode().config[SemanticsProperties.StateDescription].contains("Smoothed trend"))
             assertTrue(chart.fetchSemanticsNode().config[SemanticsProperties.StateDescription].contains("Energy: 1 recorded days"))
             compose.onNodeWithText("Weight · ${Units.weight(92.0,WeightUnit.KG)}").assertExists()
-            val links=listOf("Weight details","Body composition","Nutrition details")
+            val links=listOf("Weight details","Body composition details","Nutrition details")
             compose.onNodeWithText("Nutrition details").performScrollTo();compose.waitForIdle()
             val bounds=links.map {compose.onNodeWithText(it).fetchSemanticsNode().boundsInWindow}
-            assertTrue("Detail links remain in a vertical stack",bounds.zipWithNext().all {(a,b)->b.top>=a.bottom})
+            assertTrue("Equal width detail boxes",bounds.all {kotlin.math.abs(it.width-bounds.first().width)<2f})
+            assertTrue("Detail boxes step across the screen",bounds.zipWithNext().all {(a,b)->b.top>=a.bottom && b.left>a.left})
             compose.onNodeWithText("Nutrition").performScrollTo().performClick();compose.waitForIdle()
             compose.onNodeWithText("Nutrition details").assertExists()
             compose.onNodeWithText("Body fat").performScrollTo().performClick();compose.waitForIdle()
-            compose.onNodeWithText("Body composition").assertExists();compose.onNodeWithText("Weight details").assertExists()
+            compose.onNodeWithText("Body composition details").assertExists();compose.onNodeWithText("Weight details").assertExists()
             compose.onNodeWithText("Body fat").performClick();compose.onNodeWithText("Nutrition").performClick();compose.waitForIdle()
             compose.runOnIdle {show=false};compose.waitForIdle();compose.runOnIdle {show=true};compose.waitForIdle()
             compose.onAllNodes(isToggleable() and isOn()).assertCountEquals(3)
-        } finally {prefs.edit().apply {if(old==null) remove("series") else putString("series",old)}.commit()}
+        } finally {prefs.edit().apply {if(old==null) remove("series") else putString("series",old);putBoolean("trend",oldTrend)}.commit()}
     }
     @Test fun panSnapsToLatestVisibleRecordingAndVerticalDragStaysWithPage() {
         val recorded=(0..29 step 2).map {today.minusDays(it.toLong())}
         compose.setContent {DeltaTheme(AppSettings()) {NutritionChartsPage(NutritionState(entries=recorded.map {entry(it)},loaded=true),emptyList(),PaddingValues(0.dp),{})}}
         val chart=compose.onNodeWithContentDescription("Daily intake graph");chart.performScrollTo()
-        chart.performTouchInput {pinch(Offset(width*.4f,height*.5f),Offset(width*.6f,height*.5f),Offset(width*.05f,height*.5f),Offset(width*.95f,height*.5f),800)}
+        compose.onNodeWithContentDescription("Chart date view").performScrollTo().performClick();compose.onNodeWithText("Weekly").performClick();compose.waitForIdle()
+        chart.performScrollTo()
         chart.performTouchInput {swipeRight(durationMillis=650)}
         compose.waitForIdle()
         val state=chart.fetchSemanticsNode().config[SemanticsProperties.StateDescription]
@@ -80,7 +85,7 @@ class ChartInteractionTest {
         assertTrue("$state must select the latest recorded visible day",state.contains("Selected $latest"))
         chart.performTouchInput {swipeUp(durationMillis=600)};compose.waitForIdle()
         assertEquals(state,chart.fetchSemanticsNode().config[SemanticsProperties.StateDescription])
-        compose.onNodeWithText("Reset zoom").performScrollTo().performClick();compose.waitForIdle()
+        compose.onNodeWithContentDescription("Chart date view").performScrollTo().performClick();compose.onNodeWithText("Monthly").performClick();compose.waitForIdle()
         assertTrue(chart.fetchSemanticsNode().config[SemanticsProperties.StateDescription].contains("Selected $today"))
     }
 }

@@ -50,15 +50,21 @@ jobs:
           VERSION=$(python3 -c 'import json; print(json.load(open("app/build/outputs/apk/release/output-metadata.json"))["elements"][0]["versionName"])')
           cp app/build/outputs/apk/release/app-release.apk "Delta-Beta-$VERSION.apk"
           echo "BETA_VERSION=$VERSION" >> "$GITHUB_ENV"
+      - name: Build optional base-package return candidate
+        run: |
+          ./gradlew :app:assembleRelease -Pdelta.channel=stable
+          RETURN_VERSION=$(python3 -c 'import json; print(json.load(open("app/build/outputs/apk/release/output-metadata.json"))["elements"][0]["versionName"])')
+          cp app/build/outputs/apk/release/app-release.apk "Delta-Return-$RETURN_VERSION.apk"
       - uses: actions/upload-artifact@v4
         with:
           name: Delta-Beta-${{ env.BETA_VERSION }}
           path: |
             Delta-Beta-*.apk
             Delta-Transfer-*.apk
+            Delta-Return-*.apk
       - name: Publish prerelease only
         if: github.event_name == 'workflow_dispatch' && inputs.publish
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "stage2-beta-$BETA_VERSION" "Delta-Beta-$BETA_VERSION.apk" Delta-Transfer-0.1.34-transfer.apk --prerelease --latest=false --target "$GITHUB_SHA" --title "Delta Beta $BETA_VERSION" --notes-file docs/BETA.md
+          gh release create "stage2-beta-$BETA_VERSION" "Delta-Beta-$BETA_VERSION.apk" Delta-Transfer-0.1.34-transfer.apk Delta-Return-*.apk --prerelease --latest=false --target "$GITHUB_SHA" --title "Delta Beta $BETA_VERSION" --notes-file docs/BETA.md

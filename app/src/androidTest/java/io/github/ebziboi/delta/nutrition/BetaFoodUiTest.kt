@@ -90,7 +90,16 @@ class BetaFoodUiTest {
             compose.onNodeWithText("How your pace is changing").assertExists()
             compose.onNodeWithContentDescription("Previous day").assertDoesNotExist()
             compose.onNodeWithContentDescription("Next day").assertDoesNotExist()
-            compose.onNodeWithText("How your pace is changing").performScrollTo().performTouchInput {swipeLeft(durationMillis=650)}
+            val swipeTarget=compose.onNodeWithText("How your pace is changing");swipeTarget.performScrollTo()
+            for(step in 0..7) {
+                val bounds=swipeTarget.fetchSemanticsNode().boundsInWindow
+                if(bounds.height>8 && bounds.top>device.displayHeight*.15f && bounds.bottom<device.displayHeight*.72f) break
+                device.swipe(18,(device.displayHeight*.78f).toInt(),18,(device.displayHeight*.42f).toInt(),25);compose.waitForIdle()
+            }
+            swipeTarget.assertIsDisplayed()
+            shot("rhythm-before-page-swipe")
+            swipeTarget.performTouchInput {swipeLeft(durationMillis=650)}
+            shot("rhythm-after-page-swipe")
             compose.waitForIdle();compose.onNodeWithText("A clearer daily signal").assertExists()
             shot("rhythm-week")
         } finally {store.update {saved};store.saveWeights(weights)}

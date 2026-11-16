@@ -203,3 +203,31 @@ label values retain their label provenance. Editing them removes that provenance
 The import review survives activity recreation, and saving requires user review.
 Home detail navigation is independent of the graph selection; week navigation
 uses a single arrow pair alongside the existing week swipe gesture.
+
+
+### Beta 5 charts, detail pages and return transfer
+
+Time-series graphs use a hold/slide/release dot control for one-day, seven-day
+and thirty-day date windows, with animated viewport and hover selection, plus
+click/accessibility alternatives. Pinch zoom and zoom button rows are removed.
+Fixed weekly rhythm and forecast projection graphs retain their format. Home
+trend smoothing remains a persisted double-tap option. Detail buttons have equal
+width and step left/centre/right outside the graph.
+
+Nutrition and Forecast use the shared reorderable card system with independent
+persisted orders. Nutrition summaries report coverage and unknown labels rather
+than fabricating zero intake. The nutrient pie compares selected macro energy
+or mass normalized to grams. Recent pace fits all distinct recorded dates in
+each seven/fourteen-day window; confidence labels describe coverage and scatter,
+not probabilities. Rhythm calendars and weekly dot graphs share a selected day;
+pager spacing separates adjacent pages at physical screen edges.
+
+Full-copy schema 1 includes the legacy measurement/settings envelope, nutrition
+food/recipe snapshots, diary entries, Health Connect read snapshots, targets,
+fasts and allowlisted presentation preferences. Only the same-signed sibling app
+can invoke the receiver, which asks before replacement. JSON import validates
+before mutation, saves an atomic private pre-import backup and attempts rollback
+on failure. Credentials, permission grants and widget instances never transfer.
+The optional base-package return candidate is attached to the beta prerelease;
+main and latest stable stay unchanged. Imported base measurements are local-copy
+records retained through refresh and deduplicated against Health Connect reads.

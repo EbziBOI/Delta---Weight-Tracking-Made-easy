@@ -4,6 +4,57 @@ This is a separate app, **Delta Beta** (`io.github.ebziboi.delta.beta`). It inst
 beside **Delta** (`io.github.ebziboi.delta`). The normal release and its download
 are unchanged. This prerelease adds the Stage 2 food diary in Glass and Tubik.
 
+## Beta 5 changes
+
+- Home detail links are compact, equal-width cards stepping left, centre and
+  right, labelled Weight details, Body composition details and Nutrition details.
+  Double-tapping the combined graph switches its smoothed trend on and off.
+- Time-series charts replace pinch zoom and zoom buttons with an upper-right
+  dot. Hold it, slide onto Daily, Weekly or Monthly and release: the date window
+  animates to one day, seven days or thirty days. Tap also opens the choices;
+  accessibility actions expose the same options. Panning, recorded-only points,
+  selection snapping and vertical page scrolling remain available.
+- Nutrition trends has independently reorderable cards, reported-intake totals,
+  median, variation, high/low dates, logging and label coverage, recent-period
+  comparisons, weekday/weekend averages, food/meal contributions and target
+  coverage. Incomplete labels are identified and missing days are excluded.
+- Nutrient balance is a configurable pie chart. Its top-right plus chooses
+  nutrients. Macro energy uses 4/4/9 kcal per gram; selecting micronutrients
+  switches to nutrient mass with g/mg/µg converted to grams. Shares describe only
+  selected reported nutrients; overlapping nutrients and missing labels are noted.
+- Your forecast cards can be rearranged. Seven- and fourteen-day recent signals
+  fit all available daily means, without requiring consecutive readings. Two
+  dates suffice for a low-confidence estimate; coverage, span and scatter explain
+  the data-quality rating, which is not a statistical probability or guarantee.
+- Your rhythm pages clip at the phone edges with a gap between pages. Each
+  Rate/Average/Streak view includes a weekly dot graph linked to the selected
+  calendar date. Weekly graphs retain their fixed format.
+- Settings → Move between Delta apps copies measurements, diary, custom foods,
+  recipe definitions, fasting, targets, appearance, icons and saved card/chart
+  choices in either direction, with explicit replacement consent in the receiving
+  app. Export/import of the same full backup format is available. A private
+  pre-import backup can be restored. API keys, Android permissions and placed
+  widgets are excluded.
+
+## Copy Beta data back into Delta
+
+The published Stage 1 app cannot read a Stage 2 diary. When ready, install the
+optional **Delta-Return-0.2.42.apk** from this prerelease over the base Delta app,
+keeping it installed. This companion has the **full Stage 2 interface** and the
+base package/signing key; it is a release candidate supplied only here, not a
+replacement for the published stable release. It retains the base app's data.
+
+Then open **Delta Beta → Settings → Move between Delta apps → Copy to Delta**.
+Review the counts in Delta and select **Replace data** to replace its local
+measurements, nutrition and settings with the beta copy. The beta stays intact.
+Export a full backup first if you want an additional portable copy. Cancel makes
+no changes. The same settings card supports copying back to Beta.
+
+Transferred measurements stay local and survive base-app refresh. Matching
+Health Connect readings replace duplicate snapshots; the transfer itself never
+writes test measurements or meals into Health Connect. The base candidate still
+has the normal base app's Health Connect permissions and weight logging behavior.
+
 ## Beta 4 changes
 
 - Missing barcodes can open an import flow instead of ending at “not found”.
@@ -75,7 +126,8 @@ are unchanged. This prerelease adds the Stage 2 food diary in Glass and Tubik.
 
 Existing beta users can install the new versioned beta APK over an earlier beta. Your
 local diary, goals, appearance and selected icon are retained. The transfer
-companion below is only needed when initially copying the original app.
+Stage 1 transfer helper below is only needed for the initial original-app copy.
+The optional return update above enables copying a full diary back.
 
 ## Install and copy the current app's data
 
@@ -96,33 +148,49 @@ replacing the beta's measurement snapshot and settings.
 
 ## Testing stays separate
 
-- Beta additions, scale imports and deletions are local to Beta. They are not
-  written to Health Connect or the current Delta app.
+- Ordinary Beta additions, scale imports and deletions stay local. Only the
+  explicit full-copy action can replace the base app’s data after receiver consent;
+  the copy never writes measurements or meals into Health Connect.
 - The beta does not request Health Connect write or background-read permissions.
   It has an explicit, one-way **Copy Health Connect readings** action if desired;
   ordinary refresh leaves your test snapshot intact.
 - Both apps must have the same signing certificate for the private copy flow.
-  The source app also asks for confirmation, and grants only temporary read
-  access to the prepared snapshot. No transfer is sent to a server.
+  Receivers ask before full-copy replacement; the legacy Stage 1 source also
+  confirms its export. URI access is temporary. No transfer is sent to a server.
 - Remove Delta Beta when finished to discard its test data. The normal app remains.
 
 ## Builds and publication
 
 This branch defaults to the beta package. Use `-Pdelta.channel=stable` only when
-intentionally preparing a future normal release. The beta workflow builds on
+intentionally preparing a normal release or the optional base-package return candidate. The beta workflow builds on
 `beta/**` pushes; publishing a further prerelease is an explicit workflow-dispatch
 option. Prereleases are never marked as the latest normal release.
 
 The optional transfer APK is built reproducibly from the last Stage 1 tree
 (`1a80210`) plus the shared transfer code using `ci/prepare-beta-transfer.py`.
 It is intended for the current published 0.1.x app, not as a Stage 2 downgrade.
-The GitHub prerelease includes both APKs; no changes are merged into main.
+The prerelease includes the Beta APK, optional Stage 1 transfer helper and optional
+base-package return candidate. The workflow builds all three; no changes are
+merged into main.
 
 AI photo logging uses your own provider API key. Provider request/response
 contracts are tested with fixtures; authenticated AI requests are not made by
 the test suite.
 
-## Validation
+## Beta 5 validation
+
+66 distinct Android emulator checks pass across the regression run and focused
+reruns. New coverage includes sparse seven/fourteen-day pace calculations,
+hold/slide/release date windows in both menu directions, calendar/graph selection,
+staircase geometry, trend toggling, chart pan/vertical scroll, card ordering,
+configurable pie selection, normalized nutrient units and unknown-label handling.
+Full-copy checks cover validation before replacement, consent/cancel, food-library
+order, diary/targets/fasting, local measurement retention through base refresh and
+source-app preservation. Glass and Tubik screens were captured in the running
+app; light themes with larger text remain usable. Release builds and lint
+completed with no lint errors.
+
+## Earlier beta checks
 
 The release build and lint pass. All 54 distinct device checks pass across the
 full regression run and focused UI rerun. New checks cover actual bundled OCR on

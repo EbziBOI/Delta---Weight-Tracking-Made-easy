@@ -33,8 +33,7 @@ background and blur when you switch back. The visual reference is
   on, and lift only what would otherwise be hard to read
 - Ten launcher icons, including the original: swipe the icon deck in Appearance,
   then hold or double-tap an icon to apply it
-- Pinch to zoom dates horizontally and drag to pan; the vertical scale stays fixed. Tap a reading for its value/date,
-  with buttons for zoom and reading navigation
+- Hold the upper-right chart dot and release over Daily, Weekly or Monthly to animate the date window; drag horizontally to pan and tap a recorded reading for its value/date
 - Measured body-fat percentages in Progress, History, goals, scale CSV imports,
   Health Connect and widgets; weight remains independent of missing body-fat data
 - Studio typography pairs bold geometric headings with editorial and mono accents
@@ -43,8 +42,10 @@ background and blur when you switch back. The visual reference is
 - Combined Home trends with independent Weight, Body fat and Nutrition toggles; recorded-only points, today at the right edge and an animated selection marker after date panning
 - Read-only Health Connect food integration, including supported micronutrients; imported totals stay separate from local diary entries
 - Four diet widgets: Energy budget, Macro balance, Food diary with quick add, and a live Fasting clock; all resize with per-widget settings and previews
-- Nutrition bars place the 30-day median of recorded daily totals at 75% height and mark larger values with a neutral overflow triangle, retaining their full values
-- Three coloured Home detail buttons stay stacked outside the chart, independent of selected series; their Back actions return to Home
+- Nutrition bars place the 30-day median of recorded daily totals at 75% height and mark larger values with an overflow triangle, retaining their full values
+- Three compact, equal-width Home detail cards form a staircase outside the chart; their Back actions return to Home
+- Reorder Nutrition trends and Forecast cards; configure nutrient balance pies and inspect data-driven intake comparisons and coverage
+- Full backup and confirmed copying between Beta and the optional base return candidate preserve diary, measurements, goals and appearance; see the beta instructions
 - Your rhythm's week strip swipes independently, with one bounded triangle-arrow pair, coral in Tubik
 - Store-filtered food search starts with major UK grocers and learns from local search/logging use
 - A compact Progress/Diary/History dock with an adjacent plus button; both hide on downward scrolling and return together. Active tabs use accent text and icons without a pill

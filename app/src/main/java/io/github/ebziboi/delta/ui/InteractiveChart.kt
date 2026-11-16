@@ -21,10 +21,13 @@ import androidx.compose.ui.unit.dp
 import io.github.ebziboi.delta.data.*
 import io.github.ebziboi.delta.render.*
 import java.util.Locale
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.Job
 import kotlin.math.abs
 
 @Composable
-fun InteractiveChart(spec: ChartSpec, modifier: Modifier = Modifier, bodyFat: List<BodyFatEntry> = emptyList(), onDoubleTap: (() -> Unit)? = null) {
+fun InteractiveChart(spec: ChartSpec, modifier: Modifier = Modifier, bodyFat: List<BodyFatEntry> = emptyList(), onDoubleTap: (() -> Unit)? = null,periodPicker:Boolean=true) {
+    val scope=rememberCoroutineScope();var period by rememberSaveable {mutableStateOf(ChartPeriod.MONTHLY)}
     val colors = LocalDeltaColors.current
     val motion=LocalMotion.current
     val reveal=remember(spec.points.firstOrNull()?.epochMs,spec.metric) { androidx.compose.animation.core.Animatable(if(motion) 0f else 1f) }
@@ -37,6 +40,7 @@ fun InteractiveChart(spec: ChartSpec, modifier: Modifier = Modifier, bodyFat: Li
     val layout = remember { arrayOfNulls<ChartLayout>(1) }
     var fullRange by remember(spec.points.firstOrNull()?.epochMs,spec.points.size,spec.metric) {mutableStateOf<GraphViewport?>(null)}
     var interacting by remember {mutableStateOf(false)}
+    var periodAnimation by remember {mutableStateOf<Job?>(null)}
     val markerReveal by animateFloatAsState(if(interacting) 0f else 1f,
         if(motion) spring(dampingRatio=.85f,stiffness=450f) else snap(),label="graph-reading-snap")
     val doubleTap by rememberUpdatedState(onDoubleTap)
@@ -53,6 +57,20 @@ fun InteractiveChart(spec: ChartSpec, modifier: Modifier = Modifier, bodyFat: Li
             pan.x / frame.plot.width(), pan.y / frame.plot.height())
     }
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        if(periodPicker) Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.End) {ChartPeriodControl(period) {p->
+            period=p
+            layout[0]?.let {frame->
+                val full=frame.full;val old=viewport ?: full
+                val span=minOf((p.days*86400000).toLong(),full.last-full.first).coerceAtLeast(1)
+                val end=(selected?.epochMs ?: full.last).coerceIn(full.first+span,full.last)
+                periodAnimation?.cancel()
+                periodAnimation=scope.launch {
+                    interacting=true
+                    animate(0f,1f,animationSpec=tween(if(motion) 380 else 0)) {v,_->viewport=GraphViewport((old.first+(end-span-old.first)*v).toLong(),(old.last+(end-old.last)*v).toLong(),full.low,full.high)}
+                    selectVisible();interacting=false
+                }
+            }
+        }}
         Canvas(modifier.fillMaxWidth().semantics {
             val zoom = fullRange?.let {viewport?.zoom(it)} ?: 1.0
             contentDescription = if (spec.metric == ChartMetric.BODY_FAT) "Body fat graph" else "Weight graph"
@@ -81,10 +99,10 @@ fun InteractiveChart(spec: ChartSpec, modifier: Modifier = Modifier, bodyFat: Li
                         else if (viewport != null && abs(accumulated.x) > viewConfiguration.touchSlop &&
                             abs(accumulated.x) > abs(accumulated.y) * 1.4f) transforming = true
                     }
-                    if (multiple && !vertical && event.changes.none { it.isConsumed }) transforming = true
+
                     if (transforming) {
-                        interacting=true
-                        transform(event.calculateZoom(), event.calculateCentroid(useCurrent = false), pan)
+                        periodAnimation?.cancel();interacting=true
+                        transform(1f, event.calculateCentroid(useCurrent = false), pan)
                         event.changes.forEach { if (it.positionChanged()) it.consume() }
                     }
                 } while (event.changes.any { it.pressed })
@@ -98,11 +116,6 @@ fun InteractiveChart(spec: ChartSpec, modifier: Modifier = Modifier, bodyFat: Li
                 layout[0]=frame
                 fullRange=frame?.full
             }
-        }
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            GlassButton("−", { layout[0]?.let { transform(0.5f, Offset(it.plot.centerX(), it.plot.centerY()));selectVisible() } }, Modifier.widthIn(min = 48.dp).semantics { contentDescription = "Zoom out" })
-            TextAction("Reset zoom", { viewport = null; selected = spec.points.lastOrNull() })
-            GlassButton("+", { layout[0]?.let { transform(2f, Offset(it.plot.centerX(), it.plot.centerY()));selectVisible() } }, Modifier.widthIn(min = 48.dp).semantics { contentDescription = "Zoom in" })
         }
         Column(Modifier.graphicsLayer {alpha=markerReveal}) { selected?.let { point ->
             val value = if (spec.metric == ChartMetric.BODY_FAT) BodyFat.format(point.kg) else Units.weight(point.kg, spec.unit)

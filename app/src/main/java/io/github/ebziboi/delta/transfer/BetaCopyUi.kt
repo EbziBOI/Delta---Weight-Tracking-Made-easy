@@ -55,7 +55,7 @@ fun BetaCopyCard(health:HealthState?,onConnect:()->Unit) {
         Text("Test changes stay in Delta Beta. Health Connect is read-only, and automatic refresh keeps your beta snapshot.",style=LocalDeltaType.current.bodySmall)
         message?.let {Text(it,style=LocalDeltaType.current.bodySmall)}
         PrimaryButton(if(busy) "Copying…" else "Copy from Delta",{confirm="delta"},Modifier.fillMaxWidth(),enabled=!busy)
-        if(message?.contains("transfer update")==true) TextAction("Open beta downloads",{uriHandler.openUri("https://github.com/EbziBOI/Delta---Weight-Tracking-Made-easy/releases/tag/stage2-beta-0.2.41-beta.4")})
+        if(message?.contains("transfer update")==true) TextAction("Open beta downloads",{uriHandler.openUri("https://github.com/EbziBOI/Delta---Weight-Tracking-Made-easy/releases/tag/stage2-beta-0.2.42-beta.5")})
         SecondaryButton(if(health?.canRead==true || health?.canReadBodyFat==true) "Copy Health Connect readings" else "Connect Health Connect",{
             if(health?.canRead==true || health?.canReadBodyFat==true) confirm="health" else onConnect()
         },Modifier.fillMaxWidth(),enabled=!busy)

@@ -67,15 +67,15 @@ class WeightRepository(context: Context) {
         if (access.canRead) {
             try {
                 val fresh = health.readWeights(since)
-                store.saveWeights(fresh)
-                count = fresh.size
+                store.saveWeights(mergeReturnedWeights(fresh,store.weights.first()))
+                count = store.weights.first().size
                 synced = true
             } catch (cancelled: CancellationException) { throw cancelled }
             catch (error: Exception) { errors += "Weight: ${error.message ?: error.javaClass.simpleName}" }
         }
         if (access.canReadBodyFat) {
             try {
-                store.saveBodyFat(health.readBodyFat(since))
+                store.saveBodyFat(mergeReturnedFat(health.readBodyFat(since),store.bodyFat.first()))
                 synced = true
             } catch (cancelled: CancellationException) { throw cancelled }
             catch (error: Exception) { errors += "Body fat: ${error.message ?: error.javaClass.simpleName}" }
@@ -111,7 +111,7 @@ class WeightRepository(context: Context) {
 
     suspend fun deleteBodyFat(entry: BodyFatEntry): Boolean {
         if (!entry.own) return false
-        if(beta) return syncLock.withLock {saveBetaMeasurements(store.weights.first(),store.bodyFat.first().filterNot {it.id==entry.id});true}
+        if(beta || entry.id.startsWith("local-copy:")) return syncLock.withLock {saveBetaMeasurements(store.weights.first(),store.bodyFat.first().filterNot {it.id==entry.id});true}
         health.deleteBodyFat(entry.id)
         sync()
         return true
@@ -169,7 +169,7 @@ class WeightRepository(context: Context) {
 
     suspend fun delete(entry: WeightEntry): Boolean = try {
         require(entry.own)
-        if(beta) syncLock.withLock {saveBetaMeasurements(store.weights.first().filterNot {it.id==entry.id},store.bodyFat.first());true}
+        if(beta || entry.id.startsWith("local-copy:")) syncLock.withLock {saveBetaMeasurements(store.weights.first().filterNot {it.id==entry.id},store.bodyFat.first());true}
         else {health.deleteWeight(entry.id);sync();true}
     } catch (cancelled: CancellationException) {
         throw cancelled
@@ -178,3 +178,9 @@ class WeightRepository(context: Context) {
     }
 
 }
+
+/** Returned test measurements stay local; matching Health Connect readings replace their snapshots. */
+internal fun mergeReturnedWeights(fresh:List<WeightEntry>,cached:List<WeightEntry>) =
+    (fresh+cached.filter {c->c.id.startsWith("local-copy:") && fresh.none {kotlin.math.abs(it.epochMs-c.epochMs)<=15*60000L && kotlin.math.abs(it.kg-c.kg)<.1}}).sortedBy {it.epochMs}
+internal fun mergeReturnedFat(fresh:List<BodyFatEntry>,cached:List<BodyFatEntry>) =
+    (fresh+cached.filter {c->c.id.startsWith("local-copy:") && fresh.none {kotlin.math.abs(it.epochMs-c.epochMs)<=15*60000L && kotlin.math.abs(it.percent-c.percent)<.05}}).sortedBy {it.epochMs}

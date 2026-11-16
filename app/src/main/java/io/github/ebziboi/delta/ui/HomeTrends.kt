@@ -32,6 +32,7 @@ internal fun HomeTrends(weights:List<WeightEntry>,fat:List<BodyFatEntry>,nutriti
     val context=LocalContext.current
     val prefs=remember {context.getSharedPreferences("home-chart",0)}
     var chosen by rememberSaveable {mutableStateOf(prefs.getString("series",null)?.split(",")?.mapNotNull {name->HomeSeries.entries.find {it.name==name}}?.toSet() ?: setOf(HomeSeries.WEIGHT))}
+    var trend by rememberSaveable {mutableStateOf(prefs.getBoolean("trend",settings.appChart==ChartStyle.TREND))}
     var range by rememberSaveable {mutableStateOf("1M")}
     val today=LocalDate.now();val zone=ZoneId.systemDefault();val c=LocalDeltaColors.current
     fun day(ms:Long)=Instant.ofEpochMilli(ms).atZone(zone).toLocalDate()
@@ -71,24 +72,25 @@ internal fun HomeTrends(weights:List<WeightEntry>,fat:List<BodyFatEntry>,nutriti
             when {
                 series.isEmpty()->Text("Choose measurements above",style=LocalDeltaType.current.bodySmall)
                 series.all {s->s.values.none {it.day in start..today}}->Text("No recordings in this period",style=LocalDeltaType.current.bodySmall)
-                else->RecordedChart(series,start,today,"Combined trends graph")
+                else->RecordedChart(series,start,today,"Combined trends graph",onDoubleTap={trend=!trend;prefs.edit().putBoolean("trend",trend).apply()},trend=trend)
             }
             if(series.size>1) Text("Each series uses its own scale",style=LocalDeltaType.current.bodySmall,color=Color(c.textDim))
         }
         Column(Modifier.fillMaxWidth(),verticalArrangement=Arrangement.spacedBy(8.dp)) {
-            HomeSeries.entries.forEach {item->
+            HomeSeries.entries.forEachIndexed {index,item->
                 val tint=allSeries.first {it.first==item}.second.color
-                Row(Modifier.fillMaxWidth().heightIn(min=64.dp)
+                Box(Modifier.fillMaxWidth(),contentAlignment=when(index) {0->Alignment.CenterStart;1->Alignment.Center;else->Alignment.CenterEnd}) {
+                Row(Modifier.fillMaxWidth(.78f).heightIn(min=(56*androidx.compose.ui.platform.LocalDensity.current.fontScale.coerceAtLeast(1f)).dp)
                     .refractiveGlass(RoundedCornerShape(Radii.control))
                     .clickable(role=Role.Button) {when(item) {HomeSeries.WEIGHT->onMetric(DetailMetric.WEIGHT);HomeSeries.BODY_FAT->onMetric(DetailMetric.BODY_FAT);HomeSeries.NUTRITION->onNutrition()}}
-                    .padding(horizontal=18.dp,vertical=14.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(14.dp)) {
+                    .padding(horizontal=14.dp,vertical=6.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(14.dp)) {
                     androidx.compose.foundation.Canvas(Modifier.size(12.dp)) {
                         drawPath(androidx.compose.ui.graphics.Path().apply {moveTo(0f,0f);lineTo(size.width,size.height/2);lineTo(0f,size.height);close()},tint)
                     }
                     Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(3.dp)) {
-                        Text(when(item) {HomeSeries.WEIGHT->"Weight details";HomeSeries.BODY_FAT->"Body composition";HomeSeries.NUTRITION->"Nutrition details"},style=LocalDeltaType.current.bodyStrong,color=tint)
-                        Text(when(item) {HomeSeries.WEIGHT->"Measurements & insights";HomeSeries.BODY_FAT->"Composition & insights";HomeSeries.NUTRITION->"Intake & nutrient trends"},style=LocalDeltaType.current.bodySmall,color=Color(c.textDim))
+                        Text(when(item) {HomeSeries.WEIGHT->"Weight details";HomeSeries.BODY_FAT->"Body composition details";HomeSeries.NUTRITION->"Nutrition details"},style=LocalDeltaType.current.bodyStrong,color=tint)
                     }
+                }
                 }
             }
         }

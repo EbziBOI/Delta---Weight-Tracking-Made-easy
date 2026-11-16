@@ -108,6 +108,7 @@ fun SettingsScreen(
     ) {
         ScreenHeader(title = "Settings")
         if(io.github.ebziboi.delta.BuildConfig.IS_BETA) io.github.ebziboi.delta.transfer.BetaCopyCard(health,onConnect)
+        io.github.ebziboi.delta.transfer.FullTransferCard()
 
         ContentSection(tone = ModuleTone.SAGE,framed=true) {
             Caption("Body composition")

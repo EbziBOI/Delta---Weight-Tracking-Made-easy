@@ -35,22 +35,19 @@ fun MetricDetailScreen(vm: AppViewModel, settings: AppSettings, initial: DetailM
     val scope = rememberCoroutineScope(); val motion = LocalMotion.current
     var weekEpoch by rememberSaveable { mutableStateOf(MetricDetails.weekStart(LocalDate.now(),settings.weekStartsOn).toEpochDay()) }
     var selectedEpoch by rememberSaveable { mutableStateOf(LocalDate.now().toEpochDay()) }
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(top=padding.calculateTopPadding())
-        .padding(horizontal=Spacing.screen).padding(bottom=padding.calculateBottomPadding()+8.dp), verticalArrangement=Arrangement.spacedBy(18.dp)) {
-        if (initial == DetailMetric.GOAL) {
-            ScreenHeader("Your forecast", eyebrow="GOAL BY",leading={TextAction("Back",onBack)})
-            snap?.let { ForecastDetail(it,entries,settings) }
-        } else {
+    if(initial==DetailMetric.GOAL) {
+        snap?.let {ForecastDetail(it,entries,settings,padding,onBack)}
+    } else Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(top=padding.calculateTopPadding(),bottom=padding.calculateBottomPadding()+8.dp),verticalArrangement=Arrangement.spacedBy(18.dp)) {
+        Column(Modifier.padding(horizontal=Spacing.screen),verticalArrangement=Arrangement.spacedBy(18.dp)) {
             ScreenHeader("Your rhythm",eyebrow="PROGRESS DETAILS",leading={TextAction("Back",onBack)})
-            SegmentedControl(metrics,metrics[pager.currentPage],{ when(it) { DetailMetric.RATE -> "Rate"; DetailMetric.AVERAGE -> "Average"; else -> "Streak" } },Modifier.fillMaxWidth()) {
-                scope.launch { if(motion) pager.animateScrollToPage(metrics.indexOf(it)) else pager.scrollToPage(metrics.indexOf(it)) }
+            SegmentedControl(metrics,metrics[pager.currentPage],{when(it) {DetailMetric.RATE->"Rate";DetailMetric.AVERAGE->"Average";else->"Streak"}},Modifier.fillMaxWidth()) {
+                scope.launch {if(motion) pager.animateScrollToPage(metrics.indexOf(it)) else pager.scrollToPage(metrics.indexOf(it))}
             }
-            HorizontalPager(pager,Modifier.fillMaxWidth(),verticalAlignment=Alignment.Top) { page ->
-                MetricCalendar(metrics[page],entries,settings,weekEpoch,{weekEpoch=it},selectedEpoch,{selectedEpoch=it}) {index ->
-                    weekEpoch=MetricDetails.weekStart(LocalDate.ofEpochDay(selectedEpoch),index).toEpochDay()
-                    vm.update {it.copy(weekStartsOn=index)}
-                }
-            }
+        }
+        HorizontalPager(pager,Modifier.fillMaxWidth(),pageSpacing=16.dp,flingBehavior=PagerDefaults.flingBehavior(pager,snapPositionalThreshold=.25f),verticalAlignment=Alignment.Top) {page->
+            Box(Modifier.fillMaxWidth().padding(horizontal=Spacing.screen)) {MetricCalendar(metrics[page],entries,settings,weekEpoch,{weekEpoch=it},selectedEpoch,{selectedEpoch=it}) {index->
+                weekEpoch=MetricDetails.weekStart(LocalDate.ofEpochDay(selectedEpoch),index).toEpochDay();vm.update {it.copy(weekStartsOn=index)}
+            }}
         }
     }
 }
@@ -133,6 +130,16 @@ private fun MetricCalendar(metric: DetailMetric, entries: List<WeightEntry>, set
                 }
             }
         }
+        ContentSection(tone=ModuleTone.VIOLET) {
+            Text("This week",style=type.title)
+            val values=days.filter {it.day<=today}.mapNotNull {d->
+                val v=when(metric) {DetailMetric.RATE->d.rateKg;DetailMetric.AVERAGE->d.averageKg;else->d.streak.toDouble().takeIf {d.readings>0}}
+                v?.let {RecordedValue(d.day,it)}
+            }
+            if(values.isEmpty()) Text("No values in this week",style=type.bodySmall)
+            else RecordedChart(listOf(RecordedSeries("rhythm-${metric.name}",metric.label,Color(LocalDeltaColors.current.accent),values,{v->when(metric) {DetailMetric.RATE->Units.rate(v,settings.unit);DetailMetric.AVERAGE->Units.weight(v,settings.unit);else->"${v.toInt()} days"}})),
+                week,week.plusDays(6),"${metric.label} weekly graph",onSelected={d->d?.let {onDay(it.toEpochDay())}},selectedDay=selected.day,connectDots=false,periodPicker=false)
+        }
         ContentSection {
             Text(when(metric) { DetailMetric.RATE -> "How your pace is changing";DetailMetric.AVERAGE -> "A clearer daily signal";else -> "Consistency, one day at a time" },style=type.title)
             Text(selected.kg?.let { "${Format.day(selected.day)}: ${Units.weight(it,settings.unit)} · ${selected.readings} ${if(selected.readings==1) "reading" else "readings"}" }
@@ -151,39 +158,41 @@ private fun MetricCalendar(metric: DetailMetric, entries: List<WeightEntry>, set
 }
 
 @Composable
-private fun ForecastDetail(snap: ProgressSnapshot, entries: List<WeightEntry>, settings: AppSettings) {
+private fun ForecastDetail(snap: ProgressSnapshot, entries: List<WeightEntry>, settings: AppSettings,padding:PaddingValues,onBack:()->Unit) {
     val c=LocalDeltaColors.current;val type=LocalDeltaType.current
     val today=LocalDate.now();val zone=ZoneId.systemDefault()
     val dayWeights=remember(entries) { InsightsCalculator.distinctReadings(entries).groupBy { Instant.ofEpochMilli(it.epochMs).atZone(zone).toLocalDate() }
         .filterKeys { it<=today }.toSortedMap().mapValues { (_,v) -> v.map { it.kg }.average() } }
-    fun recentRate(days:Long):Double? {
-        val list=dayWeights.filterKeys { it>=today.minusDays(days-1) }.entries.toList()
-        if(list.size<3) return null
-        val span=ChronoUnit.DAYS.between(list.first().key,list.last().key)
-        return if(span>=6) (list.last().value-list.first().value)/span*7 else null
-    }
-    val recent=recentRate(7);val fortnight=recentRate(14)
+    val seven=recentPace(dayWeights,7,today);val fourteen=recentPace(dayWeights,14,today)
+    val recent=seven.rate;val fortnight=fourteen.rate
     val recentDate=MetricDetails.project(snap.currentKg,snap.targetKg,recent)
-    ContentSection(tone=ModuleTone.SAGE,framed=true) {
+    val cards=listOf(CardSlot("summary","Forecast summary"),CardSlot("path","Projection graph"),CardSlot("signals","Recent signals"),CardSlot("quality","Forecast quality"))
+    val (order,saveOrder)=rememberPageCardOrder("forecast",cards.map {it.id})
+    ReorderableCards(cards,order,padding,saveOrder,header={ScreenHeader("Your forecast",eyebrow="GOAL BY",leading={TextAction("Back",onBack)})}) {id->when(id) {
+    "summary"->    ContentSection(tone=ModuleTone.SAGE,framed=true) {
         Caption(if(snap.reached) "Goal reached" else "At your recent pace")
         Text(when { snap.reached -> "You made it";snap.targetKg==null -> "Choose a target";else -> snap.projectedDay?.let(Format::day) ?: "No date yet" },style=type.number)
         Text(snap.weeklyRateKg?.let { "${Units.rate(it,settings.unit)} · recent fitted rate" } ?: "More recorded days are needed for a forecast.",style=type.bodySmall)
         if(snap.targetKg!=null) Text("Target ${Units.weight(snap.targetKg,settings.unit)}",style=type.bodyStrong)
     }
-    ContentSection(tone=ModuleTone.VIOLET) {
+    "path"->ContentSection(tone=ModuleTone.VIOLET) {
         Text("The path ahead",style=type.title)
-        InteractiveChart(ChartSpec.journey(snap,settings.appChart,settings.unit,true).copy(showFullProjection=true),Modifier.fillMaxWidth().height(280.dp))
+        InteractiveChart(ChartSpec.journey(snap,settings.appChart,settings.unit,true).copy(showFullProjection=true),Modifier.fillMaxWidth().height(280.dp),periodPicker=false)
     }
-    ContentSection {
+    "signals"->ContentSection {
         Text("Recent signals",style=type.title)
-        Text(recent?.let { "Last 7 days: ${Units.rate(it,settings.unit)}." } ?: "The last 7 days do not yet contain enough measurements to compare pace.",style=type.body)
-        fortnight?.let { Text("Last 14 days: ${Units.rate(it,settings.unit)}.",style=type.body) }
+        listOf(seven,fourteen).forEach {pace->
+            Text("Last ${pace.days} days · ${pace.rate?.let {Units.rate(it,settings.unit)} ?: "No rate yet"}",style=type.bodyStrong)
+            StatusPill(pace.reliability,Color(if(pace.reliability=="Higher confidence") c.good else c.warn))
+            Text(pace.reason,style=type.bodySmall)
+            if(pace.count>=3) pace.residual?.let {Text("Typical scatter around the fitted line: ${Units.weight(it,settings.unit)}",style=type.bodySmall)}
+        }
         if(recentDate!=null) Text("If the last week’s pace continued: ${Format.day(recentDate)}. The main forecast uses a longer fitted trend.",style=type.body)
         if(recent!=null && snap.weeklyRateKg!=null && abs(recent-snap.weeklyRateKg)>.2)
             Text("Your latest week differs from the longer trend. A short change can move the estimate sharply; compare several weeks before treating it as a new pace.",style=type.bodyStrong)
         snap.requiredRateKg?.let { Text("Your chosen date needs ${Units.rate(it,settings.unit)} from here.",style=type.body) }
     }
-    ContentSection {
+    "quality"->ContentSection {
         Text("What can skew the estimate",style=type.title)
         val recentDays=dayWeights.keys.count { it>=today.minusDays(27) }
         Text("$recentDays recorded days in the last 28. ${if(recentDays<8) "Sparse measurements make the forecast more sensitive to individual readings." else "More consistently recorded days give a steadier picture."}",style=type.body)
@@ -193,6 +202,7 @@ private fun ForecastDetail(snap: ProgressSnapshot, entries: List<WeightEntry>, s
         if(times.isNotEmpty() && times.max()-times.min()>=6) Text("Your recent measurements span different times of day. That can add variation unrelated to the underlying trend.",style=type.body)
         Text("Estimate based on your recorded trend.",style=type.bodySmall,color=Color(c.textDim))
     }
+    }}
 }
 
 @Composable

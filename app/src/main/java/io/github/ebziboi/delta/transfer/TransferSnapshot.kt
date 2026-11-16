@@ -22,7 +22,7 @@ object TransferSnapshot {
     data class Parsed(val settings:JSONArray,val weights:List<WeightEntry>,val fat:List<BodyFatEntry>,val images:Map<String,ByteArray>)
 
     suspend fun create(context:Context):JSONObject=withContext(Dispatchers.IO) {
-        require(context.packageName==STABLE)
+        require(context.packageName in setOf(STABLE,BETA))
         val store=SettingsStore(context);val settings=store.settings.first()
         val result=JSONObject().put("format","delta-beta-copy").put("schema",1).put("source",STABLE)
             .put("settings",store.exportForBeta())
@@ -73,8 +73,8 @@ object TransferSnapshot {
         } ?: error("The transfer could not be opened")
         parse(bytes.toString(Charsets.UTF_8))
     }
-    suspend fun apply(context:Context,p:Parsed)=withContext(Dispatchers.IO) {
-        require(context.packageName==BETA)
+    suspend fun apply(context:Context,p:Parsed,allowStable:Boolean=false)=withContext(Dispatchers.IO) {
+        require(context.packageName==BETA || (allowStable && context.packageName==STABLE))
         val store=SettingsStore(context)
         // Decode/validate settings before replacing any measurements.
         store.importForBeta(p.settings)
