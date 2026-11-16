@@ -8,6 +8,8 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.saveable.listSaver
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.animation.core.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
@@ -31,11 +33,18 @@ fun InteractiveChart(spec: ChartSpec, modifier: Modifier = Modifier, bodyFat: Li
     val viewportSaver=remember {listSaver<GraphViewport?,Any>(save={v->if(v==null) emptyList() else listOf(v.first,v.last,v.low,v.high)},restore={v->if(v.isEmpty()) null else GraphViewport(v[0] as Long,v[1] as Long,v[2] as Double,v[3] as Double)})}
     val pointSaver=remember {listSaver<TrendPoint?,Any>(save={p->if(p==null) emptyList() else listOf(p.epochMs,p.kg,p.trendKg)},restore={p->if(p.isEmpty()) null else TrendPoint(p[0] as Long,p[1] as Double,p[2] as Double)})}
     var viewport by rememberSaveable(spec.points.firstOrNull()?.epochMs,spec.points.size,spec.metric,stateSaver=viewportSaver) {mutableStateOf<GraphViewport?>(null)}
-    var selected by rememberSaveable(spec.points,spec.metric,stateSaver=pointSaver) {mutableStateOf<TrendPoint?>(null)}
+    var selected by rememberSaveable(spec.points,spec.metric,stateSaver=pointSaver) {mutableStateOf<TrendPoint?>(spec.points.lastOrNull())}
     val layout = remember { arrayOfNulls<ChartLayout>(1) }
     var fullRange by remember(spec.points.firstOrNull()?.epochMs,spec.points.size,spec.metric) {mutableStateOf<GraphViewport?>(null)}
+    var interacting by remember {mutableStateOf(false)}
+    val markerReveal by animateFloatAsState(if(interacting) 0f else 1f,
+        if(motion) spring(dampingRatio=.85f,stiffness=450f) else snap(),label="graph-reading-snap")
     val doubleTap by rememberUpdatedState(onDoubleTap)
     val currentSpec by rememberUpdatedState(spec)
+    fun selectVisible() {
+        val shown=viewport ?: layout[0]?.full
+        selected=currentSpec.points.lastOrNull {p->shown==null || p.epochMs in shown.first..shown.last}
+    }
     fun transform(scale: Float, center: Offset, pan: Offset = Offset.Zero) {
         if (!center.x.isFinite() || !center.y.isFinite()) return
         val frame = layout[0] ?: return
@@ -59,7 +68,7 @@ fun InteractiveChart(spec: ChartSpec, modifier: Modifier = Modifier, bodyFat: Li
                 var accumulated = Offset.Zero
                 var transforming = false
                 var vertical = false
-                do {
+                try { do {
                     val event = awaitPointerEvent()
                     val pan = event.calculatePan()
                     accumulated += pan
@@ -74,25 +83,28 @@ fun InteractiveChart(spec: ChartSpec, modifier: Modifier = Modifier, bodyFat: Li
                     }
                     if (multiple && !vertical && event.changes.none { it.isConsumed }) transforming = true
                     if (transforming) {
+                        interacting=true
                         transform(event.calculateZoom(), event.calculateCentroid(useCurrent = false), pan)
                         event.changes.forEach { if (it.positionChanged()) it.consume() }
                     }
                 } while (event.changes.any { it.pressed })
+                } finally {if(transforming) {selectVisible();interacting=false}}
             }
         }) {
             drawIntoCanvas { canvas ->
                 val frame = TrendChart.draw(canvas.nativeCanvas, RectF(0f, 0f, size.width, size.height),
-                    currentSpec.copy(viewport = viewport, selectedPoint = selected), colors, fonts, density, true, reveal = reveal.value)
+                    currentSpec.copy(viewport = viewport, selectedPoint = selected,selectionReveal=markerReveal,highlightLatest=false,
+                        endEpochMs=if(currentSpec.showFullProjection) null else java.time.LocalDate.now().plusDays(1).atStartOfDay(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()-1), colors, fonts, density, true, reveal = reveal.value)
                 layout[0]=frame
                 fullRange=frame?.full
             }
         }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            GlassButton("−", { layout[0]?.let { transform(0.5f, Offset(it.plot.centerX(), it.plot.centerY())) } }, Modifier.widthIn(min = 48.dp).semantics { contentDescription = "Zoom out" })
-            TextAction("Reset zoom", { viewport = null; selected = null })
-            GlassButton("+", { layout[0]?.let { transform(2f, Offset(it.plot.centerX(), it.plot.centerY())) } }, Modifier.widthIn(min = 48.dp).semantics { contentDescription = "Zoom in" })
+            GlassButton("−", { layout[0]?.let { transform(0.5f, Offset(it.plot.centerX(), it.plot.centerY()));selectVisible() } }, Modifier.widthIn(min = 48.dp).semantics { contentDescription = "Zoom out" })
+            TextAction("Reset zoom", { viewport = null; selected = spec.points.lastOrNull() })
+            GlassButton("+", { layout[0]?.let { transform(2f, Offset(it.plot.centerX(), it.plot.centerY()));selectVisible() } }, Modifier.widthIn(min = 48.dp).semantics { contentDescription = "Zoom in" })
         }
-        selected?.let { point ->
+        Column(Modifier.graphicsLayer {alpha=markerReveal}) { selected?.let { point ->
             val value = if (spec.metric == ChartMetric.BODY_FAT) BodyFat.format(point.kg) else Units.weight(point.kg, spec.unit)
             Text("$value · ${Format.moment(point.epochMs)}", style = LocalDeltaType.current.bodyStrong,
                 modifier = Modifier.semantics { contentDescription = "Selected reading $value" })
@@ -106,6 +118,6 @@ fun InteractiveChart(spec: ChartSpec, modifier: Modifier = Modifier, bodyFat: Li
             }
         } ?: Column {
             if (spec.points.isNotEmpty()) TextAction("Inspect latest reading", { selected = spec.points.last() })
-        }
+        } }
     }
 }

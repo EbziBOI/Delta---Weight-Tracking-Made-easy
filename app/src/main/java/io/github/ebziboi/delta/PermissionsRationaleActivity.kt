@@ -45,7 +45,7 @@ class PermissionsRationaleActivity : ComponentActivity() {
                         )
                         Text(
                             "Delta reads your weight and measured body-fat percentages so it can show your progress from your start " +
-                                "date to your target, in the app and on your home-screen widgets."
+                                "date to your target, in the app and on your home-screen widgets. It also reads food, energy, macros and available micronutrients into your diary and nutrition charts. Food records are never written to Health Connect."
                         )
                         Text(
                             "Access to past data lets it include weigh-ins from before you installed " +

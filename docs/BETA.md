@@ -4,6 +4,27 @@ This is a separate app, **Delta Beta** (`io.github.ebziboi.delta.beta`). It inst
 beside **Delta** (`io.github.ebziboi.delta`). The normal release and its download
 are unchanged. This prerelease adds the Stage 2 food diary in Glass and Tubik.
 
+## Beta 2 changes
+
+- The home charts are combined, with independent Weight, Body fat and Nutrition
+  toggles above the card. Choose any combination; it is saved between updates.
+- Daily intake contains food only. The chart opens ending today, and missing
+  dates have no points. Unknown nutrient labels are excluded from daily averages.
+- A dotted selection marker starts at the latest recorded value. Date zoom/pan
+  hides it while moving and selects the latest visible reading on release.
+  Vertical gestures continue scrolling the page; Reduce motion is respected.
+- Health Connect food reads include consumed energy, macros and all supported
+  micronutrients. Allow **Read food and nutrients** in Settings → Health Connect.
+  Reads run on foreground refresh; imported records are read-only and separate
+  from local meals. Refresh updates/removes imported records without duplicates.
+  This beta requests no Health Connect write permissions.
+- A narrower tab arrangement leaves more room inside the bottom bar's corners.
+  The chosen launcher icon is saved before applying it and restored after updates.
+
+Existing beta users can install the new versioned beta APK over Beta 1. Your
+local diary, goals, appearance and selected icon are retained. The transfer
+companion below is only needed when initially copying the original app.
+
 ## Install and copy the current app's data
 
 1. Install the versioned **Delta-Beta-…apk** attached to this release.

@@ -126,7 +126,7 @@ fun NutritionScreen(padding: PaddingValues,addSignal: Int=0,onDetailChanged: (Bo
             else -> route
         }) { when(route) {
             "diary" -> DiaryPage(state,day,meal,padding,{dayEpoch=it.toEpochDay()},{meal=it},
-                onAdd={meal=it;route="search";parent="diary"},onEntry={vm.selectedEntry=it;vm.selectedFood=it.food;parent="diary";route="portion"},
+                onAdd={meal=it;route="search";parent="diary"},onEntry={vm.selectedEntry=it;vm.selectedFood=it.food;parent="diary";route=if(it.fromHealthConnect) "health-entry" else "portion"},
                 onRoute={route=it},onDate={datePicker=true},onRepeat={e->vm.run {vm.repo.log(listOf(e.copy(id=newId(),day=day,meal=meal,created=System.currentTimeMillis())))}})
             "search" -> FoodSearchPage(vm,state,padding,back,{openFood(it,"search")},
                 onCustom={vm.selectedFood=null;vm.foodDraftId=newId();parent="search";route="food-edit"},
@@ -146,6 +146,7 @@ fun NutritionScreen(padding: PaddingValues,addSignal: Int=0,onDetailChanged: (Bo
             "ingredient-search" -> FoodSearchPage(vm,state,padding,{route="recipe"},{openFood(it,"recipe")},onCustom={vm.selectedFood=null;vm.foodDraftId=newId();parent="ingredient-search";route="food-edit"},onRecipe={route="recipe"},onPhoto={route="photo"},ingredientsOnly=true)
             "targets" -> TargetsPage(state.targets,padding,vm.busy,back) { targets -> vm.run {vm.repo.saveTargets(targets);route="diary"} }
             "copy" -> CopyDiaryPage(state,day,padding,vm.busy,back) { from,m -> vm.run {vm.repo.copy(from,day,m);route="diary"} }
+            "health-entry" -> vm.selectedEntry?.let {HealthFoodPage(it,padding,back)}
             "charts" -> NutritionChartsPage(state,weights,padding,back,weightUnit)
             "fasting" -> FastingPage(vm,state,padding,back)
             "photo" -> PhotoPage(vm,padding,back,onSettings={route="photo-settings"},onLog={m -> vm.run {
@@ -188,7 +189,7 @@ private fun DiaryPage(state: NutritionState,day: LocalDate,meal: Meal,padding: P
                 }
             }
         }
-        val recent=state.entries.sortedByDescending {it.created}.distinctBy {it.food.id}.take(4)
+        val recent=state.entries.filterNot {it.fromHealthConnect}.sortedByDescending {it.created}.distinctBy {it.food.id}.take(4)
         if(recent.isNotEmpty()) ContentSection {
             Caption("Repeat · ${meal.label}")
             SegmentedControl(Meal.entries,meal,{it.label},onSelect=onMeal)
@@ -203,7 +204,7 @@ private fun DiaryPage(state: NutritionState,day: LocalDate,meal: Meal,padding: P
                 }
                 if(items.isEmpty()) Text("No entries",style=LocalDeltaType.current.bodySmall,color=Color(LocalDeltaColors.current.textDim))
                 items.forEach { e -> NutritionRow(e.food.name,nutrientText(e.nutrients[Nutrient.ENERGY],Nutrient.ENERGY),
-                    "${amountText(e.amount)} ${e.food.unit.symbol}"+(if(e.food.estimated) " · Estimated" else ""),{onEntry(e)}) }
+                    (if(e.fromHealthConnect) "Health Connect · ${e.food.brand}" else "${amountText(e.amount)} ${e.food.unit.symbol}")+(if(e.food.estimated) " · Estimated" else ""),{onEntry(e)}) }
                 if(items.isNotEmpty()) Text("Meal total · ${if(total.known) nutrientText(total.amount,Nutrient.ENERGY) else "Unknown"}${if(total.partial) " · partial" else ""}",style=LocalDeltaType.current.bodySmall)
             }
         }
@@ -223,5 +224,22 @@ fun NutritionSettingsEntry(page:String,padding:PaddingValues,onBack:()->Unit,vm:
         if(page=="Photo logging") PhotoSettingsPage(vm,padding,onBack)
         else if(state.loaded && state.loadError==null) TargetsPage(state.targets,padding,vm.busy,onBack) {t->vm.run {vm.repo.saveTargets(t);onBack()} }
         else NutritionPage("Nutrition",padding,onBack) {Text(state.loadError ?: "Loading nutrition targets…")}
+    }
+}
+
+@Composable
+private fun HealthFoodPage(entry:DiaryEntry,padding:PaddingValues,onBack:()->Unit) {
+    NutritionPage("Recorded food",padding,onBack) {
+        ContentSection {
+            Text(entry.food.name,style=LocalDeltaType.current.title)
+            StatusPill("Health Connect · Read only",Color(LocalDeltaColors.current.good))
+            Text(entry.day.format(dayFormat)+" · "+entry.meal.label,style=LocalDeltaType.current.bodySmall)
+            Text(entry.food.brand,style=LocalDeltaType.current.bodySmall)
+            Text("Consumed totals supplied by the source app. Edit this record in that app.",style=LocalDeltaType.current.bodySmall)
+        }
+        ContentSection {
+            entry.nutrients.forEach {(n,v)->NutritionRow(n.label,nutrientText(v,n))}
+            if(entry.nutrients.isEmpty()) Text("The source app did not supply nutrient values.")
+        }
     }
 }

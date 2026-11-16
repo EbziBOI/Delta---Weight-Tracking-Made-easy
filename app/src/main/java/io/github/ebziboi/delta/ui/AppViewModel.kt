@@ -23,6 +23,8 @@ import java.time.Instant
 /** Holds what the screens show and carries out what they ask for. */
 class AppViewModel(application: Application) : AndroidViewModel(application) {
     private val repo = (application as DeltaApp).repo
+    private val nutritionRepo=(application as DeltaApp).nutrition
+    val nutrition=nutritionRepo.state
 
     private val _appearancePreview = MutableStateFlow<io.github.ebziboi.delta.data.AppAppearance?>(null)
     val appearancePreview = _appearancePreview.asStateFlow()
@@ -76,7 +78,11 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             if (_syncing.value) return@launch
             _syncing.value = true
             val result = try {
-                repo.sync()
+                val weights=repo.sync()
+                try {nutritionRepo.syncHealth(repo.health)}
+                catch(cancelled:kotlinx.coroutines.CancellationException) {throw cancelled}
+                catch(_:Exception) {if(announce) _messages.tryEmit("Food sync failed. Your saved meals are unchanged.")}
+                weights
             } catch (cancelled: kotlinx.coroutines.CancellationException) {
                 throw cancelled
             } catch (error: Exception) {
@@ -211,13 +217,13 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             val previous = settings.value?.appIcon ?: "Classic"
             try {
-                io.github.ebziboi.delta.icons.LauncherIcons.apply(getApplication(), id)
                 repo.updateSettings { it.copy(appIcon = id) }
+                io.github.ebziboi.delta.icons.LauncherIcons.apply(getApplication(), id)
                 _messages.tryEmit("App icon updated")
             } catch (cancelled: kotlinx.coroutines.CancellationException) {
                 throw cancelled
             } catch (error: Exception) {
-                runCatching { io.github.ebziboi.delta.icons.LauncherIcons.apply(getApplication(), previous) }
+                runCatching { repo.updateSettings {it.copy(appIcon=previous)};io.github.ebziboi.delta.icons.LauncherIcons.apply(getApplication(), previous) }
                 _messages.tryEmit("Couldn't change the app icon. Please try again.")
             }
         }

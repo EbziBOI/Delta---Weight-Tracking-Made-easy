@@ -51,6 +51,9 @@ data class ChartSpec(
     val showFullProjection: Boolean = false,
     val viewport: GraphViewport? = null,
     val selectedPoint: TrendPoint? = null,
+    val selectionReveal: Float = 1f,
+    val highlightLatest: Boolean = true,
+    val endEpochMs: Long? = null,
 ) {
     companion object {
         fun forWidget(snap: ProgressSnapshot, settings: io.github.ebziboi.delta.data.AppSettings,
@@ -126,7 +129,7 @@ object TrendChart {
             if (contrastShadow) setShadowLayer(2f * density, 0f, density, if (colors.isLight) android.graphics.Color.WHITE else android.graphics.Color.BLACK)
         }
 
-        if (points.size < 2) {
+        if (points.isEmpty()) {
             caption.textAlign = Paint.Align.CENTER
             caption.textSize = 12f * density
             val middle = area.centerY() - (caption.ascent() + caption.descent()) / 2f
@@ -173,12 +176,12 @@ object TrendChart {
         )
         if (plot.width() <= 0f || plot.height() <= 0f) return null
 
-        val fullFirst = points.first().epochMs
-        val dataEnd = max(points.last().epochMs, fullFirst + DAY_MS)
+        val fullFirst = points.first().epochMs - if(points.size==1) DAY_MS else 0L
+        val dataEnd = max(max(points.last().epochMs, spec.endEpochMs ?: Long.MIN_VALUE), fullFirst + DAY_MS)
         // Keep at least two thirds of the width for recorded data.
         val horizon = dataEnd + max(7 * DAY_MS, (dataEnd - fullFirst) / 2)
         val projection = spec.projection?.takeIf { it.atEpochMs > points.last().epochMs }
-        val fullLast = projection?.let { if (spec.showFullProjection) it.atEpochMs else min(it.atEpochMs, horizon) }?.coerceAtLeast(dataEnd) ?: dataEnd
+        val fullLast = if(spec.endEpochMs!=null && !spec.showFullProjection) dataEnd else projection?.let { if (spec.showFullProjection) it.atEpochMs else min(it.atEpochMs, horizon) }?.coerceAtLeast(dataEnd) ?: dataEnd
         val firstMs = spec.viewport?.first ?: fullFirst
         val lastMs = spec.viewport?.last ?: fullLast
         fun x(epochMs: Long): Float =
@@ -316,17 +319,20 @@ object TrendChart {
             style = Paint.Style.FILL
             color = colors.accent
         }
-        canvas.drawCircle(lastX, lastY, 6f * density, halo)
-        canvas.drawCircle(lastX, lastY, 4f * density, marker)
+        if(spec.highlightLatest) {
+            canvas.drawCircle(lastX, lastY, 6f * density, halo)
+            canvas.drawCircle(lastX, lastY, 4f * density, marker)
+        }
         canvas.restoreToCount(drawing)
 
         spec.selectedPoint?.let { selected ->
             val sx = x(selected.epochMs); val sy = y(selected.kg)
-            if (plot.includes(sx, sy)) {
-                val cross = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = colors.text; strokeWidth = density; alpha = 100 }
+            if (plot.includes(sx, sy) && spec.selectionReveal>0f) {
+                val a=spec.selectionReveal.coerceIn(0f,1f)
+                val cross = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = colors.text; strokeWidth = density; alpha = (a*120).toInt(); pathEffect=DashPathEffect(floatArrayOf(2f*density,4f*density),0f) }
                 canvas.drawLine(sx, plot.top, sx, plot.bottom, cross)
-                cross.alpha = 255; canvas.drawCircle(sx, sy, 6f * density, cross)
-                cross.color = colors.accent; canvas.drawCircle(sx, sy, 3.5f * density, cross)
+                cross.pathEffect=null;cross.alpha=(a*255).toInt(); canvas.drawCircle(sx, sy, (4f+2f*a) * density, cross)
+                cross.color = Palettes.withAlpha(colors.accent,(a*255).toInt()); canvas.drawCircle(sx, sy, (2.5f+a) * density, cross)
             }
         }
         if (labels && reveal >= 1f && plot.includes(lastX, lastY)) {

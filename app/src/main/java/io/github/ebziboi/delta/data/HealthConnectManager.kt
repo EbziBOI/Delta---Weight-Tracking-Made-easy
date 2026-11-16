@@ -3,6 +3,9 @@ package io.github.ebziboi.delta.data
 import android.content.Context
 import androidx.health.connect.client.HealthConnectClient
 import androidx.health.connect.client.permission.HealthPermission
+import androidx.health.connect.client.records.NutritionRecord
+import io.github.ebziboi.delta.nutrition.DiaryEntry
+import io.github.ebziboi.delta.nutrition.toDiaryEntry
 import androidx.health.connect.client.records.BodyFatRecord
 import androidx.health.connect.client.units.Percentage
 import androidx.health.connect.client.records.WeightRecord
@@ -20,6 +23,7 @@ enum class HealthAvailability { AVAILABLE, NEEDS_UPDATE, UNAVAILABLE }
 data class HealthState(
     val availability: HealthAvailability,
     val canRead: Boolean = false,
+    val canReadNutrition: Boolean = false,
     val canWrite: Boolean = false,
     val canReadBodyFat: Boolean = false,
     val canWriteBodyFat: Boolean = false,
@@ -33,6 +37,7 @@ data class HealthState(
     /** The permissions still worth asking for. */
     val missing: Set<String>
         get() = buildSet {
+            if (!canReadNutrition) add(HealthConnectManager.READ_NUTRITION)
             if (!canReadBodyFat) add(HealthConnectManager.READ_BODY_FAT)
             if (!io.github.ebziboi.delta.BuildConfig.IS_BETA && !canWriteBodyFat) add(HealthConnectManager.WRITE_BODY_FAT)
             if (!canRead) add(HealthConnectManager.READ_WEIGHT)
@@ -47,6 +52,7 @@ class HealthConnectManager(context: Context) {
     private val appContext = context.applicationContext
 
     companion object {
+        val READ_NUTRITION: String = HealthPermission.getReadPermission(NutritionRecord::class)
         val READ_BODY_FAT: String = HealthPermission.getReadPermission(BodyFatRecord::class)
         val WRITE_BODY_FAT: String = HealthPermission.getWritePermission(BodyFatRecord::class)
         val READ_WEIGHT: String = HealthPermission.getReadPermission(WeightRecord::class)
@@ -79,6 +85,7 @@ class HealthConnectManager(context: Context) {
         return HealthState(
             availability = availability,
             canRead = READ_WEIGHT in granted,
+            canReadNutrition = READ_NUTRITION in granted,
             canReadBodyFat = READ_BODY_FAT in granted,
             canWriteBodyFat = WRITE_BODY_FAT in granted,
             canWrite = WRITE_WEIGHT in granted,
@@ -115,7 +122,24 @@ class HealthConnectManager(context: Context) {
         return entries
     }
 
+    suspend fun readNutrition(since: Instant = Instant.EPOCH): List<DiaryEntry> {
+        val client=client() ?: error("Health Connect is not available")
+        val result=mutableListOf<DiaryEntry>();var token:String?=null
+        val end=Instant.now()
+        do {
+            val page=client.readRecords(ReadRecordsRequest(NutritionRecord::class,
+                timeRangeFilter=TimeRangeFilter.between(since,end),ascendingOrder=true,pageSize=1000,pageToken=token))
+            result+=page.records.map {r->
+                val label=runCatching {appContext.packageManager.getApplicationInfo(r.metadata.dataOrigin.packageName,0)
+                    .let {appContext.packageManager.getApplicationLabel(it).toString()}}.getOrDefault("Connected app")
+                r.toDiaryEntry(sourceLabel=label)
+            };token=page.pageToken?.takeIf {it.isNotBlank()}
+        } while(token!=null)
+        return result.distinctBy {it.id}
+    }
+
     suspend fun writeWeight(kg: Double, at: Instant) {
+        check(!io.github.ebziboi.delta.BuildConfig.IS_BETA) { "Beta cannot write to Health Connect" }
         val client = client() ?: throw IllegalStateException("Health Connect is not available")
         val record = WeightRecord(
             time = at,

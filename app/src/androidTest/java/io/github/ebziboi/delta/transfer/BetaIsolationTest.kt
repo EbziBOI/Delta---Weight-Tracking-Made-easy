@@ -24,7 +24,8 @@ class BetaIsolationTest {
         assertTrue(BuildConfig.IS_BETA);assertEquals(TransferSnapshot.BETA,context.packageName)
         val pm=context.packageManager
         val permissions=pm.getPackageInfo(context.packageName,PackageManager.GET_PERMISSIONS).requestedPermissions.orEmpty()
-        assertFalse(HealthConnectManager.WRITE_WEIGHT in permissions);assertFalse(HealthConnectManager.WRITE_BODY_FAT in permissions)
+        assertFalse(permissions.any {it.startsWith("android.permission.health.WRITE_")})
+        assertTrue(HealthConnectManager.READ_NUTRITION in permissions)
         val previous=pm.getLaunchIntentForPackage(context.packageName)!!.component!!
         try {
             for(icon in LauncherIcons.all) {

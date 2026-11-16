@@ -28,7 +28,9 @@ enum class Nutrient(val label: String, val unit: String, val off: String) {
     CHOLINE("Choline", "mg", "choline"), OMEGA3("Omega 3", "g", "omega-3-fat"), OMEGA6("Omega 6", "g", "omega-6-fat"),
     MONOUNSATURATED("Monounsaturated fat", "g", "monounsaturated-fat"), POLYUNSATURATED("Polyunsaturated fat", "g", "polyunsaturated-fat"),
     TRANSFAT("Trans fat", "g", "trans-fat"), CHOLESTEROL("Cholesterol", "mg", "cholesterol"),
-    ALCOHOL("Alcohol", "g", "alcohol"), CAFFEINE("Caffeine", "mg", "caffeine");
+    ALCOHOL("Alcohol", "g", "alcohol"), CAFFEINE("Caffeine", "mg", "caffeine"),
+    ENERGY_FROM_FAT("Energy from fat", "kcal", "energy-from-fat"), FOLIC_ACID("Folic acid", "µg", "folic-acid"),
+    UNSATURATED("Unsaturated fat", "g", "unsaturated-fat");
     companion object { val macros = listOf(PROTEIN, CARBS, FAT); val primary = listOf(ENERGY) + macros }
 }
 
@@ -39,8 +41,8 @@ fun Nutrients.scaled(factor: Double): Nutrients {
     return mapValues { (_, value) -> (value * factor).also { require(it.validAmount()) } }
 }
 fun newId(): String = UUID.randomUUID().toString()
-enum class Meal(val label: String) { BREAKFAST("Breakfast"), LUNCH("Lunch"), DINNER("Dinner"), SNACKS("Snacks") }
-enum class FoodSource { OPEN_FOOD_FACTS, CUSTOM, RECIPE, PHOTO }
+enum class Meal(val label: String) { BREAKFAST("Breakfast"), LUNCH("Lunch"), DINNER("Dinner"), SNACKS("Snacks"), OTHER("Other") }
+enum class FoodSource { OPEN_FOOD_FACTS, CUSTOM, RECIPE, PHOTO, HEALTH_CONNECT }
 enum class FoodUnit(val symbol: String) { GRAMS("g"), MILLILITRES("ml") }
 
 data class Ingredient(val food: Food, val amount: Double) {
@@ -65,7 +67,7 @@ data class Food(
     val estimated: Boolean get() = estimatedOrigin || source == FoodSource.PHOTO || ingredients.any { it.food.estimated }
     val subtitle get() = listOf(brand.takeIf { it.isNotBlank() }, when(source) {
         FoodSource.OPEN_FOOD_FACTS -> "Open Food Facts"; FoodSource.CUSTOM -> "Custom food"
-        FoodSource.RECIPE -> "Recipe"; FoodSource.PHOTO -> "Photo estimate"
+        FoodSource.RECIPE -> "Recipe"; FoodSource.PHOTO -> "Photo estimate"; FoodSource.HEALTH_CONNECT -> "Health Connect"
     }).filterNotNull().joinToString(" · ")
 }
 
@@ -75,6 +77,7 @@ data class DiaryEntry(
 ) {
     init { require(amount.isFinite() && amount > 0 && amount <= 100000) { "Enter an amount above zero" } }
     val nutrients get() = food.per100.scaled(amount / 100)
+    val fromHealthConnect get() = id.startsWith("health:")
 }
 
 data class NutrientTotal(val amount: Double, val reported: Int, val count: Int) {

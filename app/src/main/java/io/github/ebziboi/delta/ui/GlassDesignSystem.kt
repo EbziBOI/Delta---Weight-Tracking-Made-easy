@@ -145,7 +145,7 @@ fun GlassBottomNavBar(modifier: Modifier = Modifier, onLog: (() -> Unit)? = null
         BoxWithConstraints(Modifier.fillMaxWidth().height(if(androidx.compose.ui.platform.LocalDensity.current.fontScale>1.3f) 64.dp else 56.dp)
             .semantics {contentDescription="Navigation dock"}) {
             val barWidth = minOf(if(itemCount>2) 264.dp else 216.dp, maxWidth - 128.dp)
-            NavigationBar(modifier.align(Alignment.Center).width(barWidth).fillMaxHeight().refractiveGlass(RoundedCornerShape(28.dp)),
+            NavigationBar(modifier.align(Alignment.Center).width(barWidth).fillMaxHeight().refractiveGlass(RoundedCornerShape(28.dp)).padding(horizontal=14.dp),
                 windowInsets=WindowInsets(0),containerColor=Color.Transparent,tonalElevation=0.dp,content=content)
             if(onLog!=null) GlassIconButton(io.github.ebziboi.delta.R.drawable.ic_add,logLabel,onLog,
                 Modifier.align(Alignment.Center).offset(x=barWidth/2+32.dp),size=48.dp,tint=Color(LocalDeltaColors.current.accent))

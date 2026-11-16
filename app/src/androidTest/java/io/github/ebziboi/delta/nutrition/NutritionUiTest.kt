@@ -120,8 +120,9 @@ class NutritionUiTest {
                 val date=LocalDate.now().minusDays(1);val zone=java.time.ZoneId.systemDefault()
                 val weights=listOf(69.5,70.0,71.0).mapIndexed {index,kg->WeightEntry((if(index==0) date.minusDays(1) else date).atTime(8+index,0).atZone(zone).toInstant().toEpochMilli(),kg,false,"nutrition-comparison-$index")}
                 store.saveWeights(weights);kotlinx.coroutines.withTimeout(10000) {appVm.entries.first {it==weights}}
-                click("Charts");compose.onNodeWithText("Weight: right axis (lb)",substring=true).assertExists()
-                compose.onNodeWithText("${Units.weightShort(69.0,WeightUnit.LB)} – ${Units.weightShort(71.0,WeightUnit.LB)}").assertExists()
+                click("Charts");compose.onNodeWithText("Compare weight").assertDoesNotExist()
+                compose.onNodeWithContentDescription("Daily intake graph").assertExists()
+                compose.onNodeWithText("Weight: right axis (lb)",substring=true).assertDoesNotExist()
                 shot("$style-large-chart");back()
                 addFood();click("Custom food")
                 compose.onNodeWithText("Pack (g)").performScrollTo().performClick()

@@ -71,6 +71,7 @@ fun ProgressScreen(
 ) {
     val snapshot by vm.snapshot.collectAsStateWithLifecycle()
     val entries by vm.entries.collectAsStateWithLifecycle()
+    val nutrition by vm.nutrition.collectAsStateWithLifecycle()
     val unit = settings.unit
     val snap = snapshot
     val insights = remember(entries, snap) { snap?.let { InsightsCalculator.compute(entries, it) } }
@@ -82,7 +83,7 @@ fun ProgressScreen(
             add(CardSlot("progress","Progress"))
             if(snap.targetKg==null) add(CardSlot("goal_setup","Set target"))
             addAll(listOf(CardSlot("rate","Weekly rate",true),CardSlot("goal","Goal by",true),CardSlot("average","7-day average",true),CardSlot("streak","Streak",true)))
-            addAll(listOf(CardSlot("trend","Weight trend"),CardSlot("body_fat","Body composition"),CardSlot("insights","Insights")))
+            addAll(listOf(CardSlot("trend","Trends"),CardSlot("insights","Insights")))
             if(insights.recent.isNotEmpty()) add(CardSlot("recent","Recent weigh-ins"))
         }
     }
@@ -96,13 +97,7 @@ fun ProgressScreen(
                 "progress" -> HeroCard(snap,insights,unit,Modifier,settings)
                 "goal_setup" -> ContentSection {Text("Set a target weight",style=LocalDeltaType.current.title);PrimaryButton("Open settings",onOpenSettings)}
                 "rate","goal","average","streak" -> KeyFigure(id,snap,insights,unit,onMetric)
-                "trend" -> TrendCard(snap,unit,settings,Modifier,onOpen={onMetric(DetailMetric.WEIGHT)}) {
-                    vm.update {it.copy(appChart=if(it.appChart==ChartStyle.TREND) ChartStyle.CONNECTED else ChartStyle.TREND)}
-                }
-                "body_fat" -> BodyFatSection(snap.bodyFat,settings.targetBodyFat,
-                    snap.startDay.atStartOfDay(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli(),settings.bodyFatChart,
-                    {vm.update {it.copy(bodyFatChart=if(it.bodyFatChart==ChartStyle.TREND) ChartStyle.CONNECTED else ChartStyle.TREND)}},
-                    onOpen={onMetric(DetailMetric.BODY_FAT)})
+                "trend" -> HomeTrends(entries,snap.bodyFat,nutrition,settings,onMetric)
                 "insights" -> InsightsCard(snap,entries,settings,Modifier,onMetric)
                 "recent" -> RecentCard(insights,snap.losing,unit,Modifier)
             }
@@ -295,36 +290,6 @@ private fun KeyFigure(id:String,snap: ProgressSnapshot, insights: Insights, unit
         "goal" -> StatTile("Goal by",goal,Modifier.fillMaxWidth(),note=goalNote,icon=R.drawable.ic_flag,onClick={onMetric(DetailMetric.GOAL)})
         "average" -> StatTile("7-day average",average?.let {Units.weightShort(it,unit)} ?: "—",Modifier.fillMaxWidth(),note=averageNote,icon=R.drawable.ic_insights,onClick={onMetric(DetailMetric.AVERAGE)})
         "streak" -> StatTile("Streak",when(streak) {0->"—";1->"1 day";else->"$streak days"},Modifier.fillMaxWidth(),note="${insights.daysWeighedThisWeek} of the last 7 days",icon=R.drawable.ic_local_fire_department,onClick={onMetric(DetailMetric.STREAK)})
-    }
-}
-
-@Composable
-private fun TrendCard(snap: ProgressSnapshot, unit: WeightUnit, settings: AppSettings, modifier: Modifier, onOpen: () -> Unit, onSwitchStyle: () -> Unit) {
-    var range by rememberSaveable { mutableStateOf("Journey") }
-    val points = remember(snap.points, snap.history, range) {
-        when (range) {
-            "Journey" -> snap.points
-            "All" -> snap.history
-            else -> {
-                val days = if (range == "1M") 30L else 90L
-                val cutoff = System.currentTimeMillis() - days * 86_400_000L
-                snap.history.filter { it.epochMs >= cutoff }
-            }
-        }
-    }
-    ContentSection(modifier,onClick=onOpen, tone = ModuleTone.VIOLET) {
-        Row(Modifier.fillMaxWidth().clickable(onClick=onOpen).semantics {contentDescription="Open weight calendar"},verticalAlignment=Alignment.CenterVertically) {
-            Text(if (LocalAppearance.current.designStyle == io.github.ebziboi.delta.data.DesignStyle.TUBIK) "WEIGHT TREND" else "Trend",style=LocalDeltaType.current.title,modifier=Modifier.weight(1f))
-        }
-        SegmentedControl(RANGES, range, { it }, Modifier.fillMaxWidth()) { range = it }
-        // Only the journey view is scaled from start to target, with the percentage tagged.
-        val whole = range == "Journey"
-        InteractiveChart(
-            spec = ChartSpec.journey(snap, settings.appChart, unit, settings.showProjection)
-                .copy(points = points, startKg = if (whole) snap.startKg else null, fraction = if (whole) snap.fraction else null),
-            modifier = Modifier.fillMaxWidth().height(230.dp),
-            bodyFat = snap.bodyFat, onDoubleTap = onSwitchStyle,
-        )
     }
 }
 

@@ -35,19 +35,36 @@ class NutritionRepository(context: Context, name: String = "nutrition.db") {
         try { block(db); db.setTransactionSuccessful() } finally { db.endTransaction() }
         mutable.value=read(db)
     } }
+    /** Replace only the completed Health Connect read, atomically; local meals are untouched. */
+    suspend fun replaceHealthEntries(entries:List<DiaryEntry>,sinceMs:Long?=null) = change {db->
+        require(entries.all {it.fromHealthConnect && it.food.source==FoodSource.HEALTH_CONNECT})
+        if(sinceMs==null) db.delete("health_diary",null,null) else db.delete("health_diary","created>=?",arrayOf(sinceMs.toString()))
+        entries.distinctBy {it.id}.forEach {db.insertWithOnConflict("health_diary",null,it.values(),SQLiteDatabase.CONFLICT_REPLACE)}
+    }
+    suspend fun syncHealth(manager:io.github.ebziboi.delta.data.HealthConnectManager):Int {
+        val access=manager.state()
+        if(access.availability!=io.github.ebziboi.delta.data.HealthAvailability.AVAILABLE) return 0
+        // Without history access, read only within the platform's recent-data window.
+        val since=if(access.hasHistory) java.time.Instant.EPOCH else java.time.Instant.now().minus(java.time.Duration.ofDays(29))
+        val entries=if(access.canReadNutrition) manager.readNutrition(since) else emptyList()
+        replaceHealthEntries(entries,if(access.canReadNutrition && !access.hasHistory) since.toEpochMilli() else null)
+        return entries.size
+    }
     suspend fun saveFood(food: Food) = change { db -> putFood(db,food) }
     suspend fun deleteFood(id: String) = change { it.delete("foods","id=?",arrayOf(id)) }
     suspend fun log(entries: List<DiaryEntry>) = change { db ->
         require(entries.isNotEmpty() && entries.size <= 500)
+        require(entries.none {it.fromHealthConnect}) { "Health Connect entries are read-only" }
         entries.forEach { e -> putFood(db,e.food,replace=false); putEntry(db,e) }
     }
     suspend fun updateEntry(entry: DiaryEntry) = change { db ->
+        require(!entry.fromHealthConnect) { "Health Connect entries are read-only" }
         require(db.update("diary",entry.values(),"id=?",arrayOf(entry.id)) == 1) { "This entry was removed" }
     }
     suspend fun deleteEntry(id: String) = change { it.delete("diary","id=?",arrayOf(id)) }
     suspend fun copy(from: LocalDate, to: LocalDate, meal: Meal? = null) = change { db ->
         require(from != to) { "Choose another day" }
-        val source=readEntries(db).filter { it.day==from && (meal==null || it.meal==meal) }
+        val source=readEntries(db).filter { !it.fromHealthConnect && it.day==from && (meal==null || it.meal==meal) }
         require(source.isNotEmpty()) { "There are no entries to copy" }
         source.forEach { putEntry(db,it.copy(id=newId(),day=to,created=System.currentTimeMillis())) }
     }
@@ -78,8 +95,8 @@ class NutritionRepository(context: Context, name: String = "nutrition.db") {
     private fun putFast(db: SQLiteDatabase,f: Fast) { db.insertWithOnConflict("fasts",null,ContentValues().apply {
         put("id",f.id);put("start",f.start);put("hours",f.targetHours); if(f.end==null) putNull("end") else put("end",f.end)
     },SQLiteDatabase.CONFLICT_REPLACE) }
-    private fun readEntries(db: SQLiteDatabase): List<DiaryEntry> = buildList {
-        db.rawQuery("SELECT id,day,meal,food,amount,created FROM diary ORDER BY day,created",null).use { c -> while(c.moveToNext()) {
+    private fun readEntries(db: SQLiteDatabase,table:String="diary"): List<DiaryEntry> = buildList {
+        db.rawQuery("SELECT id,day,meal,food,amount,created FROM $table ORDER BY day,created",null).use { c -> while(c.moveToNext()) {
             add(DiaryEntry(c.getString(0),LocalDate.ofEpochDay(c.getLong(1)),Meal.valueOf(c.getString(2)),foodFromJson(JSONObject(c.getString(3))),c.getDouble(4),c.getLong(5)))
         } }
     }
@@ -94,19 +111,23 @@ class NutritionRepository(context: Context, name: String = "nutrition.db") {
             NutritionTargets(j.getJSONObject("amounts").nutrients(),MacroMode.valueOf(j.getString("mode")),j.getJSONObject("percentages").nutrients(),
                 (0 until a.length()).map { Nutrient.valueOf(a.getString(it)) }.toSet()).validated()
         } else NutritionTargets() }
-        return NutritionState(foods,readEntries(db),targets,readFasts(db),loaded=true)
+        return NutritionState(foods,(readEntries(db)+readEntries(db,"health_diary")).sortedWith(compareBy<DiaryEntry> {it.day}.thenBy {it.created}),targets,readFasts(db),loaded=true)
     }
 }
 
-private class NutritionDb(context: Context,name: String): SQLiteOpenHelper(context,name,null,1) {
+private class NutritionDb(context: Context,name: String): SQLiteOpenHelper(context,name,null,2) {
     init { setWriteAheadLoggingEnabled(true) }
     override fun onCreate(db: SQLiteDatabase) {
         db.execSQL("CREATE TABLE foods(id TEXT PRIMARY KEY NOT NULL,payload TEXT NOT NULL)")
         db.execSQL("CREATE TABLE diary(id TEXT PRIMARY KEY NOT NULL,day INTEGER NOT NULL,meal TEXT NOT NULL,food TEXT NOT NULL,amount REAL NOT NULL CHECK(amount>0),created INTEGER NOT NULL)")
+        createHealthTable(db)
         db.execSQL("CREATE INDEX diary_day ON diary(day)")
         db.execSQL("CREATE TABLE preferences(id TEXT PRIMARY KEY NOT NULL,payload TEXT NOT NULL)")
         db.execSQL("CREATE TABLE fasts(id TEXT PRIMARY KEY NOT NULL,start INTEGER NOT NULL,hours REAL NOT NULL,end INTEGER)")
         db.execSQL("CREATE UNIQUE INDEX one_running_fast ON fasts((1)) WHERE end IS NULL")
     }
-    override fun onUpgrade(db: SQLiteDatabase,oldVersion: Int,newVersion: Int) { error("Nutrition migration required") }
+    private fun createHealthTable(db:SQLiteDatabase) {
+        db.execSQL("CREATE TABLE IF NOT EXISTS health_diary(id TEXT PRIMARY KEY NOT NULL,day INTEGER NOT NULL,meal TEXT NOT NULL,food TEXT NOT NULL,amount REAL NOT NULL,created INTEGER NOT NULL)")
+    }
+    override fun onUpgrade(db: SQLiteDatabase,oldVersion: Int,newVersion: Int) {if(oldVersion<2) createHealthTable(db)}
 }

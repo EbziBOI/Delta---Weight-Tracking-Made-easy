@@ -40,6 +40,8 @@ background and blur when you switch back. The visual reference is
 - Studio typography pairs bold geometric headings with editorial and mono accents
 - Signature, Orbit, Bloom, Contours, Ribbon, Mosaic and Summit percentage complications follow both design themes and scale into widgets
 - Hold a card’s heading and drag to rearrange Home, Weight trend or Body composition. Each page saves its own order, including individual Home metric tiles and detail insight cards. Dragging scrolls the page near its edges; graph and calendar touches retain their own behavior
+- Combined Home trends with independent Weight, Body fat and Nutrition toggles; recorded-only points, today at the right edge and an animated selection marker after date panning
+- Read-only Health Connect food integration, including supported micronutrients; imported totals stay separate from local diary entries
 - A compact Progress/Diary/History dock with an adjacent plus button; both hide on downward scrolling and return together. Active tabs use accent text and icons without a pill
 - A single Health Connect status pill opens its dedicated access and sync page
 - Short, equally sized top/bottom fades retain fully black ends while content scrolls behind the toolbar

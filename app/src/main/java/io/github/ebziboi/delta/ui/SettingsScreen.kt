@@ -129,7 +129,7 @@ fun SettingsScreen(
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
                 Text("Health Connect", style = LocalDeltaType.current.title)
                 val ready = health?.availability == HealthAvailability.AVAILABLE && health.missing.isEmpty()
-                val partial = health?.canRead == true || health?.canReadBodyFat == true
+                val partial = health?.canRead == true || health?.canReadBodyFat == true || health?.canReadNutrition == true
                 StatusPill(if (health == null) "Checking" else if(io.github.ebziboi.delta.BuildConfig.IS_BETA && ready) "Read only" else if (ready) "Connected" else if (partial) "Needs access" else "Not connected",
                     Color(if (health == null) colors.textDim else if (ready) colors.good else if (partial) colors.warn else LocalDerivedTheme.current.danger))
             }
@@ -388,9 +388,11 @@ private fun HealthConnectDetails(vm: AppViewModel, settings: AppSettings, health
                 else -> {
                     AccessRow("Read weight", health.canRead)
                     AccessRow("Past data, back to your start date", health.hasHistory)
-                    AccessRow("Background updates for widgets", health.hasBackground)
+                    if(!io.github.ebziboi.delta.BuildConfig.IS_BETA) AccessRow("Background updates for widgets", health.hasBackground)
                     if(!io.github.ebziboi.delta.BuildConfig.IS_BETA) AccessRow("Write weight", health.canWrite)
                     AccessRow("Read body fat", health.canReadBodyFat)
+                    AccessRow("Read food and nutrients", health.canReadNutrition)
+                    Text("Food records are read-only. Local diary entries stay in Delta.",style=LocalDeltaType.current.bodySmall)
                     if(!io.github.ebziboi.delta.BuildConfig.IS_BETA) AccessRow("Write body fat", health.canWriteBodyFat)
                     if (health.missing.isNotEmpty()) {
                         PrimaryButton("Allow access",onConnect)

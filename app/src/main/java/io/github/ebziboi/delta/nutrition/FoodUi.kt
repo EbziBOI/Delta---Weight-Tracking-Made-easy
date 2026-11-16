@@ -24,7 +24,7 @@ internal fun FoodSearchPage(vm: NutritionViewModel,state: NutritionState,padding
     val scanner=rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         if(result.resultCode==android.app.Activity.RESULT_OK) result.data?.getStringExtra("barcode")?.let {vm.barcode(it,onFood)}
     }
-    val history=state.entries.sortedByDescending {it.created}.distinctBy {it.food.id}.map { e -> state.foods.find {it.id==e.food.id} ?: e.food }
+    val history=state.entries.filterNot {it.fromHealthConnect}.sortedByDescending {it.created}.distinctBy {it.food.id}.map { e -> state.foods.find {it.id==e.food.id} ?: e.food }
     NutritionPage(if(ingredientsOnly) "Ingredient" else "Add food",padding,onBack) {
         SegmentedControl(listOf("Recent","Search","My foods","Recipes"),category,{it}) {category=it}
         if(category=="Search") {
@@ -226,7 +226,7 @@ internal fun CopyDiaryPage(state:NutritionState,to:LocalDate,padding:PaddingValu
     var picker by remember {mutableStateOf(false)};var selected by rememberSaveable {mutableStateOf("Whole day")}
     val source=LocalDate.ofEpochDay(sourceEpoch)
     val meal=Meal.entries.firstOrNull {it.label==selected}
-    val entries=state.entries.filter {it.day==source && (meal==null || it.meal==meal)}
+    val entries=state.entries.filter {!it.fromHealthConnect && it.day==source && (meal==null || it.meal==meal)}
     NutritionPage("Copy diary",padding,onBack) {
         Text("To ${to.format(dayFormat)}",style=LocalDeltaType.current.title)
         SecondaryButton("From ${source.format(dayFormat)}",{picker=true},Modifier.fillMaxWidth())
