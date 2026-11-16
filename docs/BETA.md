@@ -4,6 +4,37 @@ This is a separate app, **Delta Beta** (`io.github.ebziboi.delta.beta`). It inst
 beside **Delta** (`io.github.ebziboi.delta`). The normal release and its download
 are unchanged. This prerelease adds the Stage 2 food diary in Glass and Tubik.
 
+## Beta 4 changes
+
+- Missing barcodes can open an import flow instead of ending at “not found”.
+  Previously saved imports are checked first. Barcode photos can also be cropped
+  and decoded locally.
+- Product lookup opens Google for the barcode plus “nutrition”, with a first-result
+  shortcut, normal browsing, name search and direct product links. Import reads the
+  displayed product page locally, including dynamically rendered nutrition tables.
+  Search-result summaries cannot be imported as product evidence. No AI/search API
+  accounts or keys are required. Google/retailer availability and consent screens
+  still apply; no blocked page is bypassed.
+- Structured product identifiers distinguish matched, different and undetected
+  barcodes. The food review retains the source URL; an unverified match is never
+  labelled as a barcode confirmation.
+- Optional bundled, on-device nutrition-label OCR includes camera/gallery input,
+  crop handles, rotation, physical table-row reconstruction, skew correction,
+  contrast processing and additional orientation passes when needed. No label
+  photo is sent to an AI provider. Original photos stay in the selected gallery
+  or temporary app cache; parsed values and provenance are saved to the library.
+- Reviews support multiple nutrition columns, serving conversion, g/ml, kJ/kcal,
+  decimal commas, US thousands and daily-value percentages. Missing, bounded or
+  conflicting values are left for review. Product-page and label differences are
+  shown separately, with editable values, a transcription editor and explicit
+  confirmation before saving. OCR failure keeps the page values usable; label-only
+  import works too. Values exceeding expected ranges or inconsistent macros are
+  flagged, without pretending a software check proves package accuracy.
+- Home always shows three vertically stacked detail buttons outside the chart,
+  preserving their colours and using triangle symbols. Chart toggles affect only
+  the plotted series. Your rhythm has one pair of week arrows, coral in Tubik;
+  individual dates remain tappable and the week remains swipeable.
+
 ## Beta 3 changes
 
 - Nutrition bars use the median of recorded daily totals from the 30 days ending
@@ -93,10 +124,20 @@ the test suite.
 
 ## Validation
 
-The release build and lint pass, together with 42 device tests covering chart
-scaling, navigation, retailer filters, diary workflows and widget configuration.
-Installing the signed release over the beta also preserves all three selected
-chart channels and restores the saved launcher icon after a simulated reset.
+The release build and lint pass. All 54 distinct device checks pass across the
+full regression run and focused UI rerun. New checks cover actual bundled OCR on
+a rendered nutrition-label image, barcode-photo decoding, a rendered WebView
+product document, wrong/absent/related-product identifiers, UK/US nutrition units
+and columns, label/page conflicts, explicit value selection and review-state
+restoration in both themes. Automated OCR inputs are fixtures, not a claim of
+perfect accuracy on arbitrary physical packaging.
+
+A live device check loaded the Morrisons Oasis Garlic & Herb Dip page, rejected
+optional cookies through its normal prompt, and imported its name, brand and
+nutrition, including 590 kcal per 100 g. Its barcode was not exposed in the parsed
+product data, so the import correctly remained unconfirmed by barcode.
+Installing the signed release over the beta preserved all three selected chart
+channels and restored the saved launcher icon after a simulated launcher reset.
 
 Food widget layouts are checked on all 48 supported cell combinations (1–6 wide,
 1–8 tall), in both design systems, light/dark modes and all three materials:
@@ -107,3 +148,5 @@ write permissions.
 
 Retailer seed references: [Worldpanel GB grocery update](https://worldpanelbynumerator.com/insights/grocery-sales-rise-2-0-but-parents-tighten-belts-on-school-uniform-spend).
 Filter contract: [Open Food Facts search API](https://github.com/openfoodfacts/openfoodfacts-server/blob/main/docs/api/ref/api.yaml).
+
+Label OCR implementation: [ML Kit bundled text recognition](https://developers.google.com/ml-kit/vision/text-recognition/v2/android).

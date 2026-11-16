@@ -88,8 +88,8 @@ class BetaFoodUiTest {
             compose.onNodeWithContentDescription("Swipe week").performTouchInput {swipeRight(durationMillis=650)}
             compose.waitForIdle();compose.onNodeWithContentDescription("Next week").assertIsEnabled()
             compose.onNodeWithText("How your pace is changing").assertExists()
-            compose.onNodeWithContentDescription("Previous day").performClick()
-            compose.onNodeWithContentDescription("Next day").assertIsEnabled()
+            compose.onNodeWithContentDescription("Previous day").assertDoesNotExist()
+            compose.onNodeWithContentDescription("Next day").assertDoesNotExist()
             compose.onNodeWithText("How your pace is changing").performScrollTo().performTouchInput {swipeLeft(durationMillis=650)}
             compose.waitForIdle();compose.onNodeWithText("A clearer daily signal").assertExists()
             shot("rhythm-week")

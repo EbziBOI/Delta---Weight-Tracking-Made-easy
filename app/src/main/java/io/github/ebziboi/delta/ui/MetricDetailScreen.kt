@@ -93,10 +93,6 @@ private fun MetricCalendar(metric: DetailMetric, entries: List<WeightEntry>, set
                 val next=week.plusWeeks(step.toLong()).coerceIn(firstWeek,currentWeek)
                 onWeek(next.toEpochDay());onDay(selected.day.plusWeeks(step.toLong()).coerceIn(next,minOf(next.plusDays(6),today)).toEpochDay())
             }
-            fun changeDay(step:Int) {
-                val next=selected.day.plusDays(step.toLong()).coerceIn(firstWeek,today)
-                onDay(next.toEpochDay());onWeek(MetricDetails.weekStart(next,settings.weekStartsOn).toEpochDay())
-            }
             Column(Modifier.fillMaxWidth().semantics {contentDescription="Swipe week"}.pointerInput(week,firstWeek,currentWeek) {
                 var distance=0f
                 detectHorizontalDragGestures(onDragStart={distance=0f},onDragEnd={
@@ -112,7 +108,6 @@ private fun MetricCalendar(metric: DetailMetric, entries: List<WeightEntry>, set
                     DirectionButton("Next week",true,week<currentWeek) {changeWeek(1)}
                 }
                 Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically) {
-                    DirectionButton("Previous day",false,selected.day>firstWeek) {changeDay(-1)}
                     androidx.compose.animation.AnimatedContent(week,modifier=Modifier.weight(1f),transitionSpec={
                         if(motion) (slideInHorizontally {if(targetState>initialState) it else -it}+fadeIn()) togetherWith
                             (slideOutHorizontally {if(targetState>initialState) -it else it}+fadeOut())
@@ -135,7 +130,6 @@ private fun MetricCalendar(metric: DetailMetric, entries: List<WeightEntry>, set
                             }
                         }
                     }
-                    DirectionButton("Next day",true,selected.day<today) {changeDay(1)}
                 }
             }
         }
@@ -203,8 +197,8 @@ private fun ForecastDetail(snap: ProgressSnapshot, entries: List<WeightEntry>, s
 
 @Composable
 private fun DirectionButton(label:String,right:Boolean,enabled:Boolean,onClick:()->Unit) {
-    val tint=Color(LocalDeltaColors.current.text).copy(alpha=if(enabled) 1f else .3f)
-    androidx.compose.material3.IconButton(onClick,enabled=enabled,modifier=Modifier.size(32.dp).semantics {contentDescription=label}) {
+    val tint=Color(if(LocalAppearance.current.designStyle==DesignStyle.TUBIK) 0xFFF16F68.toInt() else LocalDeltaColors.current.accent).copy(alpha=if(enabled) 1f else .3f)
+    androidx.compose.material3.IconButton(onClick,enabled=enabled,modifier=Modifier.size(44.dp).semantics {contentDescription=label}) {
         Canvas(Modifier.size(11.dp)) {
             val path=androidx.compose.ui.graphics.Path().apply {
                 if(right) {moveTo(0f,0f);lineTo(size.width,size.height/2);lineTo(0f,size.height)}

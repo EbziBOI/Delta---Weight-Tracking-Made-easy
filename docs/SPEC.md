@@ -186,3 +186,20 @@ states, and never write to Health Connect. They share widget material/corner
 rules and per-instance style storage. Large fasting widgets use Android's native
 chronometer, while bounded background work refreshes their snapshots. Widget
 removal/restoration delegates broadcast ownership to Glance.
+
+
+### Beta 4 local food import
+
+The barcode library lookup precedes Open Food Facts. A missing or unavailable
+external record leads to an explicit import route. Google discovers candidate
+pages; only a displayed product document is parsed. Product identity and source
+are preserved, and missing identifiers remain unverified. Local barcode-photo
+recognition and bundled ML Kit Latin OCR require no cloud AI credentials.
+
+OCR and page parsing preserve quantity basis and units. Bounded values, unknown
+labels and ambiguous columns never become fabricated exact zeros. Label/page
+comparisons are separated from editable accepted values; only explicitly used
+label values retain their label provenance. Editing them removes that provenance.
+The import review survives activity recreation, and saving requires user review.
+Home detail navigation is independent of the graph selection; week navigation
+uses a single arrow pair alongside the existing week swipe gesture.

@@ -44,8 +44,8 @@ background and blur when you switch back. The visual reference is
 - Read-only Health Connect food integration, including supported micronutrients; imported totals stay separate from local diary entries
 - Four diet widgets: Energy budget, Macro balance, Food diary with quick add, and a live Fasting clock; all resize with per-widget settings and previews
 - Nutrition bars place the 30-day median of recorded daily totals at 75% height and mark larger values with a neutral overflow triangle, retaining their full values
-- Balanced, animated Home detail links return to Home; Diary chart links return to Diary
-- Your rhythm's week strip swipes independently, with bounded triangle controls for weeks and days
+- Three coloured Home detail buttons stay stacked outside the chart, independent of selected series; their Back actions return to Home
+- Your rhythm's week strip swipes independently, with one bounded triangle-arrow pair, coral in Tubik
 - Store-filtered food search starts with major UK grocers and learns from local search/logging use
 - A compact Progress/Diary/History dock with an adjacent plus button; both hide on downward scrolling and return together. Active tabs use accent text and icons without a pill
 - A single Health Connect status pill opens its dedicated access and sync page
@@ -85,6 +85,14 @@ targets, available micronutrients, food-only daily/weekly intake charts,
 and a persistent fasting timer with history. Foods and diary snapshots live in a
 separate transactional SQLite database; Health Connect sync does not replace them.
 
+Barcode misses can now open **Import food**: search Google by barcode or name,
+open the first result or paste a product link, and extract the displayed page's
+nutrition locally. Optional on-device nutrition-label OCR supports crop/rotation,
+serving columns and unit conversion, editable comparisons and saved barcode/source
+provenance. It needs no AI account or API key, and the label image is not uploaded.
+This differs from the optional meal-photo estimation below. Web pages may require
+consent, block access or omit identifiers; unverified matches stay unverified.
+
 Photo logging supports OpenAI, Gemini and Claude with a user-supplied key.
 Choose a model in Settings → Photo logging. Images are resized and stripped of
 metadata, sent only after **Analyse photo**, and every estimate can be edited or
@@ -95,15 +103,14 @@ AI request is made by the automated tests.
 
 The full plan and data semantics are in [docs/SPEC.md](docs/SPEC.md).
 
-Local verification (16 November 2026): 19 instrumented checks passed on the
-DeltaVisual emulator, including full diary/recipe/targets/copy/fasting/photo-review
-flows in both themes, light surfaces at 135% text size, the native barcode screen,
-SQLite reopen/copy/snapshot invariants (including bounded nested recipes), real numeric-keyboard visibility, encrypted credentials, all three AI request
-and response contracts, offline barcode fixtures, incomplete-label target comparisons, and existing weight/widget
-rendering contracts. Open Food Facts product lookup and name search were also
-verified against the public service. Android lint reported no errors. Live
-AI authentication and photographing physical products still require a device/key;
-the tests do not send a meal photo or authenticated AI request.
+Device validation covers diary/recipe/targets/copy/fasting/photo-review flows in
+both themes, larger text, native barcode decoding, nutrition persistence and
+isolation, encrypted credentials, chart gestures and widget rendering. Food-import
+checks exercise the bundled OCR engine against a rendered label image, barcode
+photo decoding, rendered web-page extraction, source matching, unit conversions,
+editable comparisons and activity-state restoration. Release-specific results are
+in [docs/BETA.md](docs/BETA.md). Meal-photo AI request contracts use fixtures;
+authenticated cloud AI requests are not made by the automated tests.
 
 ## Install
 
@@ -118,7 +125,10 @@ Requires Android 9 or newer; Health Connect works best on Android 14 or newer.
 
 Your weight and diary are stored on your phone. Delta has no account, backend or
 analytics. Food searches and barcode lookups go to Open Food Facts. The camera
-barcode decoder runs on-device. Photo analysis sends only your selected image to
+barcode decoder and nutrition-label OCR run on-device. Optional web lookup opens
+Google and retailer/manufacturer pages, whose normal website policies apply; it
+sends the chosen product query rather than your diary or weight history.
+Meal-photo AI analysis sends only your selected image to
 the provider you choose, after you tap Analyse; it does not send weight history or
 the diary. Provider policies apply to that request. Android backup can include
 local nutrition data, but excludes API credentials and cached photos.

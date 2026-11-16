@@ -74,22 +74,20 @@ internal fun HomeTrends(weights:List<WeightEntry>,fat:List<BodyFatEntry>,nutriti
                 else->RecordedChart(series,start,today,"Combined trends graph")
             }
             if(series.size>1) Text("Each series uses its own scale",style=LocalDeltaType.current.bodySmall,color=Color(c.textDim))
-            val motion=LocalMotion.current
-            AnimatedContent(HomeSeries.entries.filter {it in chosen},modifier=Modifier.fillMaxWidth(),transitionSpec={
-                if(motion) (fadeIn()+scaleIn(initialScale=.96f)) togetherWith fadeOut()
-                else EnterTransition.None togetherWith ExitTransition.None
-            },label="detail-links") {visible->
-                Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min),horizontalArrangement=Arrangement.spacedBy(8.dp)) {
-                    visible.forEach {item->
-                        Column(Modifier.weight(1f).fillMaxHeight().heightIn(min=64.dp)
-                            .background(Color(LocalDeltaColors.current.text).copy(alpha=.06f),RoundedCornerShape(Radii.control))
-                            .clickable(role=Role.Button) {when(item) {HomeSeries.WEIGHT->onMetric(DetailMetric.WEIGHT);HomeSeries.BODY_FAT->onMetric(DetailMetric.BODY_FAT);HomeSeries.NUTRITION->onNutrition()}}
-                            .padding(horizontal=4.dp,vertical=10.dp),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.spacedBy(6.dp)) {
-                            DeltaIcon(io.github.ebziboi.delta.R.drawable.ic_chevron_right,contentDescription=null,size=18.dp,
-                                tint=allSeries.first {it.first==item}.second.color)
-                            Text(when(item) {HomeSeries.WEIGHT->"Weight details";HomeSeries.BODY_FAT->"Body composition";HomeSeries.NUTRITION->"Nutrition details"},
-                                style=LocalDeltaType.current.bodySmall,textAlign=androidx.compose.ui.text.style.TextAlign.Center,maxLines=2)
-                        }
+        }
+        Column(Modifier.fillMaxWidth(),verticalArrangement=Arrangement.spacedBy(8.dp)) {
+            HomeSeries.entries.forEach {item->
+                val tint=allSeries.first {it.first==item}.second.color
+                Row(Modifier.fillMaxWidth().heightIn(min=64.dp)
+                    .refractiveGlass(RoundedCornerShape(Radii.control))
+                    .clickable(role=Role.Button) {when(item) {HomeSeries.WEIGHT->onMetric(DetailMetric.WEIGHT);HomeSeries.BODY_FAT->onMetric(DetailMetric.BODY_FAT);HomeSeries.NUTRITION->onNutrition()}}
+                    .padding(horizontal=18.dp,vertical=14.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(14.dp)) {
+                    androidx.compose.foundation.Canvas(Modifier.size(12.dp)) {
+                        drawPath(androidx.compose.ui.graphics.Path().apply {moveTo(0f,0f);lineTo(size.width,size.height/2);lineTo(0f,size.height);close()},tint)
+                    }
+                    Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(3.dp)) {
+                        Text(when(item) {HomeSeries.WEIGHT->"Weight details";HomeSeries.BODY_FAT->"Body composition";HomeSeries.NUTRITION->"Nutrition details"},style=LocalDeltaType.current.bodyStrong,color=tint)
+                        Text(when(item) {HomeSeries.WEIGHT->"Measurements & insights";HomeSeries.BODY_FAT->"Composition & insights";HomeSeries.NUTRITION->"Intake & nutrient trends"},style=LocalDeltaType.current.bodySmall,color=Color(c.textDim))
                     }
                 }
             }

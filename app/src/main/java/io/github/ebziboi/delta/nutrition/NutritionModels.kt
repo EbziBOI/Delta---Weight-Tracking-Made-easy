@@ -57,18 +57,20 @@ data class Food(
     val ingredients: List<Ingredient> = emptyList(), val recipeServings: Double? = null,
     val yieldGrams: Double? = null, val favourite: Boolean = false, val estimatedOrigin: Boolean = false,
     val stores:List<String> = emptyList(),
+    val sourceUrl:String? = null, val labelChecked:Set<Nutrient> = emptySet(),
 ) {
     init {
         require(name.isNotBlank() && name.length <= 250) { "Enter a food name" }
         require(per100.values.all { it.validAmount() }) { "Nutrients must be valid positive numbers" }
         require(listOfNotNull(serving, pack, recipeServings, yieldGrams).all { it.isFinite() && it > 0 && it <= 100000 }) { "Enter a valid serving size" }
         require(ingredients.size <= 200)
+        require(sourceUrl==null || ProductPages.publicUrl(sourceUrl))
         require(stores.size<=50 && stores.all {it.length<=100})
         require(brand.length<=250 && servingLabel.length<=100) { "Food details are too long" }
     }
     val estimated: Boolean get() = estimatedOrigin || source == FoodSource.PHOTO || ingredients.any { it.food.estimated }
     val subtitle get() = listOf(brand.takeIf { it.isNotBlank() }, when(source) {
-        FoodSource.OPEN_FOOD_FACTS -> "Open Food Facts"; FoodSource.CUSTOM -> "Custom food"
+        FoodSource.OPEN_FOOD_FACTS -> "Open Food Facts"; FoodSource.CUSTOM -> when {sourceUrl!=null->"Product page";labelChecked.isNotEmpty()->"Package label";else->"Custom food"}
         FoodSource.RECIPE -> "Recipe"; FoodSource.PHOTO -> "Photo estimate"; FoodSource.HEALTH_CONNECT -> "Health Connect"
     }).filterNotNull().joinToString(" · ")
 }
@@ -143,6 +145,7 @@ internal fun Food.json(depth: Int = 0): JSONObject = JSONObject().apply {
     put("id",id); put("name",name); put("brand",brand); put("nutrients",per100.toJson()); put("unit",unit.name)
     put("serving",serving); put("servingLabel",servingLabel); put("pack",pack); put("source",source.name)
     put("barcode",barcode); put("servings",recipeServings); put("yield",yieldGrams); put("favourite",favourite); put("estimated",estimated);put("stores",JSONArray(stores))
+    put("sourceUrl",sourceUrl);put("labelChecked",JSONArray(labelChecked.map {it.name}))
     put("ingredients",JSONArray().also { a -> ingredients.forEach { a.put(JSONObject().put("food",it.food.copy(ingredients=emptyList(),estimatedOrigin=it.food.estimated).json(depth+1)).put("amount",it.amount)) } })
 }
 internal fun foodFromJson(j: JSONObject, depth: Int = 0): Food {
@@ -153,5 +156,7 @@ internal fun foodFromJson(j: JSONObject, depth: Int = 0): Food {
         FoodSource.valueOf(j.getString("source")),j.optString("barcode").takeIf { it.isNotBlank() && it != "null" },
         (0 until a.length()).map { a.getJSONObject(it).let { i -> Ingredient(foodFromJson(i.getJSONObject("food"),depth+1),i.getDouble("amount")) } },
         j.positive("servings"),j.positive("yield"),j.optBoolean("favourite"),j.optBoolean("estimated"),
-        j.optJSONArray("stores")?.let {a->(0 until a.length()).map {a.getString(it).take(100)}.take(50)} ?: emptyList())
+        j.optJSONArray("stores")?.let {a->(0 until a.length()).map {a.getString(it).take(100)}.take(50)} ?: emptyList(),
+        j.optString("sourceUrl").takeIf(ProductPages::publicUrl),
+        j.optJSONArray("labelChecked")?.let {a->(0 until a.length()).mapNotNull {i->Nutrient.entries.find {it.name==a.optString(i)}}.toSet()} ?: emptySet())
 }

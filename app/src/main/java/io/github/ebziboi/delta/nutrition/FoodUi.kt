@@ -18,12 +18,16 @@ import java.time.LocalDate
 
 @Composable
 internal fun FoodSearchPage(vm: NutritionViewModel,state: NutritionState,padding: PaddingValues,onBack:()->Unit,onFood:(Food)->Unit,
-                            onCustom:()->Unit,onRecipe:()->Unit,onPhoto:()->Unit,ingredientsOnly:Boolean=false) {
+                            onCustom:()->Unit,onRecipe:()->Unit,onPhoto:()->Unit,ingredientsOnly:Boolean=false,onImport:((String)->Unit)?=null) {
     var query by rememberSaveable { mutableStateOf("") };var category by rememberSaveable { mutableStateOf("Recent") }
     val context=LocalContext.current
     var storeMenu by remember {mutableStateOf(false)}
+    var barcodeImage by rememberSaveable {mutableStateOf<String?>(null)}
+    val barcodePicker=rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) {uri->if(uri!=null) {
+        runCatching {context.contentResolver.takePersistableUriPermission(uri,Intent.FLAG_GRANT_READ_URI_PERMISSION)};barcodeImage=uri.toString()
+    }}
     val scanner=rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-        if(result.resultCode==android.app.Activity.RESULT_OK) result.data?.getStringExtra("barcode")?.let {vm.barcode(it,onFood)}
+        if(result.resultCode==android.app.Activity.RESULT_OK) result.data?.getStringExtra("barcode")?.let {vm.barcode(it,onFood,onImport)}
     }
     val history=state.entries.filterNot {it.fromHealthConnect}.sortedByDescending {it.created}.distinctBy {it.food.id}.map { e -> state.foods.find {it.id==e.food.id} ?: e.food }
     NutritionPage(if(ingredientsOnly) "Ingredient" else "Add food",padding,onBack) {
@@ -48,6 +52,8 @@ internal fun FoodSearchPage(vm: NutritionViewModel,state: NutritionState,padding
         }
         FlowRow(horizontalArrangement=Arrangement.spacedBy(8.dp),verticalArrangement=Arrangement.spacedBy(8.dp)) {
             if(category!="Search") SecondaryButton("Scan barcode",{scanner.launch(Intent(context,BarcodeActivity::class.java))},enabled=!vm.busy)
+            SecondaryButton("Barcode photo",{barcodePicker.launch(androidx.activity.result.PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))},enabled=!vm.busy)
+            onImport?.let {SecondaryButton("Import food",{it("")},enabled=!vm.busy)}
             SecondaryButton("Custom food",onCustom,enabled=!vm.busy)
             if(!ingredientsOnly) {SecondaryButton("New recipe",onRecipe,enabled=!vm.busy);SecondaryButton("Photo",onPhoto,enabled=!vm.busy)}
         }
@@ -70,6 +76,8 @@ internal fun FoodSearchPage(vm: NutritionViewModel,state: NutritionState,padding
             }
         }
     }
+    barcodeImage?.let {image->LabelCropper(android.net.Uri.parse(image),{barcodeImage=null},{crop->barcodeImage=null;vm.barcodePhoto(android.net.Uri.parse(image),crop,onFood,onImport)},title="Barcode photo",actionLabel="Read barcode")}
+
 }
 
 @Composable
@@ -107,6 +115,11 @@ internal fun PortionPage(food:Food,entry:DiaryEntry?,day:LocalDate,meal:Meal,pad
         }
         SecondaryButton(if(food.favourite) "Remove favourite" else "Save favourite",onFavourite,Modifier.fillMaxWidth(),enabled=!busy)
         onEdit?.let {SecondaryButton(if(food.source==FoodSource.RECIPE) "Edit recipe" else "Edit custom food",it,Modifier.fillMaxWidth(),enabled=!busy)}
+        food.sourceUrl?.let {url->
+            val uri=androidx.compose.ui.platform.LocalUriHandler.current
+            TextAction("View product source",{uri.openUri(url)})
+        }
+        if(food.labelChecked.isNotEmpty()) Text("${food.labelChecked.size} values read from the package label",style=LocalDeltaType.current.bodySmall)
         if(food.source==FoodSource.OPEN_FOOD_FACTS) {
             val uri=androidx.compose.ui.platform.LocalUriHandler.current
             TextAction("View label on Open Food Facts",{uri.openUri("https://world.openfoodfacts.org/product/${food.barcode}")})
@@ -145,7 +158,8 @@ internal fun FoodEditor(food:Food?,padding:PaddingValues,busy:Boolean,onBack:()-
         }
         PrimaryButton("Save food",{
             onSave(Food(food?.id ?: newId(),name.trim(),brand.trim().take(250),fields.mapNotNull {(k,v)->v.takeIf {it.isNotBlank()}?.number()?.let {Nutrient.valueOf(k) to it}}.toMap(),unit,
-                serving.number()?.takeIf {it>0},pack=pack.number()?.takeIf {it>0},favourite=food?.favourite ?: false))
+                serving.number()?.takeIf {it>0},pack=pack.number()?.takeIf {it>0},favourite=food?.favourite ?: false,
+                barcode=food?.barcode,sourceUrl=food?.sourceUrl,labelChecked=food?.labelChecked?.filter {fields[it.name]?.number()==food.per100[it] && unit==food.unit}?.toSet() ?: emptySet()))
         },Modifier.fillMaxWidth(),enabled=valid && !busy)
     }
 }

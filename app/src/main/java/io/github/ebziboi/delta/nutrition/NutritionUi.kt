@@ -89,6 +89,9 @@ fun NutritionScreen(padding: PaddingValues,addSignal: Int=0,onDetailChanged: (Bo
     val state by vm.state.collectAsStateWithLifecycle()
     var route by rememberSaveable { mutableStateOf(initialRoute) }
     var parent by rememberSaveable { mutableStateOf("diary") }
+    var importParent by rememberSaveable {mutableStateOf("search")}
+    var importCode by rememberSaveable {mutableStateOf("")}
+    var importId by rememberSaveable {mutableStateOf(newId())}
     var dayEpoch by rememberSaveable { mutableLongStateOf(LocalDate.now().toEpochDay()) }
     var meal by rememberSaveable { mutableStateOf(Meal.BREAKFAST) }
     var datePicker by remember { mutableStateOf(false) }
@@ -96,9 +99,10 @@ fun NutritionScreen(padding: PaddingValues,addSignal: Int=0,onDetailChanged: (Bo
     val day=LocalDate.ofEpochDay(dayEpoch)
     val back: ()->Unit = {
         if(vm.busy) vm.cancel()
-        route=when(route) { "portion" -> parent;"food-edit" -> if(parent=="ingredient-search") "ingredient-search" else "search";"recipe" -> "search";"search" -> "diary";"ingredient-search" -> "recipe";"photo-settings" -> "photo";else -> "diary" }
+        route=when(route) { "food-import" -> importParent;"portion" -> parent;"food-edit" -> if(parent=="ingredient-search") "ingredient-search" else "search";"recipe" -> "search";"search" -> "diary";"ingredient-search" -> "recipe";"photo-settings" -> "photo";else -> "diary" }
         vm.message=null
     }
+    fun openImport(code:String,from:String) {importCode=code;importParent=from;importId=newId();route="food-import"}
     val openFood: (Food,String)->Unit={f,p -> vm.selectedFood=f;vm.selectedEntry=null;parent=p;route="portion"}
     LaunchedEffect(route) { onDetailChanged(route!="diary") }
     DisposableEffect(Unit) { onDispose { onDetailChanged(false) } }
@@ -122,6 +126,7 @@ fun NutritionScreen(padding: PaddingValues,addSignal: Int=0,onDetailChanged: (Bo
             Text(state.loadError!!);PrimaryButton("Try again",{vm.run { vm.repo.reload() }})
         }
         else routeState.SaveableStateProvider(when(route) {
+            "food-import" -> "food-import:$importId"
             "portion" -> "portion:${vm.selectedFood?.id}:${vm.selectedEntry?.id ?: "new"}:$parent:$dayEpoch:${meal.name}"
             "food-edit" -> "food-edit:${vm.selectedFood?.id ?: vm.foodDraftId}"
             "recipe" -> "recipe:${vm.editingRecipe?.id ?: vm.recipeDraftId}"
@@ -132,7 +137,8 @@ fun NutritionScreen(padding: PaddingValues,addSignal: Int=0,onDetailChanged: (Bo
                 onRoute={route=it},onDate={datePicker=true},onRepeat={e->vm.run {vm.repo.log(listOf(e.copy(id=newId(),day=day,meal=meal,created=System.currentTimeMillis())))}})
             "search" -> FoodSearchPage(vm,state,padding,back,{openFood(it,"search")},
                 onCustom={vm.selectedFood=null;vm.foodDraftId=newId();parent="search";route="food-edit"},
-                onRecipe={vm.recipeIngredients=emptyList();vm.editingRecipe=null;vm.recipeDraftId=newId();route="recipe"},onPhoto={route="photo"})
+                onRecipe={vm.recipeIngredients=emptyList();vm.editingRecipe=null;vm.recipeDraftId=newId();route="recipe"},onPhoto={route="photo"},onImport={openImport(it,"search")})
+            "food-import" -> FoodImportPage(vm,importCode,padding,back) {food->vm.run {vm.repo.saveFood(food);openFood(food,if(importParent=="ingredient-search") "recipe" else "search")}}
             "portion" -> vm.selectedFood?.let { food -> PortionPage(food,vm.selectedEntry,day,meal,padding,vm.busy,back,
                 isIngredient=parent=="recipe",onSave={amount,m -> vm.run {
                     val e=vm.selectedEntry
@@ -145,7 +151,7 @@ fun NutritionScreen(padding: PaddingValues,addSignal: Int=0,onDetailChanged: (Bo
                 onDeleteFood=if(parent!="recipe" && vm.selectedEntry==null && food.source in listOf(FoodSource.CUSTOM,FoodSource.RECIPE)) ({vm.run {vm.repo.deleteFood(food.id);route="search"}}) else null) } ?: LaunchedEffect(Unit) {route="search"}
             "food-edit" -> FoodEditor(vm.selectedFood?.takeIf { it.source==FoodSource.CUSTOM },padding,vm.busy,back) {food -> vm.run {vm.repo.saveFood(food);openFood(food,if(parent=="ingredient-search") "recipe" else "search")} }
             "recipe" -> RecipeEditor(vm,state,padding,back,onPick={route="ingredient-search"},onSave={f -> vm.run {vm.repo.saveFood(f);openFood(f,"search")} })
-            "ingredient-search" -> FoodSearchPage(vm,state,padding,{route="recipe"},{openFood(it,"recipe")},onCustom={vm.selectedFood=null;vm.foodDraftId=newId();parent="ingredient-search";route="food-edit"},onRecipe={route="recipe"},onPhoto={route="photo"},ingredientsOnly=true)
+            "ingredient-search" -> FoodSearchPage(vm,state,padding,{route="recipe"},{openFood(it,"recipe")},onCustom={vm.selectedFood=null;vm.foodDraftId=newId();parent="ingredient-search";route="food-edit"},onRecipe={route="recipe"},onPhoto={route="photo"},ingredientsOnly=true,onImport={openImport(it,"ingredient-search")})
             "targets" -> TargetsPage(state.targets,padding,vm.busy,back) { targets -> vm.run {vm.repo.saveTargets(targets);route="diary"} }
             "copy" -> CopyDiaryPage(state,day,padding,vm.busy,back) { from,m -> vm.run {vm.repo.copy(from,day,m);route="diary"} }
             "health-entry" -> vm.selectedEntry?.let {HealthFoodPage(it,padding,back)}
