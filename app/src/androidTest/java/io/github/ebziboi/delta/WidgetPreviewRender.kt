@@ -47,21 +47,20 @@ class WidgetPreviewRender {
             io.github.ebziboi.delta.data.BodyFatEntry(java.time.Instant.now().minusSeconds((30L - it) * 86400).toEpochMilli(), 25.0 - it * 0.08, false, "preview-$it")
         })
 
-        // Roughly each widget's default size on a phone home screen, in dp.
-        val sizes = mapOf(
-            WidgetKind.BODY_FAT to (350f to 180f),
-            WidgetKind.PROGRESS to (170f to 170f),
-            WidgetKind.JOURNEY to (350f to 180f),
-            WidgetKind.SUMMARY to (350f to 100f),
-            WidgetKind.TREND to (350f to 180f),
-            WidgetKind.PACE to (170f to 170f),
-        )
+        // Each widget at the size it first takes on a phone home screen, in dp.
+        val sizes = WidgetKind.entries.associateWith { it.defaultWidth to it.defaultHeight }
         for ((kind, size) in sizes) {
             val bitmap = WidgetBitmaps.render(
                 context, kind, size.first, size.second, snap, settings,
                 night = true, maxSidePx = 900f,
             )
-            SampleData.save(bitmap, File(out, "widget_preview_${kind.name.lowercase()}.png"))
+            SampleData.save(bitmap, File(out, "widget_preview_${previewName(kind)}.png"))
         }
+    }
+
+    /** The picker image each receiver points at, by the receiver's name. */
+    private fun previewName(kind: WidgetKind) = when (kind) {
+        WidgetKind.CARD -> "progress"
+        else -> kind.name.lowercase()
     }
 }

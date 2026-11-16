@@ -11,6 +11,15 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -56,13 +65,9 @@ class WidgetConfigurationActivity : ComponentActivity() {
         val kind = info?.takeIf { it.provider.packageName == packageName }?.let { WidgetCatalog.kind(it.provider.className) }
         if (widgetId == AppWidgetManager.INVALID_APPWIDGET_ID || kind == null) { finish(); return }
         val options = manager.getAppWidgetOptions(widgetId)
-        val defaults = when (kind) {
-            WidgetKind.PROGRESS, WidgetKind.PACE -> 170f to 170f
-            WidgetKind.SUMMARY -> 350f to 100f
-            else -> 350f to 200f
-        }
-        val width = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, defaults.first.toInt()).toFloat().coerceIn(90f, 700f)
-        val height = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, defaults.second.toInt()).toFloat().coerceIn(60f, 700f)
+        // The widget's portrait size on the home screen: its minimum width by its maximum height.
+        val width = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 0).takeIf { it > 0 }?.toFloat()?.coerceIn(40f, 900f) ?: kind.defaultWidth
+        val height = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, 0).takeIf { it > 0 }?.toFloat()?.coerceIn(40f, 900f) ?: kind.defaultHeight
         enableEdgeToEdge()
         val repo = (application as DeltaApp).repo
         val store = WidgetStyleStore(this).also { this.store = it }
@@ -144,7 +149,9 @@ private suspend fun android.content.Context.importPhoto(uri: android.net.Uri, wi
 /**
  * The editor a launcher opens from a widget's long-press Settings. Its window is
  * see-through to the wallpaper, so the widget is previewed at its real size
- * against the user's own home screen as each control moves.
+ * against the user's own home screen as each control moves. Settings come in
+ * the order people reach for them: the material, what the widget shows, then
+ * colours and shape.
  */
 @Composable
 private fun WidgetConfigurationScreen(
@@ -171,7 +178,9 @@ private fun WidgetConfigurationScreen(
             WidgetBitmaps.render(context, kind, width, height, snapshot, effective, night, 1000f)
         }
     }
-    val graphed = kind == WidgetKind.TREND || kind == WidgetKind.JOURNEY
+    val dashboard = appearance.designStyle == DesignStyle.TUBIK
+    val content = draft.content
+    fun show(change: (WidgetContent) -> WidgetContent) = onChange(draft.copy(content = change(content)))
 
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val sheetMax = maxHeight * 0.55f
@@ -209,11 +218,7 @@ private fun WidgetConfigurationScreen(
                     }
                     failure?.let { Text(it, color = Color(LocalDerivedTheme.current.danger)) }
 
-                    if (graphed || kind == WidgetKind.BODY_FAT) {
-                        Caption("Time range")
-                        ChoiceRow(WidgetTimeRange.entries, draft.timeRange, { it.label }) { onChange(draft.copy(timeRange = it)) }
-                    }
-                    val dashboard = appearance.designStyle == DesignStyle.TUBIK
+                    // The material comes first: it is what most decides how a widget sits on the wallpaper.
                     if (dashboard) {
                         Caption("Dashboard modules")
                     } else {
@@ -229,59 +234,90 @@ private fun WidgetConfigurationScreen(
                             SliderRow("Opacity in light mode", draft.opacityLight, "${(draft.opacityLight * 100).roundToInt()}%",
                                 { previewNight = false; onChange(draft.copy(opacityLight = it)) }, {}, enabled = !appearance.reduceTransparency, valueRange = 0f..1f)
                         }
-
-                    }
-                    Caption("Background")
-                    val selectedBackground = effective.appearance?.backgroundStyle ?: BackgroundStyle.MESH
-                    val background = if (dashboard && selectedBackground != BackgroundStyle.IMAGE) BackgroundStyle.SOLID else selectedBackground
-                    ChoiceRow(if (dashboard) listOf(BackgroundStyle.SOLID, BackgroundStyle.IMAGE) else BackgroundStyle.entries, background, { backgroundLabel(it) }) { chosen ->
-                        if (chosen == BackgroundStyle.IMAGE && draft.backgroundImage == null) onPickPhoto()
-                        else onChange(draft.copy(backgroundStyle = chosen))
-                    }
-                    if (background == BackgroundStyle.IMAGE) {
-                        GlassButton("Choose another photo", onPickPhoto, Modifier.fillMaxWidth())
-                    }
-                    GlassButton("Background colour", { colorPicker = "background" }, Modifier.fillMaxWidth())
-                    GlassButton("Accent colour", { colorPicker = "accent" }, Modifier.fillMaxWidth())
-                    val glow = draft.accentIntensity ?: appearance.accentIntensity
-                    if (!dashboard) SliderRow("Accent glow", glow, "${(glow * 100).roundToInt()}%",
-                        { onChange(draft.copy(accentIntensity = it)) }, {}, valueRange = 0f..1f)
-
-                    val radius = draft.cornerRadius ?: appearance.cornerRadius
-                    SliderRow("Corner radius", radius, "${radius.roundToInt()} dp", { onChange(draft.copy(cornerRadius = it)) }, {}, valueRange = 20f..32f)
-
-                    Caption("Light and dark")
-                    ChoiceRow(WidgetTheme.entries, draft.theme, { it.label }) { onChange(draft.copy(theme = it)) }
-                    Caption("Text")
-                    SegmentedControl(TextContrast.entries, draft.content.text, { it.label }, Modifier.fillMaxWidth()) {
-                        onChange(draft.copy(content = draft.content.copy(text = it)))
                     }
 
-                    Caption("Show")
-                    val content = draft.content
-                    fun show(change: (WidgetContent) -> WidgetContent) = onChange(draft.copy(content = change(content)))
-                    when (kind) {
-                        WidgetKind.BODY_FAT -> ToggleRow("Body fat target", content.showTarget, { on -> show { it.copy(showTarget = on) } })
-                        WidgetKind.PROGRESS -> ToggleRow("How far there is to go", content.showDetail, { on -> show { it.copy(showDetail = on) } })
-                        WidgetKind.SUMMARY -> ToggleRow("How far there is to go", content.showDetail, { on -> show { it.copy(showDetail = on) } },
-                            note = null)
-                        WidgetKind.PACE -> ToggleRow("Ahead, on track or behind", content.showStatus, { on -> show { it.copy(showStatus = on) } },
-                            note = "Needs a target date.")
-                        WidgetKind.TREND, WidgetKind.JOURNEY -> {
-                            SegmentedControl(ChartStyle.entries, draft.chart ?: effective.widgetChart, { it.label },
-                                Modifier.fillMaxWidth()) { onChange(draft.copy(chart = it)) }
-                            if (draft.timeRange == WidgetTimeRange.JOURNEY) ToggleRow("Path to the goal", draft.projection ?: effective.showProjection,
-                                { onChange(draft.copy(projection = it)) }, note = null)
-                            ToggleRow("Target weight", content.showTarget, { on -> show { it.copy(showTarget = on) } })
-                            if (kind == WidgetKind.JOURNEY) {
+                    EditorSection("Shows") {
+                        when (kind) {
+                            WidgetKind.CARD -> {
+                                Text("Progress", style = type.bodySmall, color = Color(colors.textDim))
+                                SegmentedControl(ProgressDisplay.entries, effective.progressDisplay, ::displayLabel, Modifier.fillMaxWidth()) {
+                                    onChange(draft.copy(display = it))
+                                }
+                                if (effective.progressDisplay in listOf(ProgressDisplay.COMPLICATION, ProgressDisplay.BOTH)) {
+                                    DesignPicker(effective.percentageDesign, snapshot.fraction) { onChange(draft.copy(design = it)) }
+                                }
+                                if (effective.progressDisplay in listOf(ProgressDisplay.BAR, ProgressDisplay.BOTH)) {
+                                    SegmentedControl(ProgressBarStyle.entries, effective.progressBarStyle, { it.label }, Modifier.fillMaxWidth()) {
+                                        onChange(draft.copy(barStyle = it))
+                                    }
+                                }
+                                ToggleRow("This week's change", content.showChange, { on -> show { it.copy(showChange = on) } })
+                                ToggleRow("Start and target", content.showTarget, { on -> show { it.copy(showTarget = on) } })
+                                ToggleRow("Lost and to go", content.showDetail, { on -> show { it.copy(showDetail = on) } })
+                                ToggleRow("Body fat", content.showBodyFat, { on -> show { it.copy(showBodyFat = on) } },
+                                    note = "When your scale measures it and the widget is two rows or taller.")
+                            }
+                            WidgetKind.COMPLICATION -> {
+                                DesignPicker(effective.percentageDesign, snapshot.fraction) { onChange(draft.copy(design = it)) }
+                                ToggleRow("How far there is to go", content.showDetail, { on -> show { it.copy(showDetail = on) } },
+                                    note = "Under the art, when there is room.")
+                                ToggleRow("Target weight", content.showTarget, { on -> show { it.copy(showTarget = on) } },
+                                    note = "When the widget is wide.")
+                            }
+                            WidgetKind.TREND -> {
+                                Text("Time range", style = type.bodySmall, color = Color(colors.textDim))
+                                ChoiceRow(WidgetTimeRange.entries, draft.timeRange, { it.label }) { onChange(draft.copy(timeRange = it)) }
+                                SegmentedControl(ChartStyle.entries, draft.chart ?: effective.widgetChart, { it.label },
+                                    Modifier.fillMaxWidth()) { onChange(draft.copy(chart = it)) }
+                                if (draft.timeRange == WidgetTimeRange.JOURNEY) ToggleRow("Path to the goal", draft.projection ?: effective.showProjection,
+                                    { onChange(draft.copy(projection = it)) })
+                                ToggleRow("Target weight", content.showTarget, { on -> show { it.copy(showTarget = on) } })
                                 ToggleRow("Progress bar", content.showBar, { on -> show { it.copy(showBar = on) } })
-                                ToggleRow("How far there is to go", content.showDetail, { on -> show { it.copy(showDetail = on) } })
+                                ToggleRow("This week's change", content.showChange, { on -> show { it.copy(showChange = on) } })
+                                ToggleRow("Lost and to go", content.showDetail, { on -> show { it.copy(showDetail = on) } })
+                            }
+                            WidgetKind.PACE -> ToggleRow("Ahead, on track or behind", content.showStatus, { on -> show { it.copy(showStatus = on) } },
+                                note = "Needs a goal date.")
+                            WidgetKind.BODY_FAT -> {
+                                Text("Time range", style = type.bodySmall, color = Color(colors.textDim))
+                                ChoiceRow(WidgetTimeRange.entries, draft.timeRange, { it.label }) { onChange(draft.copy(timeRange = it)) }
+                                ToggleRow("Body fat target", content.showTarget, { on -> show { it.copy(showTarget = on) } })
                             }
                         }
                     }
+
+                    EditorSection("Background") {
+                        val selectedBackground = effective.appearance?.backgroundStyle ?: BackgroundStyle.MESH
+                        val background = if (dashboard && selectedBackground != BackgroundStyle.IMAGE) BackgroundStyle.SOLID else selectedBackground
+                        ChoiceRow(if (dashboard) listOf(BackgroundStyle.SOLID, BackgroundStyle.IMAGE) else BackgroundStyle.entries, background, { backgroundLabel(it) }) { chosen ->
+                            if (chosen == BackgroundStyle.IMAGE && draft.backgroundImage == null) onPickPhoto()
+                            else onChange(draft.copy(backgroundStyle = chosen))
+                        }
+                        if (background == BackgroundStyle.IMAGE) {
+                            GlassButton("Choose another photo", onPickPhoto, Modifier.fillMaxWidth())
+                        }
+                        ColourRow("Background colour", appearance.backgroundBase) { colorPicker = "background" }
+                        ColourRow("Accent colour", appearance.accent) { colorPicker = "accent" }
+                        val glow = draft.accentIntensity ?: appearance.accentIntensity
+                        if (!dashboard) SliderRow("Accent glow", glow, "${(glow * 100).roundToInt()}%",
+                            { onChange(draft.copy(accentIntensity = it)) }, {}, valueRange = 0f..1f)
+                    }
+
+                    EditorSection("Light, dark and text") {
+                        ChoiceRow(WidgetTheme.entries, draft.theme, { it.label }) { onChange(draft.copy(theme = it)) }
+                        Text("Text colour", style = type.bodySmall, color = Color(colors.textDim))
+                        SegmentedControl(TextContrast.entries, draft.content.text, { it.label }, Modifier.fillMaxWidth()) {
+                            onChange(draft.copy(content = draft.content.copy(text = it)))
+                        }
+                        val radius = draft.cornerRadius ?: appearance.cornerRadius
+                        SliderRow("Corner radius", radius, "${radius.roundToInt()} dp", { onChange(draft.copy(cornerRadius = it)) }, {}, valueRange = 20f..32f)
+                    }
+
                     TextAction("Reset to Delta's look", {
-                        onChange(draft.copy(background = null, accent = null, cornerRadius = null, backgroundStyle = null,
-                            accentIntensity = null, content = WidgetContent()))
+                        // Everything back to following the app; a photo of the widget's own is let go and deleted on save.
+                        onChange(draft.copy(background = null, accent = null, cornerRadius = null, backgroundStyle = null, backgroundImage = null,
+                            accentIntensity = null, content = WidgetContent(text = draft.content.text), display = null, design = null, barStyle = null,
+                            chart = null, projection = null))
                     })
                 }
             }
@@ -294,6 +330,55 @@ private fun WidgetConfigurationScreen(
                 })
         }
     }
+}
+
+/** A titled group of settings, set off from the one above by a hairline. */
+@Composable
+private fun EditorSection(title: String, content: @Composable ColumnScope.() -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        GlassDivider()
+        Caption(title)
+        content()
+    }
+}
+
+/** A colour setting: the colour as a swatch, its name, and its hex value. */
+@Composable
+private fun ColourRow(title: String, value: Int, onClick: () -> Unit) {
+    val colors = LocalDeltaColors.current
+    Row(Modifier.fillMaxWidth().heightIn(min = 52.dp).clip(RoundedCornerShape(Radii.control))
+        .clickable(role = Role.Button, onClick = onClick).padding(vertical = 6.dp),
+        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        Box(Modifier.size(32.dp).background(Color(value), CircleShape).border(1.dp, Color(colors.outline), CircleShape))
+        Text(title, modifier = Modifier.weight(1f), style = LocalDeltaType.current.body)
+        Text("#%06X".format(value and 0xFFFFFF), style = LocalDeltaType.current.numberSmall, color = Color(colors.textDim))
+    }
+}
+
+/** The percentage designs, each drawn at the widget's own progress, to choose from. */
+@Composable
+private fun DesignPicker(selected: PercentageDesign, fraction: Float?, onSelect: (PercentageDesign) -> Unit) {
+    val colors = LocalDeltaColors.current
+    Text("Percentage design", style = LocalDeltaType.current.bodySmall, color = Color(colors.textDim))
+    AdaptiveOptionGrid(PercentageDesign.entries, minimumWidth = 84.dp) { design, cell ->
+        val active = design == selected
+        Column(cell.clip(RoundedCornerShape(Radii.control))
+            .background(if (active) Color(colors.accent).copy(alpha = .18f) else Color(colors.surfaceHigh).copy(alpha = .55f))
+            .clickable(role = Role.RadioButton) { onSelect(design) }
+            .semantics { this.selected = active; contentDescription = "${design.label} percentage design" }
+            .padding(8.dp), horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            PercentageComplication(fraction ?: .64f, design, Modifier.size(60.dp))
+            Text(design.label, style = LocalDeltaType.current.bodySmall, color = Color(if (active) colors.accent else colors.text))
+        }
+    }
+}
+
+private fun displayLabel(display: ProgressDisplay) = when (display) {
+    ProgressDisplay.COMPLICATION -> "Art"
+    ProgressDisplay.BAR -> "Bar"
+    ProgressDisplay.PERIMETER -> "Perimeter"
+    ProgressDisplay.BOTH -> "Both"
 }
 
 private fun backgroundLabel(style: BackgroundStyle) = when (style) {

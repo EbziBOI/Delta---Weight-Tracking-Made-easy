@@ -42,8 +42,9 @@ past (the first use is a journey that began in September).
   target date is set, weigh-in streak
 - Graph as a smoothed trend line or as connected dots (chosen separately for the
   app and the widgets), with the target marked and an optional path to the goal
-- Widgets: progress, journey (graph and progress bar together), start/now/target,
-  trend, pace. All resizable, themed, and shown as real previews in the widget picker
+- Widgets: Progress card, Complication, Trend (graph with an optional progress
+  bar), Pace and Body fat. All resizable from one cell to a page, themed, and
+  shown as real previews in the widget picker
 - Themes: Ember, Aurora, Midnight, Graphite, Neon, Light, Auto, Material You. Six accent colours
 - Log and delete weigh-ins (written to Health Connect)
 

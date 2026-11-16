@@ -105,10 +105,10 @@ class SmokeTest {
             val snap = ProgressCalculator.compute(entries, look.settings)
             fun draw(kind: WidgetKind, widthDp: Float, heightDp: Float) =
                 WidgetBitmaps.render(context, kind, widthDp, heightDp, snap, look.settings, night = look.night)
-            val progress = draw(WidgetKind.PROGRESS, 172f, 190f)
+            val progress = draw(WidgetKind.COMPLICATION, 172f, 190f)
             val pace = draw(WidgetKind.PACE, 172f, 190f)
-            val summary = draw(WidgetKind.SUMMARY, 360f, 110f)
-            val journey = draw(WidgetKind.JOURNEY, 360f, 200f)
+            val summary = draw(WidgetKind.CARD, 360f, 110f)
+            val journey = draw(WidgetKind.CARD, 360f, 200f)
             val trend = draw(WidgetKind.TREND, 360f, 190f)
 
             // One picture per look, laid out like a home screen over a busy wallpaper.

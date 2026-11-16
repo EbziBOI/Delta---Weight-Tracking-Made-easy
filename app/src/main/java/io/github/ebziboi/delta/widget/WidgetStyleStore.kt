@@ -35,6 +35,12 @@ data class WidgetStyle(
     val accentIntensity: Float? = null,
     val content: WidgetContent = WidgetContent(),
     val timeRange: WidgetTimeRange = WidgetTimeRange.JOURNEY,
+    /** How the Progress card shows progress (art, bar, both or round the edge); null follows the app. */
+    val display: ProgressDisplay? = null,
+    /** The percentage art on the Progress card and Complication; null follows the app. */
+    val design: PercentageDesign? = null,
+    /** The progress bar's style; null follows the app. */
+    val barStyle: ProgressBarStyle? = null,
 ) : java.io.Serializable {
     fun apply(settings: AppSettings, appearance: AppAppearance): AppSettings {
         if (useAppSettings) return settings.copy(widgetTimeRange = timeRange)
@@ -51,7 +57,9 @@ data class WidgetStyle(
         return settings.copy(appearance = custom, widgetGlass = glass, widgetTheme = mode,
             widgetOpacityDark = opacityDark.coerceIn(0f, 1f), widgetOpacityLight = opacityLight.coerceIn(0f, 1f),
             widgetChart = chart ?: settings.widgetChart, showProjection = projection ?: settings.showProjection,
-            widgetContent = content, widgetBackgroundOverride = background, widgetTimeRange = timeRange)
+            widgetContent = content, widgetBackgroundOverride = background, widgetTimeRange = timeRange,
+            progressDisplay = display ?: settings.progressDisplay, percentageDesign = design ?: settings.percentageDesign,
+            progressBarStyle = barStyle ?: settings.progressBarStyle)
     }
     companion object {
         /** A widget's own style, starting from the defaults every new widget gets. */
@@ -103,6 +111,8 @@ class WidgetStyleStore(context: Context) {
         s.accentIntensity?.let { put("glow", it) }
         put("showDetail", s.content.showDetail); put("showBar", s.content.showBar)
         put("showTarget", s.content.showTarget); put("showStatus", s.content.showStatus); put("text", s.content.text.name)
+        put("showChange", s.content.showChange); put("showBodyFat", s.content.showBodyFat)
+        s.display?.let { put("display", it.name) }; s.design?.let { put("design", it.name) }; s.barStyle?.let { put("barStyle", it.name) }
     }.toString()
     private fun decode(value: String?): WidgetStyle? = runCatching {
         if (value == null) return null
@@ -125,6 +135,10 @@ class WidgetStyleStore(context: Context) {
             accentIntensity = if (j.has("glow")) amount("glow", 0.55f) else null,
             content = WidgetContent(showDetail = j.optBoolean("showDetail", true), showBar = j.optBoolean("showBar", true),
                 showTarget = j.optBoolean("showTarget", true), showStatus = j.optBoolean("showStatus", true),
-                text = TextContrast.entries.firstOrNull { it.name == j.optString("text") } ?: TextContrast.AUTO))
+                text = TextContrast.entries.firstOrNull { it.name == j.optString("text") } ?: TextContrast.AUTO,
+                showChange = j.optBoolean("showChange", true), showBodyFat = j.optBoolean("showBodyFat", true)),
+            display = ProgressDisplay.entries.firstOrNull { it.name == j.optString("display") },
+            design = PercentageDesign.entries.firstOrNull { it.name == j.optString("design") },
+            barStyle = ProgressBarStyle.entries.firstOrNull { it.name == j.optString("barStyle") })
     }.getOrNull()
 }

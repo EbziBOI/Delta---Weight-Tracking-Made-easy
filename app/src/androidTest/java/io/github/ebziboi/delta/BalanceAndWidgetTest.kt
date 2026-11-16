@@ -40,7 +40,7 @@ class BalanceAndWidgetTest {
         val snap=snapshot()
         val failures=mutableListOf<String>()
         fun check(condition:Boolean,message:String) {if(!condition) failures.add(message)}
-        val sizes=listOf(110f to 50f,110f to 150f,172f to 100f,172f to 180f,200f to 380f,350f to 82f,350f to 120f,360f to 200f,420f to 420f)
+        val sizes=listOf(58f to 70f,76f to 85f,110f to 50f,110f to 150f,165f to 85f,172f to 100f,172f to 180f,165f to 290f,200f to 380f,255f to 85f,350f to 82f,350f to 120f,360f to 200f,345f to 290f,420f to 420f,697f to 51f)
         val empty=snap.copy(points=emptyList(),history=emptyList(),currentKg=null,currentMs=null,startKg=null,fraction=null,bodyFat=emptyList(),weeklyRateKg=null,projectedDay=null)
         val single=snap.copy(points=snap.points.take(1),history=snap.history.take(1),bodyFat=snap.bodyFat.take(1))
         for(theme in DesignStyle.entries) for(unit in WeightUnit.entries) for((w,h) in sizes) for(kind in WidgetKind.entries) for(state in listOf(snap,empty,single)) {
@@ -69,10 +69,10 @@ class BalanceAndWidgetTest {
         for(theme in DesignStyle.entries) {
             val settings=AppSettings(appearance=theme.defaults())
             val audit=mutableListOf<WidgetElement>()
-            val withDetail=WidgetBitmaps.render(context,WidgetKind.SUMMARY,350f,105f,snapshot,settings,audit=audit)
-            val without=WidgetBitmaps.render(context,WidgetKind.SUMMARY,350f,105f,snapshot,settings.copy(widgetContent=WidgetContent(showDetail=false)))
+            val withDetail=WidgetBitmaps.render(context,WidgetKind.CARD,WidgetKind.CARD.defaultWidth,WidgetKind.CARD.defaultHeight,snapshot,settings,audit=audit)
+            val without=WidgetBitmaps.render(context,WidgetKind.CARD,WidgetKind.CARD.defaultWidth,WidgetKind.CARD.defaultHeight,snapshot,settings.copy(widgetContent=WidgetContent(showDetail=false)))
             assertFalse("Detail toggle must visibly change the default preview",withDetail.sameAs(without))
-            assertTrue(audit.any {it.role=="remaining" && it.value.contains("to go")})
+            assertTrue(audit.joinToString { it.role+"="+it.value },audit.any {it.role=="summary" && it.value.contains("to go")})
             withDetail.recycle();without.recycle()
         }
     }
@@ -94,7 +94,7 @@ class BalanceAndWidgetTest {
         for(theme in DesignStyle.entries) {
             val sheet=Bitmap.createBitmap(7*180,210,Bitmap.Config.ARGB_8888);val c=Canvas(sheet);c.drawColor(Color.DKGRAY)
             PercentageDesign.entries.forEachIndexed {i,design->
-                val image=WidgetBitmaps.render(context,WidgetKind.PROGRESS,172f,180f,snap,AppSettings(appearance=theme.defaults(),percentageDesign=design),maxSidePx=172f)
+                val image=WidgetBitmaps.render(context,WidgetKind.COMPLICATION,172f,180f,snap,AppSettings(appearance=theme.defaults(),percentageDesign=design),maxSidePx=172f)
                 c.drawBitmap(image,i*180f,12f,null);image.recycle()
             }
             SampleData.save(sheet,File(out,"complications-$theme.png"));sheet.recycle()

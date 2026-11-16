@@ -2,17 +2,19 @@
 <resources>
     <string name="app_name">Delta</string>
 
-    <string name="widget_progress_name">Delta progress</string>
-    <string name="widget_progress_desc">Your progress round the delta, with how far there is to go.</string>
+    <string name="widget_progress_name">Progress card</string>
+    <string name="widget_progress_desc">Your weight, this week\'s change and the way to your target, as on the Progress tab.</string>
 
-    <string name="widget_summary_name">Start, now, target</string>
-    <string name="widget_summary_desc">Your starting weight, current weight and target side by side.</string>
+    <string name="widget_complication_name">Complication</string>
+    <string name="widget_complication_desc">How far along you are, drawn in your percentage design.</string>
 
-    <string name="widget_trend_name">Weight trend</string>
-    <string name="widget_trend_desc">A graph of your weight since you started, against your target.</string>
+    <string name="widget_trend_name">Trend</string>
+    <string name="widget_trend_desc">Your weight graph against the target, with a progress bar.</string>
 
     <string name="widget_pace_name">Pace</string>
-    <string name="widget_pace_desc">Your weekly rate, projected goal date and weigh-in streak.</string>
+    <string name="widget_pace_desc">Weekly rate, goal date, 7-day average and streak.</string>
+
+    <!-- Retired from the picker; these name widgets that were placed before. -->
+    <string name="widget_summary_name">Start, now, target</string>
     <string name="widget_journey_name">Journey</string>
-    <string name="widget_journey_desc">Your weight graph and progress towards your target together.</string>
 </resources>

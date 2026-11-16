@@ -143,11 +143,11 @@ object AppearanceEngine {
                 backgroundSecondary = Palettes.mix(a.backgroundSecondary, neutral, 0.96f))
         }
         if (a.designStyle == DesignStyle.TUBIK && kind != null) {
+            // The same module colours as the cards these widgets come from on the Progress tab.
             val panel = settings.widgetBackgroundOverride ?: when (kind) {
-                WidgetKind.PROGRESS, WidgetKind.BODY_FAT -> TubikTokens.SAGE
-                WidgetKind.SUMMARY -> TubikTokens.CORAL
-                WidgetKind.JOURNEY, WidgetKind.TREND -> TubikTokens.VIOLET
-                WidgetKind.PACE -> a.backgroundBase
+                WidgetKind.CARD, WidgetKind.BODY_FAT -> TubikTokens.SAGE
+                WidgetKind.TREND -> TubikTokens.VIOLET
+                WidgetKind.COMPLICATION, WidgetKind.PACE -> a.backgroundBase
             }
             val adapted = when (settings.widgetTheme) {
                 WidgetTheme.APP -> panel

@@ -89,13 +89,13 @@ class WidgetConfigurationTest {
         } finally {
             if (original == null) store.delete(intArrayOf(id)) else store.save(id, original)
             settings.update { originalApp }
-            WidgetUpdater.updateOne(context, id, WidgetKind.PROGRESS)
+            WidgetUpdater.updateOne(context, id, WidgetKind.CARD)
             device.pressHome()
         }
     }
     /** The editor keeps unsaved changes in its saved state, so leaving it for another app must not crash. */
     @Test fun editorSurvivesGoingToTheBackground() = runBlocking {
-        val component = ComponentName(context, WidgetCatalog.receiver(WidgetKind.PROGRESS))
+        val component = ComponentName(context, WidgetCatalog.receiver(WidgetKind.CARD))
         val id = manager.getAppWidgetIds(component).firstOrNull() ?: return@runBlocking
         val settings = SettingsStore(context)
         val originalApp = settings.settings.first()
@@ -163,7 +163,7 @@ class WidgetConfigurationTest {
         }
     }
 
-    private fun placedProgressWidget(kind: WidgetKind = WidgetKind.PROGRESS): Int {
+    private fun placedProgressWidget(kind: WidgetKind = WidgetKind.CARD): Int {
         val component = ComponentName(context, WidgetCatalog.receiver(kind))
         if (manager.getAppWidgetIds(component).isEmpty()) {
             assertTrue(manager.requestPinAppWidget(component, null, null))

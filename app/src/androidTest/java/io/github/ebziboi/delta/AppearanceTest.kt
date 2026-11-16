@@ -60,11 +60,11 @@ class AppearanceTest {
         val original = AppSettings(targetKg = 80.0, startEpochDay = day.toEpochDay(),
             appearance = AppearancePreset.ICE.appearance())
         val snapshot = ProgressCalculator.compute(SampleData.entries(day), original)
-        val ice = WidgetBitmaps.render(context, WidgetKind.JOURNEY, 350f, 200f, snapshot, original)
-        val rose = WidgetBitmaps.render(context, WidgetKind.JOURNEY, 350f, 200f, snapshot,
+        val ice = WidgetBitmaps.render(context, WidgetKind.TREND, 350f, 200f, snapshot, original)
+        val rose = WidgetBitmaps.render(context, WidgetKind.TREND, 350f, 200f, snapshot,
             original.copy(appearance = AppearancePreset.ROSE.appearance()))
         assertFalse("Widget must change immediately with the selected appearance", ice.sameAs(rose))
-        val solid = WidgetBitmaps.render(context, WidgetKind.JOURNEY, 350f, 200f, snapshot,
+        val solid = WidgetBitmaps.render(context, WidgetKind.TREND, 350f, 200f, snapshot,
             original.copy(widgetGlass = WidgetGlass.CLEAR, appearance = original.appearance!!.copy(reduceTransparency = true)))
         assertEquals(255, solid.getPixel(solid.width / 2, solid.height - 8) ushr 24)
         assertEquals(0, solid.getPixel(0, 0) ushr 24)

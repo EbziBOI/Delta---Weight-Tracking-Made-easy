@@ -108,15 +108,19 @@ enum class TextContrast(val label: String) { AUTO("Automatic"), LIGHT("Light"), 
  * per widget from the home screen and never saved with the app's own settings.
  */
 data class WidgetContent(
-    /** The secondary line: how far there is to go. */
+    /** The secondary line: what is lost and what is left to go. */
     val showDetail: Boolean = true,
-    /** The progress bar on the Journey widget. */
+    /** The progress bar under the Trend widget's graph. */
     val showBar: Boolean = true,
-    /** The target beside the graph on the Trend and Journey widgets. */
+    /** The target: the line on a graph, or start and target on the Progress card. */
     val showTarget: Boolean = true,
     /** Ahead, on track or behind, on the Pace widget. */
     val showStatus: Boolean = true,
     val text: TextContrast = TextContrast.AUTO,
+    /** This week's change beside the weight, on the Progress card and Trend widgets. */
+    val showChange: Boolean = true,
+    /** The latest body fat reading on the Progress card. */
+    val showBodyFat: Boolean = true,
 ) : java.io.Serializable
 
 data class AppSettings(

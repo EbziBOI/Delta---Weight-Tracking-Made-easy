@@ -42,7 +42,7 @@ class RenderContractTest {
         try {
             val app = settings.copy(widgetGlass = WidgetGlass.SOLID)
             val appearance = AppearanceEngine.resolve(context, app)
-            fun draw(style: WidgetStyle) = WidgetBitmaps.render(context, WidgetKind.PROGRESS, 170f, 170f, snapshot,
+            fun draw(style: WidgetStyle) = WidgetBitmaps.render(context, WidgetKind.CARD, 170f, 170f, snapshot,
                 style.apply(app, appearance), night = true)
             val base = WidgetStyle.from(app)
             val mesh = draw(base.copy(backgroundStyle = BackgroundStyle.MESH))
@@ -84,7 +84,7 @@ class RenderContractTest {
             }
         }
         fun render(glass: WidgetGlass, type: TypeStyle = TypeStyle.EDITORIAL) = WidgetBitmaps.render(context,
-            WidgetKind.SUMMARY, 350f, 120f, snapshot, settings.copy(widgetGlass = glass,
+            WidgetKind.CARD, 350f, 120f, snapshot, settings.copy(widgetGlass = glass,
                 widgetOpacityDark = glass.defaultDark, typeStyle = type), night = true)
         val solid = render(WidgetGlass.SOLID)
         val clear = render(WidgetGlass.CLEAR)
@@ -95,20 +95,31 @@ class RenderContractTest {
         listOf(solid, clear, modern).forEach(Bitmap::recycle)
     }
 
-    @Test fun journeyIsRegisteredAndDistinctFromTrend() {
+    /** The picker offers one widget per kind; retired widgets stay registered, hidden, so placed ones keep working. */
+    @Test fun pickerOffersEachKindOnceAndRetiredWidgetsStayHidden() {
         val providers = AppWidgetManager.getInstance(context).installedProviders.filter { it.provider.packageName == context.packageName }
-        assertEquals(WidgetKind.entries.size, providers.size)
-        assertTrue(providers.any { it.provider == ComponentName(context, io.github.ebziboi.delta.widget.BodyFatWidgetReceiver::class.java) })
-        assertTrue(providers.any { it.provider == ComponentName(context, JourneyWidgetReceiver::class.java) })
-        val journey = WidgetBitmaps.render(context, WidgetKind.JOURNEY, 350f, 200f, snapshot, settings)
-        val trend = WidgetBitmaps.render(context, WidgetKind.TREND, 350f, 200f, snapshot, settings)
-        assertFalse(journey.sameAs(trend))
-        journey.recycle(); trend.recycle()
+        val hidden = android.appwidget.AppWidgetProviderInfo.WIDGET_FEATURE_HIDE_FROM_PICKER
+        val offered = providers.filter { it.widgetFeatures and hidden == 0 }
+        assertEquals(WidgetKind.entries.map { ComponentName(context, WidgetCatalog.receiver(it)) }.toSet(), offered.map { it.provider }.toSet())
+        for (retired in listOf(SummaryWidgetReceiver::class.java, JourneyWidgetReceiver::class.java)) {
+            val info = providers.single { it.provider == ComponentName(context, retired) }
+            assertTrue("${retired.simpleName} must be hidden from the picker", info.widgetFeatures and hidden != 0)
+            assertNotNull(WidgetCatalog.kind(retired.name))
+        }
+        assertEquals(WidgetKind.CARD, WidgetCatalog.kind(SummaryWidgetReceiver::class.java.name))
+        assertEquals(WidgetKind.TREND, WidgetCatalog.kind(JourneyWidgetReceiver::class.java.name))
+        for (info in offered) {
+            assertTrue("Every widget resizes down to one cell", info.minResizeWidth <= 60 * context.resources.displayMetrics.density &&
+                info.minResizeHeight <= 60 * context.resources.displayMetrics.density)
+        }
+        val drawn = WidgetKind.entries.map { WidgetBitmaps.render(context, it, 350f, 200f, snapshot, settings) }
+        for (i in drawn.indices) for (j in i + 1 until drawn.size) assertFalse("${WidgetKind.entries[i]} and ${WidgetKind.entries[j]} look the same", drawn[i].sameAs(drawn[j]))
+        drawn.forEach(Bitmap::recycle)
     }
 
     @Test fun remoteViewsSwitchImagesWithSystemMode() {
         if (android.os.Build.VERSION.SDK_INT < 31) return
-        val views = BitmapWidget.views(context, WidgetKind.PROGRESS, 170f, 170f, snapshot,
+        val views = BitmapWidget.views(context, WidgetKind.CARD, 170f, 170f, snapshot,
             settings.copy(widgetTheme = WidgetTheme.SYSTEM), 400f)
         fun draw(night: Boolean): Bitmap {
             val configuration = Configuration(context.resources.configuration).apply {

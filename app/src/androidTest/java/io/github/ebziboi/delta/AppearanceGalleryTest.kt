@@ -52,8 +52,8 @@ class AppearanceGalleryTest {
                 for (glass in WidgetGlass.entries) for (night in listOf(false, true)) {
                     val look = settings.copy(widgetTheme = WidgetTheme.SYSTEM, widgetGlass = glass, widgetOpacityDark = glass.defaultDark, widgetOpacityLight = glass.defaultLight)
                     val snapshot = ProgressCalculator.compute(entries, look)
-                    val widgets = listOf(WidgetKind.PROGRESS to (172f to 180f), WidgetKind.PACE to (172f to 180f),
-                        WidgetKind.SUMMARY to (360f to 105f), WidgetKind.JOURNEY to (360f to 200f), WidgetKind.TREND to (360f to 190f))
+                    val widgets = listOf(WidgetKind.COMPLICATION to (172f to 180f), WidgetKind.PACE to (172f to 180f),
+                        WidgetKind.CARD to (360f to 105f), WidgetKind.CARD to (360f to 200f), WidgetKind.TREND to (360f to 190f))
                         .map { (kind, size) -> WidgetBitmaps.render(context, kind, size.first, size.second, snapshot, look, night, 700f * maxOf(size.first, size.second) / 360f) }
                     val gap = 24
                     val width = widgets[2].width + gap * 2

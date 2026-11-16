@@ -196,62 +196,35 @@
             </intent-filter>
         </activity-alias>
 
-        <receiver
-            android:name=".widget.ProgressWidgetReceiver"
-            android:exported="true"
-            android:label="@string/widget_progress_name">
-            <intent-filter>
-                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-            </intent-filter>
-            <meta-data
-                android:name="android.appwidget.provider"
-                android:resource="@xml/widget_progress_info" />
+        <!-- The widgets in the picker, in the order Delta lists them. -->
+        <receiver android:name=".widget.ProgressWidgetReceiver" android:exported="true" android:label="@string/widget_progress_name">
+            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_progress_info" />
         </receiver>
-
+        <receiver android:name=".widget.ComplicationWidgetReceiver" android:exported="true" android:label="@string/widget_complication_name">
+            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_complication_info" />
+        </receiver>
+        <receiver android:name=".widget.TrendWidgetReceiver" android:exported="true" android:label="@string/widget_trend_name">
+            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_trend_info" />
+        </receiver>
+        <receiver android:name=".widget.PaceWidgetReceiver" android:exported="true" android:label="@string/widget_pace_name">
+            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_pace_info" />
+        </receiver>
+        <receiver android:name=".widget.BodyFatWidgetReceiver" android:exported="true" android:label="@string/widget_body_fat_name">
+            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_body_fat_info" />
+        </receiver>
+        <!-- Retired: hidden from the picker, kept so widgets already placed keep working. -->
+        <receiver android:name=".widget.SummaryWidgetReceiver" android:exported="true" android:label="@string/widget_summary_name">
+            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_summary_info" />
+        </receiver>
         <receiver android:name=".widget.JourneyWidgetReceiver" android:exported="true" android:label="@string/widget_journey_name">
             <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>
             <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_journey_info" />
-        </receiver>
-
-        <receiver
-            android:name=".widget.SummaryWidgetReceiver"
-            android:exported="true"
-            android:label="@string/widget_summary_name">
-            <intent-filter>
-                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-            </intent-filter>
-            <meta-data
-                android:name="android.appwidget.provider"
-                android:resource="@xml/widget_summary_info" />
-        </receiver>
-
-        <receiver
-            android:name=".widget.TrendWidgetReceiver"
-            android:exported="true"
-            android:label="@string/widget_trend_name">
-            <intent-filter>
-                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-            </intent-filter>
-            <meta-data
-                android:name="android.appwidget.provider"
-                android:resource="@xml/widget_trend_info" />
-        </receiver>
-
-        <receiver
-            android:name=".widget.PaceWidgetReceiver"
-            android:exported="true"
-            android:label="@string/widget_pace_name">
-            <intent-filter>
-                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-            </intent-filter>
-            <meta-data
-                android:name="android.appwidget.provider"
-                android:resource="@xml/widget_pace_info" />
-        </receiver>
-
-        <receiver android:name=".widget.BodyFatWidgetReceiver" android:exported="true" android:label="@string/widget_body_fat_name">
-            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE"/></intent-filter>
-            <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_body_fat_info"/>
         </receiver>
     </application>
 

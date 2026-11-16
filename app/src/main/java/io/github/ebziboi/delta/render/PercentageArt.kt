@@ -6,7 +6,7 @@ import kotlin.math.*
 
 /** Unit-based geometry keeps the same visual weight at dashboard and widget sizes. */
 object PercentageArt {
-    fun draw(c: Canvas, box: RectF, fraction: Float?, design: PercentageDesign, colors: DrawColors, type: CanvasType, matte: Boolean) {
+    fun draw(c: Canvas, box: RectF, fraction: Float?, design: PercentageDesign, colors: DrawColors, type: CanvasType, matte: Boolean, showLabel: Boolean = true) {
         val size = min(box.width(), box.height())
         val cx = box.centerX(); val cy = box.centerY(); val p = (fraction?.takeIf { it.isFinite() } ?: 0f).coerceIn(0f, 1f)
         val ink = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE; strokeCap = Paint.Cap.ROUND }
@@ -79,6 +79,7 @@ object PercentageArt {
                 c.drawCircle(cx+cos(a).toFloat()*size*0.40f,cy+sin(a).toFloat()*size*0.40f,size*0.033f,ink)
             }
         }
+        if (!showLabel) return
         val text = Paint(Paint.ANTI_ALIAS_FLAG).apply { color=colors.text;typeface=type.numberBold;textSize=size*0.20f;textAlign=Paint.Align.CENTER }
         if (!matte) text.setShadowLayer(size*.018f, 0f, size*.008f, ThemeContrast.on(colors.text))
         val label = fraction?.takeIf { it.isFinite() }?.let { "${(p*100).roundToInt()}%" } ?: "—"

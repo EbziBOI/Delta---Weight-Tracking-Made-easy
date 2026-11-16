@@ -305,11 +305,17 @@ private fun SettingsDetail(
                 for (kind in WidgetKind.entries) {
                     ContentSection {
                         Text(kind.title, style = LocalDeltaType.current.title)
+                        Text(kind.detail, style = LocalDeltaType.current.bodySmall, color = Color(colors.textDim))
                         if (snap != null) {
-                            val image = remember(kind, snap, settings) {
-                                WidgetBitmaps.render(context, kind, 320f, if (kind == WidgetKind.SUMMARY) 105f else 180f, snap, settings, maxSidePx = 700f).asImageBitmap()
+                            // Drawn at the size it first takes on a home screen, shrunk only if the screen is narrower.
+                            androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxWidth()) {
+                                val scale = minOf(1f, maxWidth.value / kind.defaultWidth)
+                                val image = remember(kind, snap, settings) {
+                                    WidgetBitmaps.render(context, kind, kind.defaultWidth, kind.defaultHeight, snap, settings, maxSidePx = 900f).asImageBitmap()
+                                }
+                                Image(image, contentDescription = "${kind.title} preview",
+                                    modifier = Modifier.size((kind.defaultWidth * scale).dp, (kind.defaultHeight * scale).dp))
                             }
-                            Image(image, contentDescription = "${kind.title} preview", modifier = Modifier.fillMaxWidth().height(if (kind == WidgetKind.SUMMARY) 105.dp else 180.dp))
                         }
                         if (canPinWidgets(context)) SecondaryButton("Add", onClick = { pinWidget(context, WidgetCatalog.receiver(kind)) })
                     }

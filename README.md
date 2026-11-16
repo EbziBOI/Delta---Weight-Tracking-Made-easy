@@ -21,8 +21,14 @@ background and blur when you switch back. The visual reference is
   your real start date rather than from the day you install
 - Start, current and target weight, with an optional target date
 - Weekly rate, projected goal date, on-track check and weigh-in streak
-- Six resizable widgets: progress, journey (graph and progress bar together),
-  start/now/target, trend graph, pace and body fat
+- Five widgets, each resizable from a single cell to a whole page: the Progress
+  card (the Progress tab's first card), the Complication (the percentage art on
+  its own), Trend (graph with an optional progress bar), Pace (weekly rate, goal
+  date, 7-day average and streak) and Body fat. The Progress widget grew into
+  the Progress card; the retired Journey and Start/now/target widgets are hidden
+  from the picker, and ones already placed carry on as Trend and the Progress card
+- See-through widgets check their coloured text against the wallpaper they sit
+  on, and lift only what would otherwise be hard to read
 - Ten launcher icons, including the original: swipe the icon deck in Appearance,
   then hold or double-tap an icon to apply it
 - Pinch to zoom dates horizontally and drag to pan; the vertical scale stays fixed. Tap a reading for its value/date,
@@ -117,6 +123,6 @@ can remove local settings and cached data; record your goal and start date first
 
 Release APKs include the version in their filename (for example `Delta-0.1.32.apk`) and Android package metadata. GitHub builds keep increasing the version code and use the stored signing key for in-place updates. `Delta.apk` remains as a compatibility download. Local release builds also write a versioned copy next to the standard Android Studio output.
 
-Widgets prioritize complete, readable measurements as they resize: compact sparklines, stacked narrow summaries and pace cells, current-week comparisons, and concise empty states. Tubik controls and data modules follow the saved transparency and blur. Repeated interface guidance is reduced to essential access, validation and data context.
+Widgets lay out by size class (one cell, a row, a block, a tall block), dropping the least useful line first as they shrink and adding detail as they grow. Figures are large with small units, text shrinks only to a readable floor before a shorter wording takes over, and values never end in an ellipsis. Tubik controls and data modules follow the saved transparency and blur. Repeated interface guidance is reduced to essential access, validation and data context.
 
 The nine supplied icon source PNGs are retained unchanged. On macOS, `swift -module-cache-path /tmp/delta-swift-cache ci/restore-launcher-art.swift .` rebuilds their padded adaptive foregrounds by removing the outer tile rim and extending the inner background; the central artwork is never redrawn.

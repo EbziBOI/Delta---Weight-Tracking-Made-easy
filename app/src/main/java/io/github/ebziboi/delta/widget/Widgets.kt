@@ -1,13 +1,10 @@
 package io.github.ebziboi.delta.widget
 
 import android.appwidget.AppWidgetManager
-import android.content.Context
+import android.appwidget.AppWidgetProvider
 import android.content.ComponentName
+import android.content.Context
 import android.os.Build
-import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
-import kotlinx.coroutines.sync.Mutex
 import android.os.SystemClock
 import android.util.Log
 import androidx.glance.appwidget.GlanceAppWidget
@@ -16,16 +13,25 @@ import androidx.glance.appwidget.updateAll
 import io.github.ebziboi.delta.data.SyncWorker
 import io.github.ebziboi.delta.render.WidgetKind
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.withContext
 
-class BodyFatWidget : BitmapWidget() { override val kind = WidgetKind.BODY_FAT }
-class BodyFatWidgetReceiver : DeltaWidgetReceiver() { override val glanceAppWidget: GlanceAppWidget = BodyFatWidget() }
-
-class ProgressWidget : BitmapWidget() { override val kind = WidgetKind.PROGRESS }
-class SummaryWidget : BitmapWidget() { override val kind = WidgetKind.SUMMARY }
+class ProgressWidget : BitmapWidget() { override val kind = WidgetKind.CARD }
+class ComplicationWidget : BitmapWidget() { override val kind = WidgetKind.COMPLICATION }
 class TrendWidget : BitmapWidget() { override val kind = WidgetKind.TREND }
 class PaceWidget : BitmapWidget() { override val kind = WidgetKind.PACE }
-class JourneyWidget : BitmapWidget() { override val kind = WidgetKind.JOURNEY }
+class BodyFatWidget : BitmapWidget() { override val kind = WidgetKind.BODY_FAT }
+
+/*
+ * Retired from the widget picker. Summary became the Progress card and Journey
+ * became Trend (which has the progress bar), but their receivers stay so widgets
+ * already on a home screen keep working, drawn as their replacements.
+ */
+class SummaryWidget : BitmapWidget() { override val kind = WidgetKind.CARD }
+class JourneyWidget : BitmapWidget() { override val kind = WidgetKind.TREND }
 
 /**
  * The home screen asks each widget to update about every half hour. As well as
@@ -47,53 +53,57 @@ abstract class DeltaWidgetReceiver : GlanceAppWidgetReceiver() {
     }
 }
 
-class ProgressWidgetReceiver : DeltaWidgetReceiver() {
-    override val glanceAppWidget: GlanceAppWidget = ProgressWidget()
-}
+class ProgressWidgetReceiver : DeltaWidgetReceiver() { override val glanceAppWidget: GlanceAppWidget = ProgressWidget() }
+class ComplicationWidgetReceiver : DeltaWidgetReceiver() { override val glanceAppWidget: GlanceAppWidget = ComplicationWidget() }
+class TrendWidgetReceiver : DeltaWidgetReceiver() { override val glanceAppWidget: GlanceAppWidget = TrendWidget() }
+class PaceWidgetReceiver : DeltaWidgetReceiver() { override val glanceAppWidget: GlanceAppWidget = PaceWidget() }
+class BodyFatWidgetReceiver : DeltaWidgetReceiver() { override val glanceAppWidget: GlanceAppWidget = BodyFatWidget() }
+class SummaryWidgetReceiver : DeltaWidgetReceiver() { override val glanceAppWidget: GlanceAppWidget = SummaryWidget() }
+class JourneyWidgetReceiver : DeltaWidgetReceiver() { override val glanceAppWidget: GlanceAppWidget = JourneyWidget() }
 
-class SummaryWidgetReceiver : DeltaWidgetReceiver() {
-    override val glanceAppWidget: GlanceAppWidget = SummaryWidget()
-}
-
-class TrendWidgetReceiver : DeltaWidgetReceiver() {
-    override val glanceAppWidget: GlanceAppWidget = TrendWidget()
-}
-
-class PaceWidgetReceiver : DeltaWidgetReceiver() {
-    override val glanceAppWidget: GlanceAppWidget = PaceWidget()
-}
-
-class JourneyWidgetReceiver : DeltaWidgetReceiver() {
-    override val glanceAppWidget: GlanceAppWidget = JourneyWidget()
-}
-
-/** Which receiver serves each kind of widget, for adding one from inside the app. */
+/** Which receiver serves each kind of widget, and which kind a placed widget is. */
 object WidgetCatalog {
-    fun widget(kind: WidgetKind): BitmapWidget = when (kind) {
-        WidgetKind.BODY_FAT -> BodyFatWidget()
-        WidgetKind.PROGRESS -> ProgressWidget()
-        WidgetKind.JOURNEY -> JourneyWidget()
-        WidgetKind.SUMMARY -> SummaryWidget()
-        WidgetKind.TREND -> TrendWidget()
-        WidgetKind.PACE -> PaceWidget()
-    }
-
-    fun kind(providerClassName: String): WidgetKind? = WidgetKind.entries.firstOrNull { receiver(it).name == providerClassName }
-
-    fun receiver(kind: WidgetKind): Class<out android.appwidget.AppWidgetProvider> = when (kind) {
-        WidgetKind.BODY_FAT -> BodyFatWidgetReceiver::class.java
-        WidgetKind.PROGRESS -> ProgressWidgetReceiver::class.java
-        WidgetKind.JOURNEY -> JourneyWidgetReceiver::class.java
-        WidgetKind.SUMMARY -> SummaryWidgetReceiver::class.java
+    /** The receiver a new widget of [kind] is added through. */
+    fun receiver(kind: WidgetKind): Class<out AppWidgetProvider> = when (kind) {
+        WidgetKind.CARD -> ProgressWidgetReceiver::class.java
+        WidgetKind.COMPLICATION -> ComplicationWidgetReceiver::class.java
         WidgetKind.TREND -> TrendWidgetReceiver::class.java
         WidgetKind.PACE -> PaceWidgetReceiver::class.java
+        WidgetKind.BODY_FAT -> BodyFatWidgetReceiver::class.java
     }
+
+    /** Every receiver Delta has, including retired ones that still serve widgets placed before. */
+    private val receivers: Map<Class<out AppWidgetProvider>, () -> BitmapWidget> = linkedMapOf(
+        ProgressWidgetReceiver::class.java to ::ProgressWidget,
+        ComplicationWidgetReceiver::class.java to ::ComplicationWidget,
+        TrendWidgetReceiver::class.java to ::TrendWidget,
+        PaceWidgetReceiver::class.java to ::PaceWidget,
+        BodyFatWidgetReceiver::class.java to ::BodyFatWidget,
+        SummaryWidgetReceiver::class.java to ::SummaryWidget,
+        JourneyWidgetReceiver::class.java to ::JourneyWidget,
+    )
+
+    /** One of each widget class, for redrawing them all. */
+    fun all(): List<BitmapWidget> = receivers.values.map { it() }
+
+    fun widget(providerClassName: String): BitmapWidget? = receivers.entries.firstOrNull { it.key.name == providerClassName }?.value?.invoke()
+
+    fun kind(providerClassName: String): WidgetKind? = widget(providerClassName)?.kind
 }
 
 object WidgetUpdater {
+    /** Redraws one placed widget, through the widget class of the receiver it was added with. */
     suspend fun updateOne(context: Context, widgetId: Int, kind: WidgetKind) = withContext(Dispatchers.Default) {
+        val provider = AppWidgetManager.getInstance(context).getAppWidgetInfo(widgetId)?.provider?.className
+        val widget = provider?.let(WidgetCatalog::widget) ?: when (kind) {
+            WidgetKind.CARD -> ProgressWidget()
+            WidgetKind.COMPLICATION -> ComplicationWidget()
+            WidgetKind.TREND -> TrendWidget()
+            WidgetKind.PACE -> PaceWidget()
+            WidgetKind.BODY_FAT -> BodyFatWidget()
+        }
         val id = androidx.glance.appwidget.GlanceAppWidgetManager(context).getGlanceIdBy(widgetId)
-        WidgetCatalog.widget(kind).update(context, id)
+        widget.update(context, id)
     }
 
     private val previewLock = Mutex()
@@ -101,8 +111,7 @@ object WidgetUpdater {
 
     /** Redraws every Delta widget on the home screen. Safe to call when there are none. */
     suspend fun updateAll(context: Context) = withContext(Dispatchers.Default) {
-        val widgets = listOf(BodyFatWidget(), ProgressWidget(), SummaryWidget(), TrendWidget(), PaceWidget(), JourneyWidget())
-        for (widget in widgets) {
+        for (widget in WidgetCatalog.all()) {
             try {
                 widget.updateAll(context)
             } catch (cancelled: CancellationException) {
@@ -120,14 +129,9 @@ object WidgetUpdater {
                 val manager = AppWidgetManager.getInstance(context)
                 for (kind in WidgetKind.entries) {
                     try {
-                        val (width, height) = when (kind) {
-                            WidgetKind.PROGRESS, WidgetKind.PACE -> 170f to 170f
-                            WidgetKind.SUMMARY -> 350f to 100f
-                            else -> 350f to 200f
-                        }
                         manager.setWidgetPreview(ComponentName(context, WidgetCatalog.receiver(kind)),
                             android.appwidget.AppWidgetProviderInfo.WIDGET_CATEGORY_HOME_SCREEN,
-                            BitmapWidget.views(context, kind, width, height, data.first, data.second, 600f))
+                            BitmapWidget.views(context, kind, kind.defaultWidth, kind.defaultHeight, data.first, data.second, 600f))
                     } catch (cancelled: CancellationException) {
                         throw cancelled
                     } catch (error: Exception) {

@@ -264,7 +264,10 @@ object TrendChart {
             style = Paint.Style.FILL
             color = if (spec.style == ChartStyle.CONNECTED) colors.accent else Palettes.withAlpha(colors.textDim, 0x8C)
         }
-        val rawRadius = (if (points.size > 150) 1.1f else if (spec.style == ChartStyle.CONNECTED) 2.5f else 1.7f) * density
+        // Dots shrink where readings crowd together, so a dense history reads as a line rather than a string of beads.
+        val spacing = (x(points.last().epochMs) - x(points.first().epochMs)) / (points.size - 1).coerceAtLeast(1)
+        val rawRadius = min((if (points.size > 150) 1.1f else if (spec.style == ChartStyle.CONNECTED) 2.5f else 1.7f) * density,
+            max(.9f * density, spacing * .3f))
         for (point in points) {
             canvas.drawCircle(x(point.epochMs), y(point.kg), rawRadius, raw)
         }
