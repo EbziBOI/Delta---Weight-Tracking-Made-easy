@@ -6,6 +6,8 @@ import androidx.compose.foundation.gestures.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
@@ -26,9 +28,12 @@ fun InteractiveChart(spec: ChartSpec, modifier: Modifier = Modifier, bodyFat: Li
     val reveal=remember(spec.points.firstOrNull()?.epochMs,spec.metric) { androidx.compose.animation.core.Animatable(if(motion) 0f else 1f) }
     LaunchedEffect(reveal,motion) { if(motion) reveal.animateTo(1f,androidx.compose.animation.core.tween(500)) else reveal.snapTo(1f) }
     val fonts = LocalCanvasType.current
-    var viewport by remember(spec.points.firstOrNull()?.epochMs, spec.points.size, spec.metric) { mutableStateOf<GraphViewport?>(null) }
-    var selected by remember(spec.points, spec.metric) { mutableStateOf<TrendPoint?>(null) }
+    val viewportSaver=remember {listSaver<GraphViewport?,Any>(save={v->if(v==null) emptyList() else listOf(v.first,v.last,v.low,v.high)},restore={v->if(v.isEmpty()) null else GraphViewport(v[0] as Long,v[1] as Long,v[2] as Double,v[3] as Double)})}
+    val pointSaver=remember {listSaver<TrendPoint?,Any>(save={p->if(p==null) emptyList() else listOf(p.epochMs,p.kg,p.trendKg)},restore={p->if(p.isEmpty()) null else TrendPoint(p[0] as Long,p[1] as Double,p[2] as Double)})}
+    var viewport by rememberSaveable(spec.points.firstOrNull()?.epochMs,spec.points.size,spec.metric,stateSaver=viewportSaver) {mutableStateOf<GraphViewport?>(null)}
+    var selected by rememberSaveable(spec.points,spec.metric,stateSaver=pointSaver) {mutableStateOf<TrendPoint?>(null)}
     val layout = remember { arrayOfNulls<ChartLayout>(1) }
+    var fullRange by remember(spec.points.firstOrNull()?.epochMs,spec.points.size,spec.metric) {mutableStateOf<GraphViewport?>(null)}
     val doubleTap by rememberUpdatedState(onDoubleTap)
     val currentSpec by rememberUpdatedState(spec)
     fun transform(scale: Float, center: Offset, pan: Offset = Offset.Zero) {
@@ -40,7 +45,7 @@ fun InteractiveChart(spec: ChartSpec, modifier: Modifier = Modifier, bodyFat: Li
     }
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Canvas(modifier.fillMaxWidth().semantics {
-            val zoom = layout[0]?.let { viewport?.zoom(it.full) } ?: 1.0
+            val zoom = fullRange?.let {viewport?.zoom(it)} ?: 1.0
             contentDescription = if (spec.metric == ChartMetric.BODY_FAT) "Body fat graph" else "Weight graph"
             stateDescription = String.format(Locale.US, "Zoom %.1fx", zoom) +
                 (viewport?.let { " · ${Format.moment(it.first)} to ${Format.moment(it.last)}" } ?: "")
@@ -76,8 +81,10 @@ fun InteractiveChart(spec: ChartSpec, modifier: Modifier = Modifier, bodyFat: Li
             }
         }) {
             drawIntoCanvas { canvas ->
-                layout[0] = TrendChart.draw(canvas.nativeCanvas, RectF(0f, 0f, size.width, size.height),
+                val frame = TrendChart.draw(canvas.nativeCanvas, RectF(0f, 0f, size.width, size.height),
                     currentSpec.copy(viewport = viewport, selectedPoint = selected), colors, fonts, density, true, reveal = reveal.value)
+                layout[0]=frame
+                fullRange=frame?.full
             }
         }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {

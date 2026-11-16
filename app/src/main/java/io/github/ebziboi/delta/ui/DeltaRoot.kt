@@ -166,7 +166,7 @@ private fun MainScreen(
         // Screens run the full height, so content scrolls on behind the floating glass bar
         // (their padding keeps the last item clear of it) instead of stopping at a hard edge.
         androidx.compose.foundation.layout.Box(Modifier.fillMaxSize().padding(scaffoldPadding)) {
-            androidx.compose.runtime.CompositionLocalProvider(LocalHeaderActionSpace provides if(hasActions) 104.dp else 0.dp) {
+            androidx.compose.runtime.CompositionLocalProvider(LocalHeaderActionSpace provides if(hasActions) 104.dp else 0.dp, LocalCardReordering provides {active -> if(active) dockVisible=false}) {
             if (metric != null) screens.SaveableStateProvider("detail-${metric!!.name}") { when(metric!!) {
                 io.github.ebziboi.delta.data.DetailMetric.WEIGHT -> MeasurementDetailScreen(vm,settings,io.github.ebziboi.delta.data.MeasurementKind.WEIGHT,padding,onBack=closeDetail,onAccess=requestAccess)
                 io.github.ebziboi.delta.data.DetailMetric.BODY_FAT -> MeasurementDetailScreen(vm,settings,io.github.ebziboi.delta.data.MeasurementKind.BODY_FAT,padding,onBack=closeDetail,onAccess=requestAccess)

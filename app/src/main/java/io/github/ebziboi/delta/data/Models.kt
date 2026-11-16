@@ -138,6 +138,9 @@ data class AppSettings(
     val bodyFatChart: ChartStyle = ChartStyle.CONNECTED,
     /** Sunday = 0, through Saturday = 6. */
     val weekStartsOn: Int = 0,
+    val homeCardOrder: List<String> = CardLayouts.home,
+    val weightCardOrder: List<String> = CardLayouts.measurement,
+    val bodyFatCardOrder: List<String> = CardLayouts.measurement,
     /** The graph on the Trend and Journey widgets. */
     val widgetChart: ChartStyle = ChartStyle.TREND,
     /** A dashed line from where you are to the target, at the current pace. */

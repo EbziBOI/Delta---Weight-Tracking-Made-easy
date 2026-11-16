@@ -53,6 +53,9 @@ class SettingsStore(context: Context) {
         val TYPE_STYLE = stringPreferencesKey("type_style")
         val MOTION = booleanPreferencesKey("motion")
         val WEEK_START = longPreferencesKey("week_starts_on")
+        val HOME_CARDS = stringPreferencesKey("home_cards_v1")
+        val WEIGHT_CARDS = stringPreferencesKey("weight_cards_v1")
+        val BODY_FAT_CARDS = stringPreferencesKey("body_fat_cards_v1")
         val BODY_FAT_CHART = stringPreferencesKey("body_fat_chart")
         val APP_CHART = stringPreferencesKey("app_chart")
         val WIDGET_CHART = stringPreferencesKey("widget_chart")
@@ -132,6 +135,9 @@ class SettingsStore(context: Context) {
             motion = prefs[Keys.MOTION] ?: defaults.motion,
             bodyFatChart = named(prefs[Keys.BODY_FAT_CHART], defaults.bodyFatChart),
             weekStartsOn = (prefs[Keys.WEEK_START] ?: 0L).coerceIn(0L,6L).toInt(),
+            homeCardOrder = CardLayouts.normalized(prefs[Keys.HOME_CARDS]?.split(",").orEmpty(),CardLayouts.home),
+            weightCardOrder = CardLayouts.normalized(prefs[Keys.WEIGHT_CARDS]?.split(",").orEmpty(),CardLayouts.measurement),
+            bodyFatCardOrder = CardLayouts.normalized(prefs[Keys.BODY_FAT_CARDS]?.split(",").orEmpty(),CardLayouts.measurement),
             appChart = named(prefs[Keys.APP_CHART], defaults.appChart),
             widgetChart = named(prefs[Keys.WIDGET_CHART], defaults.widgetChart),
             showProjection = prefs[Keys.PROJECTION] ?: defaults.showProjection,
@@ -166,6 +172,9 @@ class SettingsStore(context: Context) {
         prefs[Keys.TYPE_STYLE] = settings.typeStyle.name
         prefs[Keys.MOTION] = settings.motion
         prefs[Keys.WEEK_START] = settings.weekStartsOn.coerceIn(0,6).toLong()
+        prefs[Keys.HOME_CARDS] = CardLayouts.normalized(settings.homeCardOrder,CardLayouts.home).joinToString(",")
+        prefs[Keys.WEIGHT_CARDS] = CardLayouts.normalized(settings.weightCardOrder,CardLayouts.measurement).joinToString(",")
+        prefs[Keys.BODY_FAT_CARDS] = CardLayouts.normalized(settings.bodyFatCardOrder,CardLayouts.measurement).joinToString(",")
         prefs[Keys.BODY_FAT_CHART] = settings.bodyFatChart.name
         prefs[Keys.APP_CHART] = settings.appChart.name
         prefs[Keys.WIDGET_CHART] = settings.widgetChart.name

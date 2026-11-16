@@ -31,6 +31,7 @@ background and blur when you switch back. The visual reference is
   Health Connect and widgets; weight remains independent of missing body-fat data
 - Studio typography pairs bold geometric headings with editorial and mono accents
 - Signature, Orbit, Bloom, Contours, Ribbon, Mosaic and Summit percentage complications follow both design themes and scale into widgets
+- Hold a card’s heading and drag to rearrange Home, Weight trend or Body composition. Each page saves its own order, including individual Home metric tiles and detail insight cards. Dragging scrolls the page near its edges; graph and calendar touches retain their own behavior
 - A compact Progress/History dock with an adjacent plus button; both hide on downward scrolling and return together. Active tabs use accent text and icons without a pill
 - A single Health Connect status pill opens its dedicated access and sync page
 - Short, equally sized top/bottom fades retain fully black ends while content scrolls behind the toolbar
@@ -114,7 +115,7 @@ can remove local settings and cached data; record your goal and start date first
 - Backdrop blur: [Haze](https://github.com/chrisbanes/haze) by Chris Banes, under
   the Apache License 2.0.
 
-Release APKs include the version in their filename (for example `Delta-0.1.31.apk`) and Android package metadata. GitHub builds keep increasing the version code and use the stored signing key for in-place updates. `Delta.apk` remains as a compatibility download. Local release builds also write a versioned copy next to the standard Android Studio output.
+Release APKs include the version in their filename (for example `Delta-0.1.32.apk`) and Android package metadata. GitHub builds keep increasing the version code and use the stored signing key for in-place updates. `Delta.apk` remains as a compatibility download. Local release builds also write a versioned copy next to the standard Android Studio output.
 
 Widgets prioritize complete, readable measurements as they resize: compact sparklines, stacked narrow summaries and pace cells, current-week comparisons, and concise empty states. Tubik controls and data modules follow the saved transparency and blur. Repeated interface guidance is reduced to essential access, validation and data context.
 

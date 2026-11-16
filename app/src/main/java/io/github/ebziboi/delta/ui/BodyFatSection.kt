@@ -7,6 +7,7 @@ import androidx.compose.ui.semantics.*
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.input.KeyboardType
@@ -21,14 +22,13 @@ import java.util.Locale
 @Composable
 fun BodyFatSection(readings: List<BodyFatEntry>, target: Double?, journeyStart: Long?,
                    chartStyle: ChartStyle = ChartStyle.CONNECTED, onSwitchStyle: (() -> Unit)? = null, onOpen: () -> Unit) {
-    var range by remember { mutableStateOf("Journey") }
+    var range by rememberSaveable { mutableStateOf("Journey") }
     val latest = readings.maxByOrNull { it.epochMs }
     val previous = readings.sortedBy { it.epochMs }.dropLast(1).lastOrNull()
     ContentSection(tone = ModuleTone.SAGE,onClick=onOpen) {
         val c = LocalDeltaColors.current
         Row(Modifier.fillMaxWidth().clickable(onClick=onOpen).semantics {contentDescription="Open body composition calendar"},verticalAlignment=Alignment.CenterVertically) {
             Box(Modifier.weight(1f)) {Caption("Body composition")}
-            Text("↗",style=LocalDeltaType.current.bodyStrong,color=Color(c.accent))
         }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             Column {

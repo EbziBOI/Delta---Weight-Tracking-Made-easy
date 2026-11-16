@@ -1,6 +1,10 @@
 package io.github.ebziboi.delta
 
 import android.content.Intent
+import androidx.lifecycle.ViewModelProvider
+import androidx.test.runner.lifecycle.ActivityLifecycleMonitorRegistry
+import androidx.test.runner.lifecycle.Stage
+import io.github.ebziboi.delta.ui.AppViewModel
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.uiautomator.*
@@ -20,6 +24,8 @@ class MeasurementDetailsTest {
     private val context=inst.targetContext
     private val device=UiDevice.getInstance(inst)
     private val store=SettingsStore(context)
+    private var fixtureWeights:List<WeightEntry> = emptyList()
+    private var fixtureFat:List<BodyFatEntry> = emptyList()
     private val out=File(context.filesDir,"measurement-details").apply {mkdirs()}
     init {Configurator.getInstance().setWaitForIdleTimeout(700)}
 
@@ -72,13 +78,13 @@ class MeasurementDetailsTest {
             assertTrue(device.hasObject(By.textContains("Weight 82.0")))
             assertTrue(device.hasObject(By.textContains("Body fat 25.0")))
             shot("$style-before-day-change");show(By.desc("$fatOnly, 0 weight readings, 1 body fat readings")).click();device.waitForIdle(700)
-            assertTrue(device.wait(Until.hasObject(By.textContains("No weight reading")),5000))
+            show(By.textContains("No weight reading"))
             shot("$style-after-day-change");show(By.textContains("Body fat 26.5"))
             shot("$style-weight-calendar")
             device.pressBack();show(By.desc("Open body composition calendar")).click();waitText("Previous month")
             assertTrue(device.hasObject(By.textContains("Body fat 25.0")))
             show(By.desc("$today, 0 weight readings, 0 body fat readings")).click();Thread.sleep(250)
-            assertTrue(device.wait(Until.hasObject(By.textContains("No body fat reading")),5000))
+            show(By.textContains("No body fat reading"))
             shot("$style-body-calendar-empty")
             device.pressBack();show(text("All insights")).click();waitText("Open calendar")
             show(By.desc("Insight Daily average")).click();Thread.sleep(250)
@@ -115,21 +121,43 @@ class MeasurementDetailsTest {
         val today=LocalDate.now();val zone=ZoneId.systemDefault()
         store.update {it.copy(onboardingDone=true,motion=false,weekStartsOn=0,startEpochDay=today.minusDays(40).toEpochDay(),targetKg=75.0,appearance=style.defaults().copy(reduceMotion=true))}
         val weights=listOf(28L,14L,7L,4L,1L).map {days->WeightEntry(today.minusDays(days).atTime(8,0).atZone(zone).toInstant().toEpochMilli(),if(days==1L) 80.0 else 80.0+days*.1,false,"w-$days")}
-        store.saveWeights(weights+WeightEntry(today.minusDays(1).atTime(16,0).atZone(zone).toInstant().toEpochMilli(),82.0,false,"w-late"))
-        store.saveBodyFat(listOf(14L to 28.0,2L to 26.5,1L to 25.0).map {(days,value)->BodyFatEntry(today.minusDays(days).atTime(9,0).atZone(zone).toInstant().toEpochMilli(),value,false,"f-$days")})
+        fixtureWeights=weights+WeightEntry(today.minusDays(1).atTime(16,0).atZone(zone).toInstant().toEpochMilli(),82.0,false,"w-late")
+        fixtureFat=listOf(14L to 28.0,2L to 26.5,1L to 25.0).map {(days,value)->BodyFatEntry(today.minusDays(days).atTime(9,0).atZone(zone).toInstant().toEpochMilli(),value,false,"f-$days")}
+        store.saveWeights(fixtureWeights);store.saveBodyFat(fixtureFat)
     }
     private fun text(value:String)=By.text(Pattern.compile(Pattern.quote(value),Pattern.CASE_INSENSITIVE))
     private fun waitText(value:String) {assertTrue(device.wait(Until.hasObject(text(value)),5000));device.waitForIdle(700)}
-    private fun launch() {
+    private suspend fun launch() {
         context.startActivity(Intent(context,MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK))
         val end=System.currentTimeMillis()+20000
-        while(System.currentTimeMillis()<end) {device.findObject(By.text("Wait"))?.click();if(device.wait(Until.hasObject(By.desc("Settings")),1000)) return}
-        fail("Main screen did not appear")
+        var ready=false
+        while(System.currentTimeMillis()<end) {
+            device.findObject(By.text("Wait"))?.click()
+            if(device.wait(Until.hasObject(By.desc("Settings")),1000)) {ready=true;break}
+        }
+        assertTrue("Main screen did not open",ready)
+        var model:AppViewModel?=null
+        kotlinx.coroutines.withTimeout(15000) {
+            while(model==null) {
+                inst.runOnMainSync {ActivityLifecycleMonitorRegistry.getInstance().getActivitiesInStage(Stage.RESUMED).filterIsInstance<MainActivity>().firstOrNull()?.let {model=ViewModelProvider(it)[AppViewModel::class.java]}}
+                if(model==null) kotlinx.coroutines.delay(50)
+            }
+            model!!.health.first {it!=null}
+            model!!.syncing.first {!it}
+        }
+        // Reapply the cache fixture after the normal on-resume Health Connect refresh completes.
+        store.saveWeights(fixtureWeights);store.saveBodyFat(fixtureFat)
+        kotlinx.coroutines.withTimeout(15000) {
+            model!!.entries.first {it.size==fixtureWeights.size && it.toSet()==fixtureWeights.toSet()}
+            model!!.bodyFat.first {it.size==fixtureFat.size && it.toSet()==fixtureFat.toSet()}
+        }
+        device.waitForIdle(700);Thread.sleep(300);inst.uiAutomation.clearCache()
     }
+
     private fun show(selector:BySelector):UiObject2 {
         for(forward in listOf(true,false)) for(i in 0..22) {
             inst.uiAutomation.clearCache()
-            device.findObjects(selector).firstOrNull {it.visibleBounds.let {b->b.height()>10 && b.top>65 && b.bottom<device.displayHeight*.91}}?.let {return it}
+            device.findObjects(selector).firstOrNull {node->runCatching {node.visibleBounds.let {b->b.height()>10 && b.top>65 && b.bottom<device.displayHeight*.97}}.getOrDefault(false)}?.let {return it}
             val x=device.displayWidth/12;device.swipe(x,device.displayHeight*(if(forward) 65 else 40)/100,x,device.displayHeight*(if(forward) 40 else 65)/100,60)
             device.waitForIdle(700)
         }

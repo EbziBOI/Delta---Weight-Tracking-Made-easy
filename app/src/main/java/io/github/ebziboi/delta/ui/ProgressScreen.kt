@@ -71,51 +71,42 @@ fun ProgressScreen(
 ) {
     val snapshot by vm.snapshot.collectAsStateWithLifecycle()
     val entries by vm.entries.collectAsStateWithLifecycle()
-    val syncing by vm.syncing.collectAsStateWithLifecycle()
     val unit = settings.unit
     val snap = snapshot
     val insights = remember(entries, snap) { snap?.let { InsightsCalculator.compute(entries, it) } }
-
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(top = padding.calculateTopPadding())
-            .padding(horizontal = Spacing.screen),
-        verticalArrangement = Arrangement.spacedBy(Spacing.stack),
-    ) {
-        ScreenHeader(
-            title = "Progress",
-            eyebrow = LocalDate.now().format(EYEBROW),
-
-        )
-
-        val crash by vm.lastCrash.collectAsStateWithLifecycle()
-        crash?.let { details -> CrashCard(details, onDismiss = vm::dismissCrash) }
-
-        if (health != null && !health.connected) ConnectCard(health, onConnect)
-
-        if (snap != null && insights != null) {
-            HeroCard(snap, insights, unit, Modifier.entrance(0), settings)
-            if (snap.targetKg == null) {
-                ContentSection(Modifier.entrance(1)) {
-                    Text("Set a target weight", style = LocalDeltaType.current.title)
-                    PrimaryButton("Open settings", onOpenSettings)
-                }
-            }
-            KeyFigures(snap, insights, unit, Modifier.entrance(1),onMetric)
-            TrendCard(snap, unit, settings, Modifier.entrance(2),onOpen={onMetric(DetailMetric.WEIGHT)}) {
-                vm.update { it.copy(appChart = if (it.appChart == ChartStyle.TREND) ChartStyle.CONNECTED else ChartStyle.TREND) }
-            }
-            BodyFatSection(snap.bodyFat, settings.targetBodyFat,
-                snap.startDay.atStartOfDay(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli(), settings.bodyFatChart,
-                {vm.update {it.copy(bodyFatChart=if(it.bodyFatChart==ChartStyle.TREND) ChartStyle.CONNECTED else ChartStyle.TREND)}},
-                onOpen={onMetric(DetailMetric.BODY_FAT)})
-            InsightsCard(snap,entries,settings,Modifier.entrance(3),onMetric)
-            if (insights.recent.isNotEmpty()) RecentCard(insights, snap.losing, unit, Modifier.entrance(4))
+    val crash by vm.lastCrash.collectAsStateWithLifecycle()
+    val cards=buildList {
+        if(crash!=null) add(CardSlot("crash","Crash report"))
+        if(health!=null && !health.connected) add(CardSlot("connect","Health Connect"))
+        if(snap!=null && insights!=null) {
+            add(CardSlot("progress","Progress"))
+            if(snap.targetKg==null) add(CardSlot("goal_setup","Set target"))
+            addAll(listOf(CardSlot("rate","Weekly rate",true),CardSlot("goal","Goal by",true),CardSlot("average","7-day average",true),CardSlot("streak","Streak",true)))
+            addAll(listOf(CardSlot("trend","Weight trend"),CardSlot("body_fat","Body composition"),CardSlot("insights","Insights")))
+            if(insights.recent.isNotEmpty()) add(CardSlot("recent","Recent weigh-ins"))
         }
-
-        Spacer(Modifier.height(padding.calculateBottomPadding() + 8.dp))
+    }
+    ReorderableCards(cards,settings.homeCardOrder,padding,
+        onOrderChange={order->vm.update {it.copy(homeCardOrder=io.github.ebziboi.delta.data.CardLayouts.mergeVisible(it.homeCardOrder,order,io.github.ebziboi.delta.data.CardLayouts.home))}},
+        header={ScreenHeader(title="Progress",eyebrow=LocalDate.now().format(EYEBROW))}) {id->
+        when(id) {
+            "crash" -> crash?.let {CrashCard(it,vm::dismissCrash)}
+            "connect" -> health?.let {ConnectCard(it,onConnect)}
+            else -> if(snap!=null && insights!=null) when(id) {
+                "progress" -> HeroCard(snap,insights,unit,Modifier,settings)
+                "goal_setup" -> ContentSection {Text("Set a target weight",style=LocalDeltaType.current.title);PrimaryButton("Open settings",onOpenSettings)}
+                "rate","goal","average","streak" -> KeyFigure(id,snap,insights,unit,onMetric)
+                "trend" -> TrendCard(snap,unit,settings,Modifier,onOpen={onMetric(DetailMetric.WEIGHT)}) {
+                    vm.update {it.copy(appChart=if(it.appChart==ChartStyle.TREND) ChartStyle.CONNECTED else ChartStyle.TREND)}
+                }
+                "body_fat" -> BodyFatSection(snap.bodyFat,settings.targetBodyFat,
+                    snap.startDay.atStartOfDay(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli(),settings.bodyFatChart,
+                    {vm.update {it.copy(bodyFatChart=if(it.bodyFatChart==ChartStyle.TREND) ChartStyle.CONNECTED else ChartStyle.TREND)}},
+                    onOpen={onMetric(DetailMetric.BODY_FAT)})
+                "insights" -> InsightsCard(snap,entries,settings,Modifier,onMetric)
+                "recent" -> RecentCard(insights,snap.losing,unit,Modifier)
+            }
+        }
     }
 }
 
@@ -274,7 +265,7 @@ private fun ChangePill(changeKg: Double, label: String, losing: Boolean, unit: W
 
 /** The four numbers worth checking every day, in a two-by-two grid. */
 @Composable
-private fun KeyFigures(snap: ProgressSnapshot, insights: Insights, unit: WeightUnit, modifier: Modifier, onMetric: (DetailMetric) -> Unit) {
+private fun KeyFigure(id:String,snap: ProgressSnapshot, insights: Insights, unit: WeightUnit, onMetric: (DetailMetric) -> Unit) {
     val colors = LocalDeltaColors.current
     val rate = snap.weeklyRateKg
     val rateTint = when {
@@ -298,18 +289,12 @@ private fun KeyFigures(snap: ProgressSnapshot, insights: Insights, unit: WeightU
     val averageNote = if (average != null && previous != null) "${Units.signed(average - previous, unit)} vs last week" else "Last 7 days"
     val streak = snap.streakDays
 
-    Column(modifier, verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            StatTile("Weekly rate", rate?.let { Units.rate(it, unit) } ?: "—", Modifier.weight(1f),
-                valueColor = rateTint, note = if (rate == null) "Needs a week of data" else "Recent trend", icon = R.drawable.ic_speed, onClick = { onMetric(DetailMetric.RATE) })
-            StatTile("Goal by", goal, Modifier.weight(1f), note = goalNote, icon = R.drawable.ic_flag, onClick = { onMetric(DetailMetric.GOAL) })
-        }
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            StatTile("7-day average", average?.let { Units.weightShort(it, unit) } ?: "—", Modifier.weight(1f),
-                note = averageNote, icon = R.drawable.ic_insights, onClick = { onMetric(DetailMetric.AVERAGE) })
-            StatTile("Streak", when (streak) { 0 -> "—"; 1 -> "1 day"; else -> "$streak days" }, Modifier.weight(1f),
-                note = "${insights.daysWeighedThisWeek} of the last 7 days", icon = R.drawable.ic_local_fire_department, onClick = { onMetric(DetailMetric.STREAK) })
-        }
+    when(id) {
+        "rate" -> StatTile("Weekly rate",rate?.let {Units.rate(it,unit)} ?: "—",Modifier.fillMaxWidth(),valueColor=rateTint,
+            note=if(rate==null) "Needs a week of data" else "Recent trend",icon=R.drawable.ic_speed,onClick={onMetric(DetailMetric.RATE)})
+        "goal" -> StatTile("Goal by",goal,Modifier.fillMaxWidth(),note=goalNote,icon=R.drawable.ic_flag,onClick={onMetric(DetailMetric.GOAL)})
+        "average" -> StatTile("7-day average",average?.let {Units.weightShort(it,unit)} ?: "—",Modifier.fillMaxWidth(),note=averageNote,icon=R.drawable.ic_insights,onClick={onMetric(DetailMetric.AVERAGE)})
+        "streak" -> StatTile("Streak",when(streak) {0->"—";1->"1 day";else->"$streak days"},Modifier.fillMaxWidth(),note="${insights.daysWeighedThisWeek} of the last 7 days",icon=R.drawable.ic_local_fire_department,onClick={onMetric(DetailMetric.STREAK)})
     }
 }
 
@@ -330,7 +315,6 @@ private fun TrendCard(snap: ProgressSnapshot, unit: WeightUnit, settings: AppSet
     ContentSection(modifier,onClick=onOpen, tone = ModuleTone.VIOLET) {
         Row(Modifier.fillMaxWidth().clickable(onClick=onOpen).semantics {contentDescription="Open weight calendar"},verticalAlignment=Alignment.CenterVertically) {
             Text(if (LocalAppearance.current.designStyle == io.github.ebziboi.delta.data.DesignStyle.TUBIK) "WEIGHT TREND" else "Trend",style=LocalDeltaType.current.title,modifier=Modifier.weight(1f))
-            Text("↗",style=LocalDeltaType.current.bodyStrong,color=Color(LocalDeltaColors.current.accent))
         }
         SegmentedControl(RANGES, range, { it }, Modifier.fillMaxWidth()) { range = it }
         // Only the journey view is scaled from start to target, with the percentage tagged.
@@ -366,8 +350,7 @@ private fun InsightsCard(snap:ProgressSnapshot,entries:List<io.github.ebziboi.de
                     Text(item.value,style=LocalDeltaType.current.bodyStrong)
                     Text(item.detail,style=LocalDeltaType.current.bodySmall,color=Color(LocalDeltaColors.current.textDim))
                 }
-                Text("↗",style=LocalDeltaType.current.bodyStrong,color=Color(LocalDeltaColors.current.accent))
-            }
+                }
         }
         TextAction("All insights",{onMetric(DetailMetric.INSIGHTS)})
     }

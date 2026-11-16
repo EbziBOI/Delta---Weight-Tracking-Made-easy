@@ -66,18 +66,21 @@ internal fun measurementInsights(report: MeasurementReport,unit: WeightUnit):Lis
 internal fun MeasurementInsightCards(report:MeasurementReport,unit:WeightUnit) {
     val items=remember(report,unit) {measurementInsights(report,unit)}
     if(items.isEmpty()) ContentSection {Text("No measurements in this period",style=LocalDeltaType.current.title)}
-    items.forEach {item->
-        var expanded by rememberSaveable(item.id,report.kind) {mutableStateOf(false)}
-        ContentSection(Modifier.semantics {contentDescription="Insight ${item.title}";stateDescription=if(expanded) "Expanded" else "Collapsed"},onClick={expanded=!expanded}) {
-            val c=LocalDeltaColors.current;val type=LocalDeltaType.current
-            Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween,verticalAlignment=Alignment.CenterVertically) {
-                Text(item.title,style=type.bodyStrong,modifier=Modifier.weight(1f))
-                Text(if(expanded) "−" else "+",style=type.bodyStrong,color=Color(c.accent))
-            }
-            Text(item.value,style=type.numberSmall)
-            Text(item.detail,style=type.bodySmall,color=Color(c.textDim))
-            if(expanded) Text(item.calculation,style=type.body)
+    items.forEach {item->key(item.id) {MeasurementInsightCard(item,report.kind)}}
+}
+
+@Composable
+private fun MeasurementInsightCard(item:MeasurementInsight,kind:MeasurementKind) {
+    var expanded by rememberSaveable(item.id,kind) {mutableStateOf(false)}
+    ContentSection(Modifier.semantics {contentDescription="Insight ${item.title}";stateDescription=if(expanded) "Expanded" else "Collapsed"},onClick={expanded=!expanded}) {
+        val c=LocalDeltaColors.current;val type=LocalDeltaType.current
+        Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween,verticalAlignment=Alignment.CenterVertically) {
+            Text(item.title,style=type.bodyStrong,modifier=Modifier.weight(1f))
+            Text(if(expanded) "−" else "+",style=type.bodyStrong,color=Color(c.accent))
         }
+        Text(item.value,style=type.numberSmall)
+        Text(item.detail,style=type.bodySmall,color=Color(c.textDim))
+        if(expanded) Text(item.calculation,style=type.body)
     }
 }
 
@@ -100,41 +103,51 @@ fun MeasurementDetailScreen(vm:AppViewModel,settings:AppSettings,kind:Measuremen
     val earliest=data.firstOrNull()?.let {Instant.ofEpochMilli(it.epochMs).atZone(zone).toLocalDate()} ?: selected
     val from=when(range) {"7 days"->selected.minusDays(6);"30 days"->selected.minusDays(29);else->minOf(settings.startEpochDay?.let(LocalDate::ofEpochDay) ?: earliest,selected)}
     val report=remember(data,from,selected) {MeasurementDetails.report(kind,data,from,selected,zone)}
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(top=padding.calculateTopPadding(),bottom=padding.calculateBottomPadding()+8.dp)
-        .padding(horizontal=Spacing.screen),verticalArrangement=Arrangement.spacedBy(16.dp)) {
+    val insightItems=remember(report,settings.unit) {measurementInsights(report,settings.unit)}
+    val byId=insightItems.associateBy {"insight-${it.id}"}
+    val cards=listOf(CardSlot("calendar","Calendar"),CardSlot("readings","Selected measurements"),CardSlot("graph","Trend graph")) +
+        insightItems.map {CardSlot("insight-${it.id}",it.title)} + if(insightItems.isEmpty()) listOf(CardSlot("empty","Measurement insights")) else emptyList()
+    val saved=if(kind==MeasurementKind.WEIGHT) settings.weightCardOrder else settings.bodyFatCardOrder
+    ReorderableCards(cards,saved,padding,onOrderChange={order->vm.update {
+        if(kind==MeasurementKind.WEIGHT) it.copy(weightCardOrder=CardLayouts.mergeVisible(it.weightCardOrder,order,CardLayouts.measurement))
+        else it.copy(bodyFatCardOrder=CardLayouts.mergeVisible(it.bodyFatCardOrder,order,CardLayouts.measurement))
+    }},header={
         ScreenHeader(if(kind==MeasurementKind.WEIGHT) "Weight trend" else "Body composition",leading={TextAction("Back",onBack)},trailing={
             if(kind==MeasurementKind.BODY_FAT) GlassIconButton(io.github.ebziboi.delta.R.drawable.ic_add,"Log body fat",{if(health?.canWriteBodyFat==true) logging=true else onAccess()},size=40.dp)
         })
-        MeasurementCalendar(month,selected,weightDays,fatDays,today,{monthEpoch=it.atDay(1).toEpochDay();selectedEpoch=minOf(it.atDay(minOf(selected.dayOfMonth,it.lengthOfMonth())),today).toEpochDay()}) {selectedEpoch=it.toEpochDay()}
-        ContentSection(framed=true,spacing=6.dp) {
-            val c=LocalDeltaColors.current;val type=LocalDeltaType.current
-            Text(Format.day(selected),style=type.bodyStrong)
-            val primary=if(kind==MeasurementKind.WEIGHT) weightDays[selected].orEmpty() else fatDays[selected].orEmpty()
-            if(primary.isEmpty()) Text("No ${kind.label.lowercase()} reading",style=type.bodySmall,color=Color(c.textDim))
-            val ordered=if(kind==MeasurementKind.WEIGHT) listOf(kind to weightDays[selected].orEmpty(),MeasurementKind.BODY_FAT to fatDays[selected].orEmpty())
-                else listOf(kind to fatDays[selected].orEmpty(),MeasurementKind.WEIGHT to weightDays[selected].orEmpty())
-            ordered.forEach {(metric,records)->records.forEach {reading->
-                Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween) {
-                    Text("${metric.label} ${measurementValue(reading.value,metric,settings.unit)}",style=type.bodyStrong,modifier=Modifier.weight(1f))
-                    Text(Instant.ofEpochMilli(reading.epochMs).atZone(zone).format(DateTimeFormatter.ofPattern("HH:mm")),style=type.bodySmall,color=Color(c.textDim))
-                }
-            }}
+    }) {id->
+        when(id) {
+            "calendar" -> MeasurementCalendar(month,selected,weightDays,fatDays,today,{monthEpoch=it.atDay(1).toEpochDay();selectedEpoch=minOf(it.atDay(minOf(selected.dayOfMonth,it.lengthOfMonth())),today).toEpochDay()}) {selectedEpoch=it.toEpochDay()}
+            "readings" -> ContentSection(framed=true,spacing=6.dp) {
+                val c=LocalDeltaColors.current;val type=LocalDeltaType.current
+                Text(Format.day(selected),style=type.bodyStrong)
+                val primary=if(kind==MeasurementKind.WEIGHT) weightDays[selected].orEmpty() else fatDays[selected].orEmpty()
+                if(primary.isEmpty()) Text("No ${kind.label.lowercase()} reading",style=type.bodySmall,color=Color(c.textDim))
+                val ordered=if(kind==MeasurementKind.WEIGHT) listOf(kind to weightDays[selected].orEmpty(),MeasurementKind.BODY_FAT to fatDays[selected].orEmpty())
+                    else listOf(kind to fatDays[selected].orEmpty(),MeasurementKind.WEIGHT to weightDays[selected].orEmpty())
+                ordered.forEach {(metric,records)->records.forEach {reading->
+                    Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween) {
+                        Text("${metric.label} ${measurementValue(reading.value,metric,settings.unit)}",style=type.bodyStrong,modifier=Modifier.weight(1f))
+                        Text(Instant.ofEpochMilli(reading.epochMs).atZone(zone).format(DateTimeFormatter.ofPattern("HH:mm")),style=type.bodySmall,color=Color(c.textDim))
+                    }
+                }}
+            }
+            "graph" -> ContentSection(tone=if(kind==MeasurementKind.WEIGHT) ModuleTone.VIOLET else ModuleTone.SAGE) {
+                Caption("${Format.day(from)} – ${Format.day(selected)}")
+                SegmentedControl(listOf("7 days","30 days","Journey"),range,{it}) {range=it}
+                if(report.readings.size>=2) {
+                    val points=remember(report.readings) {ProgressCalculator.measurementTrend(report.readings)}
+                    val style=if(kind==MeasurementKind.WEIGHT) settings.appChart else settings.bodyFatChart
+                    InteractiveChart(ChartSpec(points,style,settings.unit,if(kind==MeasurementKind.WEIGHT) settings.targetKg else settings.targetBodyFat,
+                        metric=if(kind==MeasurementKind.WEIGHT) ChartMetric.WEIGHT else ChartMetric.BODY_FAT),Modifier.height(220.dp),onDoubleTap={vm.update {
+                        if(kind==MeasurementKind.WEIGHT) it.copy(appChart=if(it.appChart==ChartStyle.TREND) ChartStyle.CONNECTED else ChartStyle.TREND)
+                        else it.copy(bodyFatChart=if(it.bodyFatChart==ChartStyle.TREND) ChartStyle.CONNECTED else ChartStyle.TREND)
+                    }})
+                } else Text(if(report.readings.isEmpty()) "No measurements in this period" else "One recorded measurement",style=LocalDeltaType.current.title)
+            }
+            "empty" -> ContentSection {Text("No measurements in this period",style=LocalDeltaType.current.title)}
+            else -> byId[id]?.let {MeasurementInsightCard(it,kind)}
         }
-        SegmentedControl(listOf("7 days","30 days","Journey"),range,{it}) {range=it}
-        ContentSection(tone=if(kind==MeasurementKind.WEIGHT) ModuleTone.VIOLET else ModuleTone.SAGE) {
-            Caption("${Format.day(from)} – ${Format.day(selected)}")
-            if(report.readings.size>=2) {
-                val points=remember(report.readings) {ProgressCalculator.measurementTrend(report.readings)}
-                val style=if(kind==MeasurementKind.WEIGHT) settings.appChart else settings.bodyFatChart
-                InteractiveChart(ChartSpec(points,style,settings.unit,if(kind==MeasurementKind.WEIGHT) settings.targetKg else settings.targetBodyFat,
-                    metric=if(kind==MeasurementKind.WEIGHT) ChartMetric.WEIGHT else ChartMetric.BODY_FAT),Modifier.height(220.dp),onDoubleTap={vm.update {
-                    if(kind==MeasurementKind.WEIGHT) it.copy(appChart=if(it.appChart==ChartStyle.TREND) ChartStyle.CONNECTED else ChartStyle.TREND)
-                    else it.copy(bodyFatChart=if(it.bodyFatChart==ChartStyle.TREND) ChartStyle.CONNECTED else ChartStyle.TREND)
-                }})
-            } else Text(if(report.readings.isEmpty()) "No measurements in this period" else "One recorded measurement",style=LocalDeltaType.current.title)
-        }
-        Caption("Measurement insights")
-        MeasurementInsightCards(report,settings.unit)
     }
     if(logging) PercentDialog("Log body fat",fatReadings.lastOrNull()?.value,{logging=false}) {value,at->logging=false;vm.logBodyFat(value,at)}
 }

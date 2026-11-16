@@ -7,7 +7,7 @@ plugins {
 }
 
 // CI passes a build number so every APK can install over the previous one.
-val releaseVersionCode = 31
+val releaseVersionCode = 32
 val buildNumber = maxOf(releaseVersionCode, (System.getenv("GITHUB_RUN_NUMBER") ?: releaseVersionCode.toString()).toInt())
 
 // CI points these at a keystore. Without them (for example in Android Studio)
