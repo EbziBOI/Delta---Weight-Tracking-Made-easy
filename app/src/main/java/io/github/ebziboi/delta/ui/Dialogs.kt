@@ -140,9 +140,9 @@ fun WeightDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = { kg?.let(onConfirm) }, enabled = valid && extraValid) { Text(confirmLabel) }
+            HapticTextButton(onClick = { kg?.let(onConfirm) }, enabled = valid && extraValid) { Text(confirmLabel) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+        dismissButton = { HapticTextButton(onClick = onDismiss) { Text("Cancel") } },
     )
 }
 
@@ -185,9 +185,9 @@ fun LogWeightDialog(
                 OutlinedTextField(fat, { fat = it }, label = { Text("Body fat % (optional)") }, singleLine = true,
                     suffix = { Text("%") }, isError = fat.isNotBlank() && parsedFat?.let(io.github.ebziboi.delta.data.BodyFat::valid) != true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), modifier = Modifier.fillMaxWidth())
-            } else TextButton(onClick = onBodyFatAccess) { Text("Add body fat · allow access") }
+            } else HapticTextButton(onClick = onBodyFatAccess) { Text("Add body fat · allow access") }
 
-            TextButton(onClick = { choosingDay = true }) {
+            HapticTextButton(onClick = { choosingDay = true }) {
                 Text(if (day == today) "Today  ·  change date" else "${Format.day(day)}  ·  change date")
             }
         },
@@ -223,7 +223,7 @@ fun DateDialog(
     DatePickerDialog(
         onDismissRequest = onDismiss,
         confirmButton = {
-            TextButton(
+            HapticTextButton(
                 onClick = {
                     state.selectedDateMillis?.let { millis ->
                         onConfirm(Instant.ofEpochMilli(millis).atZone(ZoneOffset.UTC).toLocalDate())
@@ -231,8 +231,8 @@ fun DateDialog(
                 },
             ) { Text("OK") }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+        dismissButton = { HapticTextButton(onClick = onDismiss) { Text("Cancel") } },
     ) {
-        DatePicker(state = state)
+        DatePicker(state = state,modifier=Modifier.hapticPickerTaps())
     }
 }

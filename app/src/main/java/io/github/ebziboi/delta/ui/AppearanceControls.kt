@@ -238,10 +238,10 @@ fun CustomColorDialog(title: String, initial: Int, onDismiss: () -> Unit, onConf
             value = AndroidColor.HSVToColor(updated); input = hex(value)
         }
         Text("Hue", style = LocalDeltaType.current.bodySmall)
-        Slider(hsv[0], { change(0, it) }, valueRange = 0f..360f)
+        HapticSlider(hsv[0], { change(0, it) }, valueRange = 0f..360f)
         Text("Saturation", style = LocalDeltaType.current.bodySmall)
-        Slider(hsv[1], { change(1, it) })
+        HapticSlider(hsv[1], { change(1, it) })
         Text("Brightness", style = LocalDeltaType.current.bodySmall)
-        Slider(hsv[2], { change(2, it) })
+        HapticSlider(hsv[2], { change(2, it) })
     }
 }

@@ -91,6 +91,9 @@ import androidx.compose.ui.graphics.shadow.Shadow
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.toggleableState
+import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.semantics.semantics
@@ -358,7 +361,7 @@ fun GlassIconButton(
     enabled: Boolean = true,
 ) {
     val colors = LocalDeltaColors.current
-    val source = remember { MutableInteractionSource() }
+    val source = rememberHapticInteractionSource()
     Box(
         modifier = modifier
             .size(size)
@@ -391,7 +394,7 @@ fun PrimaryButton(
     icon: Int? = null,
 ) {
     val colors = LocalDeltaColors.current
-    val source = remember { MutableInteractionSource() }
+    val source = rememberHapticInteractionSource()
     val shape = RoundedCornerShape(Radii.control)
     val accent = Color(colors.accent)
     val intensity = LocalAppearance.current.accentIntensity
@@ -445,7 +448,7 @@ fun SecondaryButton(
     icon: Int? = null,
 ) {
     val colors = LocalDeltaColors.current
-    val source = remember { MutableInteractionSource() }
+    val source = rememberHapticInteractionSource()
     val ink = if (enabled) Color(colors.text) else Color(colors.textFaint)
     Row(
         modifier = modifier
@@ -515,8 +518,8 @@ fun StatTile(
 ) {
     val colors = LocalDeltaColors.current
     val type = LocalDeltaType.current
-    val source = remember { MutableInteractionSource() }
-    val tile = if (onClick == null) modifier else modifier.pressScale(source).clickable(interactionSource = source, indication = ripple(), role = Role.Button, onClick = onClick)
+    val source = rememberHapticInteractionSource()
+    val tile = if (onClick == null) modifier else modifier.pressScale(source).clip(RoundedCornerShape(Radii.tile)).clickable(interactionSource = source, indication = ripple(), role = Role.Button, onClick = onClick)
     // A key figure on its own translucent tile, without an outline, like the controls.
     Box(modifier = tile.glass(RoundedCornerShape(Radii.tile), colors)) {
         Column(
@@ -712,74 +715,6 @@ fun TrendChartView(spec: ChartSpec, modifier: Modifier = Modifier, labels: Boole
 
 // ---- Choices -------------------------------------------------------------------------------
 
-/**
- * A row of options where exactly one is selected, as segments of one glass
- * pill with the selection sliding between them. Segments share the width of
- * the widest label; give it [Modifier.fillMaxWidth] to stretch.
- */
-@Composable
-fun <T> SegmentedControl(
-    options: List<T>,
-    selected: T,
-    label: (T) -> String,
-    modifier: Modifier = Modifier,
-    onSelect: (T) -> Unit,
-) {
-    val colors = LocalDeltaColors.current
-    val type = LocalDeltaType.current
-    val dashboard = LocalAppearance.current.designStyle == io.github.ebziboi.delta.data.DesignStyle.TUBIK
-    val index = options.indexOf(selected).coerceAtLeast(0)
-    val position by animateFloatAsState(
-        targetValue = index.toFloat(),
-        animationSpec = if(LocalMotion.current) spring(dampingRatio = 0.78f, stiffness = Spring.StiffnessMediumLow) else tween(0),
-        label = "segment",
-    )
-    val shape = RoundedCornerShape(Radii.control)
-    val accent = if(dashboard) Color(colors.text).copy(alpha=.14f) else Color(colors.accent)
-    val thumbRadius = if(dashboard) (Radii.control - 3.dp).coerceAtLeast(0.dp) else null
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .refractiveGlass(shape, colors, elevated = false)
-            .drawBehind {
-                if (options.isEmpty()) return@drawBehind
-                val inset = 3.dp.toPx()
-                val segment = (size.width-inset*2) / options.size
-                drawRoundRect(
-                    color = accent,
-                    topLeft = Offset(segment * position + inset, inset),
-                    size = Size(segment, size.height - inset * 2),
-                    cornerRadius = (thumbRadius?.toPx() ?: (size.height / 2f)).let { radius ->
-                        val bounded=minOf(radius,segment/2f,(size.height-inset*2)/2f)
-                        CornerRadius(bounded,bounded)
-                    },
-                )
-            }
-            .padding(3.dp),
-    ) {
-        options.forEachIndexed { i, option ->
-            val isSelected = i == index
-            val ink by animateColorAsState(
-                targetValue = if (isSelected) Color(if(dashboard) colors.accent else colors.onAccent) else Color(colors.textDim),
-                animationSpec = tween(if(LocalMotion.current) 180 else 0),
-                label = "segment-ink",
-            )
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .clip(shape)
-                    .clickable(role = Role.Tab) { onSelect(option) }
-                    .semantics { this.selected = isSelected; if(option is io.github.ebziboi.delta.data.DesignStyle) contentDescription="${option.label} design" }
-                    .heightIn(min=44.dp).padding(horizontal = 6.dp, vertical = 8.dp),
-                contentAlignment = Alignment.Center,
-            ) {
-                androidx.compose.foundation.text.BasicText(text = label(option), style = type.bodySmall.copy(fontWeight = type.bodyStrong.fontWeight,color=ink), maxLines = 1,
-                    autoSize=androidx.compose.foundation.text.TextAutoSize.StepBased(minFontSize=10.sp,maxFontSize=type.bodySmall.fontSize,stepSize=0.5.sp))
-            }
-        }
-    }
-}
-
 /** A set of glass pills where exactly one is selected. Wraps onto another line if it runs out of room. */
 @Composable
 fun <T> ChoiceRow(
@@ -902,6 +837,7 @@ fun ToggleRow(
             .fillMaxWidth().heightIn(min = 48.dp)
             .clip(RoundedCornerShape(Radii.control))
             .clickable(role = Role.Switch) { onCheckedChange(!checked) }
+            .semantics {toggleableState=ToggleableState(checked)}
             .padding(vertical = 8.dp, horizontal = 2.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -913,7 +849,9 @@ fun ToggleRow(
         }
         Switch(
             checked = checked,
-            onCheckedChange = onCheckedChange,
+            onCheckedChange = null,
+            modifier=Modifier.clearAndSetSemantics {},
+            interactionSource=rememberHapticInteractionSource(),
             colors = SwitchDefaults.colors(
                 checkedThumbColor = Color(colors.onAccent),
                 checkedTrackColor = Color(colors.accent),
@@ -947,7 +885,7 @@ fun SliderRow(
     // Forward to the latest handlers without replacing callback identities during a live drag.
     val change by androidx.compose.runtime.rememberUpdatedState(onValueChange)
     val finish by androidx.compose.runtime.rememberUpdatedState(onValueChangeFinished)
-    val interactions = remember { MutableInteractionSource() }
+    val interactions = rememberHapticInteractionSource()
     var changed by remember { mutableStateOf(false) }
     val changeCallback = remember { { next: Float -> changed = true; change(next) } }
     val finishCallback = remember { { if (changed) { changed = false; finish() } } }
@@ -971,7 +909,7 @@ fun SliderRow(
             }
             Text(text = valueText, style = type.numberSmall, color = Color(if (enabled) colors.accent else colors.textFaint))
         }
-        Slider(
+        HapticSlider(
             value = value,
             onValueChange = changeCallback,
             onValueChangeFinished = finishCallback,

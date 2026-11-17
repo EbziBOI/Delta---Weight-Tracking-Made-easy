@@ -22,13 +22,14 @@ import java.util.Locale
 @Composable
 fun BodyFatSection(readings: List<BodyFatEntry>, target: Double?, journeyStart: Long?,
                    chartStyle: ChartStyle = ChartStyle.CONNECTED, onSwitchStyle: (() -> Unit)? = null, onOpen: () -> Unit) {
-    var range by rememberSaveable { mutableStateOf("Journey") }
+    val profile=rememberChartController("home-body-fat",chartStyle)
     val latest = readings.maxByOrNull { it.epochMs }
     val previous = readings.sortedBy { it.epochMs }.dropLast(1).lastOrNull()
     ContentSection(tone = ModuleTone.SAGE,onClick=onOpen) {
         val c = LocalDeltaColors.current
         Row(Modifier.fillMaxWidth().clickable(onClick=onOpen).semantics {contentDescription="Open body composition calendar"},verticalAlignment=Alignment.CenterVertically) {
             Box(Modifier.weight(1f)) {Caption("Body composition")}
+            ChartPeriodControl(profile.period,profile::choosePeriod)
         }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             Column {
@@ -40,11 +41,10 @@ fun BodyFatSection(readings: List<BodyFatEntry>, target: Double?, journeyStart: 
         }
         latest?.let { Text(Format.moment(it.epochMs), color = Color(c.textDim), style = LocalDeltaType.current.bodySmall) }
         target?.let { Text("Target ${BodyFat.format(it)}", style = LocalDeltaType.current.bodyStrong) }
-        if (readings.size >= 2) {
-            SegmentedControl(listOf("1M", "3M", "Journey", "All"), range, { it }, Modifier.fillMaxWidth()) { range = it }
-            val cutoff = when (range) { "1M" -> System.currentTimeMillis() - 30L * 86_400_000; "3M" -> System.currentTimeMillis() - 90L * 86_400_000; "Journey" -> journeyStart ?: Long.MIN_VALUE; else -> Long.MIN_VALUE }
-            val points = ProgressCalculator.bodyFatTrend(readings.filter { it.epochMs >= cutoff })
-            InteractiveChart(ChartSpec(points, chartStyle, WeightUnit.KG, target, metric = ChartMetric.BODY_FAT), Modifier.height(190.dp),onDoubleTap=onSwitchStyle)
+        if (readings.isNotEmpty()) {
+            ChartWindows(profile)
+            val values=readings.map {RecordedValue(Instant.ofEpochMilli(it.epochMs).atZone(ZoneId.systemDefault()).toLocalDate(),it.percent)}
+            RecordedChart(listOf(RecordedSeries("body-fat","Body fat",Color(bodyFatInk(c)),values,{BodyFat.format(it)})),values.minOf {it.day},LocalDate.now(),"Body fat overview graph",controller=profile,controls=false,journeyStart=journeyStart?.let {Instant.ofEpochMilli(it).atZone(ZoneId.systemDefault()).toLocalDate()},minimumYSpan=.5,target=target)
         }
     }
 }

@@ -46,10 +46,10 @@ internal fun NutritionPie(entries:List<DiaryEntry>) {
         Column(Modifier.heightIn(max=440.dp).verticalScroll(rememberScrollState())) {
             Nutrient.entries.filter {nutrientMass(1.0,it)!=null}.forEach {n->
                 Row(Modifier.fillMaxWidth(),verticalAlignment=androidx.compose.ui.Alignment.CenterVertically) {
-                    Checkbox(n in chosen,{on->chosen=if(on) chosen+n else chosen-n;if(n !in Nutrient.macros && on) mass=true;save()})
+                    HapticCheckbox(n in chosen,{on->chosen=if(on) chosen+n else chosen-n;if(n !in Nutrient.macros && on) mass=true;save()})
                     Text(n.label,style=LocalDeltaType.current.body)
                 }
             }
         }
-    },confirmButton={TextButton({menu=false}) {Text("Done")}})
+    },confirmButton={HapticTextButton({menu=false}) {Text("Done")}})
 }

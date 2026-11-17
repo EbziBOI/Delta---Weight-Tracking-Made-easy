@@ -1,3 +1,5 @@
+> Archived beta release notes. Stage 2 is now included in main Delta; see [Delta 0.2.43](RELEASE-0.2.43.md). The package/build instructions below describe the historical beta branch.
+
 # Delta Stage 2 beta
 
 This is a separate app, **Delta Beta** (`io.github.ebziboi.delta.beta`). It installs

@@ -4,8 +4,10 @@ import java.time.LocalDate
 
 internal data class NutritionScale(val typical:Double?,val ceiling:Double,val recordedDays:Int)
 /** A median of recorded daily totals: unlogged dates and unknown labels are absent. */
-internal fun nutritionScale(entries:List<DiaryEntry>,end:LocalDate,nutrient:Nutrient):NutritionScale {
-    val totals=entries.filter {it.day in end.minusDays(29)..end}.groupBy {it.day}.values
+internal fun nutritionScale(entries:List<DiaryEntry>,end:LocalDate,nutrient:Nutrient,fallbackToLatest:Boolean=false):NutritionScale {
+    val recent=entries.any {it.day in end.minusDays(29)..end && nutrient in it.food.per100}
+    val anchor=if(fallbackToLatest && !recent) entries.filter {it.day<=end && nutrient in it.food.per100}.maxOfOrNull {it.day} ?: end else end
+    val totals=entries.filter {it.day in anchor.minusDays(29)..anchor}.groupBy {it.day}.values
         .mapNotNull {day->day.total(nutrient).takeIf {it.reported>0}?.amount}.sorted()
     fun median(values:List<Double>):Double = if(values.size%2==1) values[values.size/2] else values[values.size/2-1]/2+values[values.size/2]/2
     val typical=totals.takeIf {it.isNotEmpty()}?.let(::median)

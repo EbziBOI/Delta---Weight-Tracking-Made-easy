@@ -40,9 +40,10 @@ internal val dayFormat: DateTimeFormatter = DateTimeFormatter.ofPattern("EEE, d 
 
 @Composable
 internal fun NutritionPage(title: String,padding: PaddingValues,onBack: (() -> Unit)? = null,content: @Composable ColumnScope.()->Unit) {
+    BackHandler(enabled=onBack!=null) {onBack?.invoke()}
     Column(Modifier.fillMaxSize().imePadding().verticalScroll(rememberScrollState()).padding(horizontal=20.dp)
         .padding(top=padding.calculateTopPadding(),bottom=padding.calculateBottomPadding()+16.dp),verticalArrangement=Arrangement.spacedBy(14.dp)) {
-        ScreenHeader(title,leading=onBack?.let { { GlassIconButton(io.github.ebziboi.delta.R.drawable.ic_arrow_back,"Back",it) } })
+        ScreenHeader(title)
         content()
     }
 }
@@ -57,7 +58,7 @@ internal fun NumberField(value: String,onValueChange: (String)->Unit,label: Stri
 @Composable
 internal fun NutritionDatePicker(initial: LocalDate,onDismiss: ()->Unit,onDate: (LocalDate)->Unit) {
     val state=rememberDatePickerState(initialSelectedDateMillis=initial.toEpochDay()*86400000)
-    DatePickerDialog(onDismissRequest=onDismiss,confirmButton={TextButton(onClick={state.selectedDateMillis?.let {onDate(LocalDate.ofEpochDay(it/86400000))};onDismiss()}) {Text("Choose")}},dismissButton={TextButton(onClick=onDismiss){Text("Cancel")}}) { DatePicker(state) }
+    DatePickerDialog(onDismissRequest=onDismiss,confirmButton={HapticTextButton(onClick={state.selectedDateMillis?.let {onDate(LocalDate.ofEpochDay(it/86400000))};onDismiss()}) {Text("Choose")}},dismissButton={HapticTextButton(onClick=onDismiss){Text("Cancel")}}) { DatePicker(state,modifier=Modifier.hapticPickerTaps()) }
 }
 @Composable
 internal fun NutritionRow(title: String,value: String,subtitle: String?=null,onClick: (() -> Unit)?=null) {
@@ -111,6 +112,7 @@ fun NutritionScreen(padding: PaddingValues,addSignal: Int=0,onDetailChanged: (Bo
     var handledAddSignal by rememberSaveable { mutableIntStateOf(0) }
     LaunchedEffect(addSignal) { if(addSignal>handledAddSignal) { handledAddSignal=addSignal;route="search";parent="diary" } }
     BackHandler(route!="diary",onBack=back)
+    val chartSettings by (LocalContext.current.applicationContext as io.github.ebziboi.delta.DeltaApp).repo.settings.collectAsStateWithLifecycle(initialValue=io.github.ebziboi.delta.data.AppSettings())
     Column(Modifier.fillMaxSize()) {
         vm.message?.let { msg ->
             Surface(color=Color(LocalDeltaColors.current.surfaceHigh),modifier=Modifier.statusBarsPadding().fillMaxWidth()) {
@@ -155,7 +157,7 @@ fun NutritionScreen(padding: PaddingValues,addSignal: Int=0,onDetailChanged: (Bo
             "targets" -> TargetsPage(state.targets,padding,vm.busy,back) { targets -> vm.run {vm.repo.saveTargets(targets);route="diary"} }
             "copy" -> CopyDiaryPage(state,day,padding,vm.busy,back) { from,m -> vm.run {vm.repo.copy(from,day,m);route="diary"} }
             "health-entry" -> vm.selectedEntry?.let {HealthFoodPage(it,padding,back)}
-            "charts" -> NutritionChartsPage(state,weights,padding,back,weightUnit)
+            "charts" -> NutritionChartsPage(state,weights,padding,back,weightUnit,chartSettings.startEpochDay?.let(LocalDate::ofEpochDay),chartSettings.weekStartsOn)
             "fasting" -> FastingPage(vm,state,padding,back)
             "photo" -> PhotoPage(vm,padding,back,onSettings={route="photo-settings"},onLog={m -> vm.run {
                 vm.repo.log(vm.photoReview.map { DiaryEntry(day=day,meal=m,food=it.food,amount=it.amount) });vm.clearPhoto();route="diary"
@@ -173,9 +175,9 @@ private fun DiaryPage(state: NutritionState,day: LocalDate,meal: Meal,padding: P
     val entries=state.entries.filter {it.day==day};val energy=entries.total(Nutrient.ENERGY);val target=state.targets.target(Nutrient.ENERGY)
     NutritionPage("Diary",padding) {
         Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.Center,verticalAlignment=Alignment.CenterVertically) {
-            TextButton({onDay(day.minusDays(1))}) { Text("‹",fontSize=26.sp) }
-            TextButton(onDate) { Text(if(day==LocalDate.now()) "Today" else day.format(DateTimeFormatter.ofPattern("d MMM yyyy")),style=LocalDeltaType.current.title) }
-            TextButton({onDay(day.plusDays(1))},enabled=day<LocalDate.now()) { Text("›",fontSize=26.sp) }
+            HapticTextButton({onDay(day.minusDays(1))}) { Text("‹",fontSize=26.sp) }
+            HapticTextButton(onDate) { Text(if(day==LocalDate.now()) "Today" else day.format(DateTimeFormatter.ofPattern("d MMM yyyy")),style=LocalDeltaType.current.title) }
+            HapticTextButton({onDay(day.plusDays(1))},enabled=day<LocalDate.now()) { Text("›",fontSize=26.sp) }
         }
         ContentSection(tone=ModuleTone.SAGE,framed=true,onClick={onRoute("targets")}) {
             Caption("Daily nutrition")
@@ -187,7 +189,7 @@ private fun DiaryPage(state: NutritionState,day: LocalDate,meal: Meal,padding: P
                 ProgressRail((energy.amount/it).toFloat(),height=6.dp)
             }
             if(energy.partial) Text("${energy.reported} of ${energy.count} foods report energy",style=LocalDeltaType.current.bodySmall)
-            Nutrient.macros.forEach { NutrientProgress(it,entries.total(it),state.targets.target(it)) }
+            DiaryMacroChart(state,day)
         }
         Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(8.dp)) {
             listOf("Charts" to "charts","Fasting" to "fasting","Targets" to "targets","Copy day" to "copy").forEach {(label,destination)->
@@ -256,5 +258,6 @@ private fun HealthFoodPage(entry:DiaryEntry,padding:PaddingValues,onBack:()->Uni
 fun HomeNutritionCharts(padding:PaddingValues,weights:List<WeightEntry>,unit:io.github.ebziboi.delta.data.WeightUnit,onBack:()->Unit,vm:NutritionViewModel=viewModel()) {
     val state by vm.state.collectAsStateWithLifecycle()
     BackHandler(onBack=onBack)
-    NutritionChartsPage(state,weights,padding,onBack,unit)
+    val settings by (androidx.compose.ui.platform.LocalContext.current.applicationContext as io.github.ebziboi.delta.DeltaApp).repo.settings.collectAsStateWithLifecycle(initialValue=io.github.ebziboi.delta.data.AppSettings())
+    NutritionChartsPage(state,weights,padding,onBack,unit,settings.startEpochDay?.let(LocalDate::ofEpochDay),settings.weekStartsOn)
 }

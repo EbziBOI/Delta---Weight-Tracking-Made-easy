@@ -89,7 +89,7 @@ fun HistoryScreen(vm: AppViewModel, settings: AppSettings, padding: PaddingValue
                         Text(io.github.ebziboi.delta.data.BodyFat.format(reading.percent), style = LocalDeltaType.current.number)
                         Text(Format.moment(reading.epochMs), style = LocalDeltaType.current.bodySmall, color = Color(colors.textDim))
                     }
-                    if (reading.own) IconButton({ deletingFat = reading }) {
+                    if (reading.own) HapticIconButton({ deletingFat = reading }) {
                         Icon(Icons.Filled.Delete, "Delete body fat reading", tint = Color(colors.textDim))
                     }
                 }
@@ -123,14 +123,14 @@ fun HistoryScreen(vm: AppViewModel, settings: AppSettings, padding: PaddingValue
                 Text("${Units.weight(target.kg, settings.unit)} on ${Format.moment(target.epochMs)} will be removed ${if(io.github.ebziboi.delta.BuildConfig.IS_BETA) "from this beta only" else "from Health Connect"}.")
             },
             confirmButton = {
-                TextButton(
+                HapticTextButton(
                     onClick = {
                         deleting = null
                         vm.delete(target)
                     },
                 ) { Text("Delete") }
             },
-            dismissButton = { TextButton(onClick = { deleting = null }) { Text("Cancel") } },
+            dismissButton = { HapticTextButton(onClick = { deleting = null }) { Text("Cancel") } },
         )
     }
 }
@@ -167,7 +167,7 @@ private fun HistoryRow(
             )
         }
         if (entry.own) {
-            IconButton(onClick = onDelete) {
+            HapticIconButton(onClick = onDelete) {
                 Icon(
                     Icons.Filled.Delete,
                     contentDescription = "Delete weigh-in",

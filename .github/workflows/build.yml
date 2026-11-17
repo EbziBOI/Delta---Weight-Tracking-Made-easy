@@ -64,26 +64,30 @@ jobs:
 
       - name: Collect APK
         run: |
-          cp app/build/outputs/apk/release/app-release.apk "Delta-0.1.${{ github.run_number }}.apk"
+          VERSION=$(python3 -c 'import json; print(json.load(open("app/build/outputs/apk/release/output-metadata.json"))["elements"][0]["versionName"])')
+          echo "DELTA_VERSION=$VERSION" >> "$GITHUB_ENV"
+          cp app/build/outputs/apk/release/app-release.apk "Delta-$VERSION.apk"
           cp app/build/outputs/apk/release/app-release.apk Delta.apk
 
       - uses: actions/upload-artifact@v4
         with:
           name: Delta-apk
-          path: Delta-0.1.${{ github.run_number }}.apk
+          path: Delta-${{ env.DELTA_VERSION }}.apk
 
       - name: Publish release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           TAG="build-${{ github.run_number }}"
-          APK="Delta-0.1.${{ github.run_number }}.apk"
+          APK="Delta-${DELTA_VERSION}.apk"
+          cp docs/RELEASE-0.2.43.md "$RUNNER_TEMP/release-notes.md"
+          printf '\nBuilt from %s on %s.\n' '${{ github.sha }}' '${{ github.ref_name }}' >> "$RUNNER_TEMP/release-notes.md"
           # Re-running a build keeps its number, so replace the file if the release already exists.
           if gh release view "$TAG" > /dev/null 2>&1; then
             gh release upload "$TAG" "$APK" Delta.apk --clobber
           else
             gh release create "$TAG" "$APK" Delta.apk \
-              --title "Delta 0.1.${{ github.run_number }}" \
-              --notes "Built from ${{ github.sha }} on ${{ github.ref_name }}." \
+              --title "Delta ${DELTA_VERSION}" \
+              --notes-file "$RUNNER_TEMP/release-notes.md" \
               --target "${{ github.sha }}"
           fi

@@ -108,7 +108,6 @@ fun SettingsScreen(
     ) {
         ScreenHeader(title = "Settings")
         if(io.github.ebziboi.delta.BuildConfig.IS_BETA) io.github.ebziboi.delta.transfer.BetaCopyCard(health,onConnect)
-        io.github.ebziboi.delta.transfer.FullTransferCard()
 
         ContentSection(tone = ModuleTone.SAGE,framed=true) {
             Caption("Body composition")
@@ -140,6 +139,7 @@ fun SettingsScreen(
             Caption("Nutrition")
             SettingRow("Daily targets", "Edit", onClick={section="Nutrition targets"})
             SettingRow("Photo logging", "API keys", onClick={section="Photo logging"})
+            SettingRow("Backup and transfer", "Open", onClick={section="Backup and transfer"})
         }
 
         // Weight goals
@@ -157,7 +157,7 @@ fun SettingsScreen(
                 onClick = { editing = "targetDate" },
             )
             if (settings.targetEpochDay != null) {
-                TextButton(onClick = { vm.update { it.copy(targetEpochDay = null) } }) {
+                HapticTextButton(onClick = { vm.update { it.copy(targetEpochDay = null) } }) {
                     Text("Remove target date")
                 }
             }
@@ -175,6 +175,11 @@ fun SettingsScreen(
             )
         }
 
+
+        ContentSection {
+            Caption("Interaction")
+            ToggleRow("Haptic feedback", settings.haptics, {on->vm.update {it.copy(haptics=on)}})
+        }
 
         // Units
         ContentSection {
@@ -292,14 +297,15 @@ private fun SettingsDetail(
             .padding(bottom = padding.calculateBottomPadding() + 8.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-        ScreenHeader(title = title,leading={TextAction("Back",onBack)})
+        ScreenHeader(title = title)
         when (title) {
+            "Backup and transfer" -> io.github.ebziboi.delta.transfer.FullTransferCard()
             "Health Connect" -> HealthConnectDetails(vm, settings, health, onConnect)
             "Appearance" -> AppearanceControls(vm, settings)
             "Complications" -> ComplicationControls(vm,settings)
             "Graphs" -> {
                 ContentSection {
-                    Caption("In the app")
+                    Caption("Default chart style")
                     SegmentedControl(ChartStyle.entries, settings.appChart, { it.label }) { chosen -> vm.update { it.copy(appChart = chosen) } }
                     if (snap != null) TrendChartView(
                         io.github.ebziboi.delta.render.ChartSpec.journey(snap, settings.appChart, settings.unit, settings.showProjection),

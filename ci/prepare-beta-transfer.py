@@ -23,6 +23,8 @@ s=s.replace('        <activity\n            android:name=".MainActivity"','''   
         <activity
             android:name=".MainActivity"''')
 p.write_text(s)
+models=destination/'app/src/main/java/io/github/ebziboi/delta/data/Models.kt'
+models.write_text(models.read_text().replace('val motion: Boolean = true,','val motion: Boolean = true,\n    val haptics: Boolean = true,'))
 p=destination/'app/build.gradle.kts';s=p.read_text().replace('releaseVersionCode = 32','releaseVersionCode = 34').replace('versionName = "0.1.$buildNumber"','versionName = "0.1.$buildNumber-transfer"')
 p.write_text(s)
 tests=destination/'app/src/androidTest/java/io/github/ebziboi/delta'

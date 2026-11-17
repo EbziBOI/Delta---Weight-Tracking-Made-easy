@@ -69,6 +69,7 @@ enum class Accent(
 
 /** How the weight graph is drawn. The app and the widgets each have their own choice. */
 enum class ChartStyle(val label: String, val detail: String) {
+    DOTS("Dots", "Recorded values as individual points"),
     TREND("Trend line", "A smoothed line through your weigh-ins, with each one as a faint dot"),
     CONNECTED("Connected dots", "Every weigh-in as a dot, joined to the next"),
 }
@@ -137,6 +138,7 @@ data class AppSettings(
     val typeStyle: TypeStyle = TypeStyle.MODERN,
     /** Slow drifting light behind the glass. Off also stops it when the phone asks for less motion. */
     val motion: Boolean = true,
+    val haptics: Boolean = true,
     /** The graph on the Progress screen. */
     val appChart: ChartStyle = ChartStyle.TREND,
     val bodyFatChart: ChartStyle = ChartStyle.CONNECTED,

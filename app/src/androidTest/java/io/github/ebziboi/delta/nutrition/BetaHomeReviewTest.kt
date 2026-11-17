@@ -61,11 +61,11 @@ class BetaHomeReviewTest {
                 openTile("Goal by","Your forecast")
                 compose.onNode(hasScrollToIndexAction()).performScrollToIndex(3);compose.waitForIdle();device.takeScreenshot(File(dir,"$style-forecast.png"))
                 compose.onNode(hasScrollToIndexAction()).performScrollToIndex(0)
-                compose.onNodeWithText("Back",ignoreCase=true).performClick()
+                compose.runOnIdle {compose.activity.onBackPressedDispatcher.onBackPressed()}
                 compose.waitUntil(5000) {compose.onAllNodesWithContentDescription("Settings").fetchSemanticsNodes().isNotEmpty()}
                 openTile("Weekly rate","Your rhythm")
                 compose.onNodeWithContentDescription("Weekly rate weekly graph").performScrollTo();compose.waitForIdle();device.takeScreenshot(File(dir,"$style-rhythm.png"))
-                compose.onNodeWithText("Back",ignoreCase=true).performScrollTo().performClick()
+                compose.runOnIdle {compose.activity.onBackPressedDispatcher.onBackPressed()}
                 compose.waitForIdle()
             }
         } finally {

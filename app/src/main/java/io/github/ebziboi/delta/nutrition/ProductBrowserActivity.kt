@@ -35,7 +35,6 @@ class ProductBrowserActivity:ComponentActivity() {
                 Surface(color=Color(LocalDeltaColors.current.bg),contentColor=Color(LocalDeltaColors.current.text)) {
                     Column(Modifier.fillMaxSize().systemBarsPadding()) {
                         Row(Modifier.fillMaxWidth().padding(12.dp),horizontalArrangement=Arrangement.spacedBy(10.dp)) {
-                            TextAction("Back",{if(browser?.canGoBack()==true) browser?.goBack() else finish()})
                             Text(Uri.parse(address).host.orEmpty(),Modifier.weight(1f),maxLines=1,style=LocalDeltaType.current.bodySmall)
                             TextAction("Close",{finish()})
                         }

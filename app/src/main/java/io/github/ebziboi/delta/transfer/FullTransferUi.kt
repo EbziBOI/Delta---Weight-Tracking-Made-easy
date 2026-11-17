@@ -62,7 +62,7 @@ fun FullTransferCard() {
         }
     }
     pending?.let {raw->AlertDialog(onDismissRequest={pending=null},title={Text("Replace this app's data?")},text={Text("This replaces measurements, nutrition and settings with the backup. A private pre-import backup is kept on this phone. Permissions and API keys stay unchanged.")},
-        confirmButton={TextButton({pending=null;scope.launch {busy=true;try {FullTransfer.apply(context,raw);message="Backup imported"} catch(_:Exception) {message="Import failed. The pre-import backup has been retained."} finally {busy=false}}}) {Text("Replace data")}},dismissButton={TextButton({pending=null}) {Text("Cancel")}})}
+        confirmButton={HapticTextButton({pending=null;scope.launch {busy=true;try {FullTransfer.apply(context,raw);message="Backup imported"} catch(_:Exception) {message="Import failed. The pre-import backup has been retained."} finally {busy=false}}}) {Text("Replace data")}},dismissButton={HapticTextButton({pending=null}) {Text("Cancel")}})}
 }
 
 /** The receiver always asks for consent and accepts only the sibling app signed with the same key. */

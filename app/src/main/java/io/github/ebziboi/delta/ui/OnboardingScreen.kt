@@ -145,7 +145,7 @@ private fun Connect(health: HealthState?, onConnect: () -> Unit, onNext: () -> U
     if (health?.canRead == true) {
         PrimaryButton("Continue",onNext,Modifier.fillMaxWidth())
     } else {
-        TextButton(onClick = onNext, modifier = Modifier.fillMaxWidth()) { Text("Skip for now") }
+        HapticTextButton(onClick = onNext, modifier = Modifier.fillMaxWidth()) { Text("Skip for now") }
     }
 }
 
@@ -246,7 +246,6 @@ private fun Goal(vm: AppViewModel, settings: AppSettings, onBack: () -> Unit) {
         enabled = true,
         modifier = Modifier.fillMaxWidth(),
     )
-    TextButton(onClick = onBack, modifier = Modifier.fillMaxWidth()) { Text("Back") }
 
     when (editing) {
         "body-fat" -> PercentDialog("Target body fat", targetBodyFat, { editing = "" }, showDate = false) { value, _ ->

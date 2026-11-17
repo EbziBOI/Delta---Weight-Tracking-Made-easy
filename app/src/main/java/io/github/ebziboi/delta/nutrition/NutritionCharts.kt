@@ -31,22 +31,27 @@ internal fun List<IntakePoint>.targetComparison(target:Double,limit:Boolean):Tar
 }
 internal fun intakePoints(entries:List<DiaryEntry>,weights:List<WeightEntry>,end:LocalDate,days:Int,weekly:Boolean,nutrient:Nutrient):List<IntakePoint> {
     val start=end.minusDays(days.toLong()-1)
+    val entryDays=entries.groupBy {it.day}
     val weightDays=weights.groupBy {java.time.Instant.ofEpochMilli(it.epochMs).atZone(ZoneId.systemDefault()).toLocalDate()}
     return (0 until days step if(weekly) 7 else 1).map {offset->
         val dates=(0 until if(weekly) minOf(7,days-offset) else 1).map {start.plusDays((offset+it).toLong())}
-        val e=entries.filter {it.day in dates}
+        val e=dates.flatMap {entryDays[it].orEmpty()}
         val w=dates.mapNotNull {d->weightDays[d]?.map {it.kg}?.average()}.takeIf {it.isNotEmpty()}?.average()
         IntakePoint(dates.first(),dates,e,nutrient,w)
     }
 }
 
 @Composable
-internal fun NutritionChartsPage(state:NutritionState,weights:List<WeightEntry>,padding:PaddingValues,onBack:()->Unit,weightUnit:WeightUnit=WeightUnit.KG) {
+internal fun NutritionChartsPage(state:NutritionState,weights:List<WeightEntry>,padding:PaddingValues,onBack:()->Unit,weightUnit:WeightUnit=WeightUnit.KG,journeyStart:LocalDate?=null,weekStartsOn:Int=0) {
     var nutrient by rememberSaveable {mutableStateOf(Nutrient.ENERGY)}
-    var days by rememberSaveable {mutableIntStateOf(30)}
-    var endOffset by rememberSaveable {mutableLongStateOf(0)}
-    var selected by rememberSaveable {mutableIntStateOf(-1)};var menu by remember {mutableStateOf(false)}
-    val end=LocalDate.now().plusDays(endOffset);val start=end.minusDays(days-1L)
+    val profile=rememberChartController("nutrition-intake.${nutrient.name}")
+    var selectedEpoch by rememberSaveable {mutableStateOf<Long?>(null)};var menu by remember {mutableStateOf(false)}
+    val today=LocalDate.now()
+    val oldest=state.entries.minOfOrNull {it.day} ?: today
+    val graphValues=remember(state.entries,nutrient,today) {state.entries.filter {it.day<=today}.groupBy {it.day}.mapNotNull {(day,entries)->val total=entries.total(nutrient);if(total.reported>0) RecordedValue(day,total.amount,partial=total.partial) else null}}
+    val end=profile.visibleLast ?: today
+    val start=profile.visibleFirst ?: chartWindowStart(profile.window,today,journeyStart,oldest,profile.period)
+    val days=java.time.temporal.ChronoUnit.DAYS.between(start,end).toInt().coerceAtLeast(0)+1
     val points=remember(state.entries,end,days,nutrient) {intakePoints(state.entries,emptyList(),end,days,false,nutrient)}
     val logged=state.entries.filter {it.day in start..end};val active=points.filter {it.hasValue}
     val c=LocalDeltaColors.current
@@ -54,25 +59,27 @@ internal fun NutritionChartsPage(state:NutritionState,weights:List<WeightEntry>,
     val (order,saveOrder)=rememberPageCardOrder("nutrition",cards.map {it.id})
     ReorderableCards(cards,order,padding,saveOrder,header={
         Column(verticalArrangement=Arrangement.spacedBy(12.dp)) {
-            ScreenHeader("Nutrition trends",leading={TextAction("Back",onBack,Modifier.semantics {contentDescription="Back"})})
-            Box {SecondaryButton("${nutrient.label} ▾",{menu=true});DropdownMenu(menu,{menu=false}) {Nutrient.entries.forEach {n->DropdownMenuItem({Text(n.label)},{nutrient=n;selected=-1;menu=false})}}}
-            SegmentedControl(listOf(14,30,90),days,{"$it days"}) {days=it;selected=-1}
-            Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.Center) {
-                TextButton({endOffset-=days;selected=-1},enabled=state.entries.minOfOrNull {it.day}?.let {start>it}==true) {Text("Previous")}
-                TextButton({endOffset=minOf(0L,endOffset+days);selected=-1},enabled=end<LocalDate.now()) {Text("Next")}
-            }
+            ScreenHeader("Nutrition trends")
+            Box {SecondaryButton("${nutrient.label} ▾",{menu=true});DropdownMenu(menu,{menu=false}) {Nutrient.entries.forEach {n->HapticDropdownMenuItem({Text(n.label)},{nutrient=n;selectedEpoch=null;menu=false})}}}
             Text("${start.format(DateTimeFormatter.ofPattern("d MMM"))} – ${end.format(DateTimeFormatter.ofPattern("d MMM yyyy"))}",style=LocalDeltaType.current.bodySmall)
         }
     }) {id->when(id) {
         "intake"->ContentSection(tone=ModuleTone.VIOLET,framed=true) {
-            Caption("Daily intake")
+            ChartHeading("Daily intake",profile)
+            ChartWindows(profile)
             val total=logged.total(nutrient);val reported=active.size
             ValueWithUnit(if(reported==0) "—" else amountText(total.amount/reported),nutrient.unit,style=LocalDeltaType.current.numberLarge)
             Text("Average across $reported days with reported intake",style=LocalDeltaType.current.bodySmall)
             if(total.partial) Text("Partial labels · ${total.reported} of ${total.count} foods report ${nutrient.label.lowercase()}",style=LocalDeltaType.current.bodySmall)
             if(active.isEmpty()) Text("No reported ${nutrient.label.lowercase()} in this period.")
-            else IntakeChart(points,nutritionScale(state.entries,end,nutrient)) {selected=it}
-            points.getOrNull(selected)?.let {p->Text("${p.entries.size} foods · ${p.total.reported} report this nutrient",style=LocalDeltaType.current.bodySmall)}
+            run {
+                val scale=nutritionScale(state.entries,today,nutrient,true)
+                RecordedChart(listOf(RecordedSeries("intake",nutrient.label,Color(LocalDeltaColors.current.accent),graphValues,{nutrientText(it,nutrient)},bars=true,ceiling=scale.ceiling,typical=scale.typical)),oldest,today,"Daily intake graph",controller=profile,controls=false,historyStart=oldest,journeyStart=journeyStart,weekStartsOn=weekStartsOn,onSelected={day->selectedEpoch=day?.toEpochDay()})
+            }
+            aggregateReadings(graphValues,profile.period,weekStartsOn,today).firstOrNull {it.day.toEpochDay()==selectedEpoch}?.let {bucket->
+                val foods=state.entries.filter {it.day in bucket.first..bucket.last};val t=foods.total(nutrient)
+                Text("${foods.size} foods · ${t.reported} report this nutrient",style=LocalDeltaType.current.bodySmall)
+            }
         }
         "balance"->NutritionPie(logged)
         "insights"->ContentSection {

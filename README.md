@@ -1,6 +1,6 @@
 # Delta
 
-Stage 2 is being tested as a separate **Delta Beta** package. See [beta install and copy instructions](docs/BETA.md). The normal release remains unchanged.
+**Stage 2 is now in the main Delta release.** Install the versioned APK as an update to Delta. Beta users can copy their diary and settings through **Settings → Backup and transfer**; see [release notes](docs/RELEASE-0.2.43.md).
 
 An open-source weight and nutrition tracker for Android, built around home-screen
 widgets that show where you started, where you are now and where you are going.
@@ -17,7 +17,7 @@ background and blur when you switch back. The visual reference is
 
 ## Status
 
-**Stage 2 is available as a separate beta prerelease.** The existing online release remains the weight-tracking build. See the local build and validation notes below.
+**The main release includes the food diary, nutrition charts, food widgets and full backup/transfer.** The original package and signing key are retained.
 
 - Reads your full weight history from Health Connect, so progress starts from
   your real start date rather than from the day you install
@@ -33,7 +33,7 @@ background and blur when you switch back. The visual reference is
   on, and lift only what would otherwise be hard to read
 - Ten launcher icons, including the original: swipe the icon deck in Appearance,
   then hold or double-tap an icon to apply it
-- Hold the upper-right chart dot and release over Daily, Weekly or Monthly to animate the date window; drag horizontally to pan and tap a recorded reading for its value/date
+- Hold the chart’s title-row dot for Daily, Weekly or Monthly averages; separate slim controls choose the visible window. Each chart remembers its averaging, window and drawing style
 - Measured body-fat percentages in Progress, History, goals, scale CSV imports,
   Health Connect and widgets; weight remains independent of missing body-fat data
 - Studio typography pairs bold geometric headings with editorial and mono accents
@@ -42,10 +42,10 @@ background and blur when you switch back. The visual reference is
 - Combined Home trends with independent Weight, Body fat and Nutrition toggles; recorded-only points, today at the right edge and an animated selection marker after date panning
 - Read-only Health Connect food integration, including supported micronutrients; imported totals stay separate from local diary entries
 - Four diet widgets: Energy budget, Macro balance, Food diary with quick add, and a live Fasting clock; all resize with per-widget settings and previews
-- Nutrition bars place the 30-day median of recorded daily totals at 75% height and mark larger values with an overflow triangle, retaining their full values
-- Three compact, equal-width Home detail cards form a staircase outside the chart; their Back actions return to Home
+- Nutrition charts place the 30-day median of recorded daily totals at 75% height and mark larger values with an overflow triangle, retaining their full values
+- Three compact, equal-width Home detail cards form a staircase outside the chart; Android Back returns to Home
 - Reorder Nutrition trends and Forecast cards; configure nutrient balance pies and inspect data-driven intake comparisons and coverage
-- Full backup and confirmed copying between Beta and the optional base return candidate preserve diary, measurements, goals and appearance; see the beta instructions
+- Full backup and confirmed copying between Beta and main Delta preserve diary, measurements, goals, appearance and individual chart choices
 - Your rhythm's week strip swipes independently, with one bounded triangle-arrow pair, coral in Tubik
 - Store-filtered food search starts with major UK grocers and learns from local search/logging use
 - A compact Progress/Diary/History dock with an adjacent plus button; both hide on downward scrolling and return together. Active tabs use accent text and icons without a pill
@@ -56,7 +56,7 @@ background and blur when you switch back. The visual reference is
 - Insights open a dedicated view with 7-day, 30-day and journey periods. Expand each statistic for its calculation: daily averages, recorded change, previous-period comparison, coverage, fitted pace, range, variation and recording rhythm. Duplicate readings and future timestamps are excluded
 - Choose art, a smooth/segmented/dotted bar, thicker card-perimeter progress with a goal percentage, or both in **Settings → Complications**, with a live card preview
 - Glass dashboard panels, animated progress fills and press feedback respect Reduce motion
-- Vertical graph drags scroll the page even after zooming; horizontal pans change dates, with centered disabled boundary controls
+- Vertical graph drags scroll the page; horizontal pans and flings select the rightmost visible reading when they settle, with centered disabled boundary controls
 - The home complication fits the card’s available width, alongside the current weight with compact, aligned journey totals
 - Original supplied launcher artwork, preserving its detail and gradients with adaptive-mask padding
 - Per-widget graph ranges: 1 week, 1 month, 3 months, 1 year or the full journey
@@ -110,7 +110,7 @@ isolation, encrypted credentials, chart gestures and widget rendering. Food-impo
 checks exercise the bundled OCR engine against a rendered label image, barcode
 photo decoding, rendered web-page extraction, source matching, unit conversions,
 editable comparisons and activity-state restoration. Release-specific results are
-in [docs/BETA.md](docs/BETA.md). Meal-photo AI request contracts use fixtures;
+in [release notes](docs/RELEASE-0.2.43.md). Meal-photo AI request contracts use fixtures;
 authenticated cloud AI requests are not made by the automated tests.
 
 ## Install
@@ -146,9 +146,9 @@ open the project in Android Studio or run:
 A local release build without `DELTA_KEYSTORE_FILE` uses Android's debug key.
 For an update to a permanent-key installation, supply the existing
 `DELTA_KEYSTORE_FILE`, `DELTA_KEYSTORE_PASSWORD` and `DELTA_KEY_ALIAS` environment
-variables. The beta uses the existing Delta signing key with a separate package ID,
-`io.github.ebziboi.delta.beta`, and version `0.2.34-beta.1`. The optional transfer
-update retains the normal app's package and uses version `0.1.34-transfer`.
+variables. Main is the default channel. Pass `-Pdelta.channel=beta` to build
+the separate `io.github.ebziboi.delta.beta` package with the same permanent key.
+Historical beta/transfer builds are documented in `docs/BETA.md`.
 
 Signing keys are never stored in this repository. The workflow reads the key
 from the repository secrets `DELTA_KEYSTORE_B64` and `DELTA_KEYSTORE_PASSWORD`;
@@ -183,7 +183,7 @@ can remove local settings and cached data; record your goal and start date first
 - Backdrop blur: [Haze](https://github.com/chrisbanes/haze) by Chris Banes, under
   the Apache License 2.0.
 
-Release APKs include the version in their filename (for example `Delta-Beta-0.2.34-beta.1.apk`) and Android package metadata. GitHub builds keep increasing the version code and use the stored signing key for in-place updates. `Delta.apk` remains as a compatibility download. Local release builds also write a versioned copy next to the standard Android Studio output.
+Release APKs include the version in their filename (for example `Delta-0.2.43.apk`) and Android package metadata. GitHub builds keep increasing the version code and use the stored signing key for in-place updates. `Delta.apk` remains as a compatibility download. Local release builds also write a versioned copy next to the standard Android Studio output.
 
 Widgets lay out by size class (one cell, a row, a block, a tall block), dropping the least useful line first as they shrink and adding detail as they grow. Figures are large with small units, text shrinks only to a readable floor before a shorter wording takes over, and values never end in an ellipsis. Tubik controls and data modules follow the saved transparency and blur. Repeated interface guidance is reduced to essential access, validation and data context.
 

@@ -6,185 +6,212 @@ import androidx.compose.foundation.gestures.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.graphics.toArgb
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.PathEffect
-import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.input.pointer.*
-import androidx.compose.ui.platform.LocalHapticFeedback
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
-import androidx.compose.ui.semantics.*
-import androidx.compose.ui.unit.dp
-import java.time.LocalDate
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.*
+import androidx.compose.ui.graphics.drawscope.clipRect
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.semantics.*
+import androidx.compose.ui.unit.dp
+import io.github.ebziboi.delta.data.ChartStyle
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.Job
-import androidx.compose.runtime.saveable.listSaver
-import kotlin.math.abs
-import kotlin.math.roundToLong
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
+import kotlin.math.*
 
-internal data class RecordedValue(val day:LocalDate,val value:Double)
 internal data class RecordedSeries(val id:String,val label:String,val color:Color,val values:List<RecordedValue>,
-                                   val format:(Double)->String,val bars:Boolean=false,val ceiling:Double?=null,val typical:Double?=null)
-internal fun latestRecordedDay(series:List<RecordedSeries>,first:Long,last:Long):LocalDate? = series.flatMap {it.values}
-    .filter {it.day.toEpochDay() in first..last}.maxOfOrNull {it.day}
+    val format:(Double)->String,val bars:Boolean=false,val ceiling:Double?=null,val typical:Double?=null,val derived:Boolean=false)
+internal fun latestRecordedDay(series:List<RecordedSeries>,first:Long,last:Long):LocalDate?=series.flatMap {it.values}.filter {it.day.toEpochDay() in first..last}.maxOfOrNull {it.day}
 
-/** Shared date-only viewport. Empty dates never become measurements. */
-@Composable
-internal fun RecordedChart(series:List<RecordedSeries>,start:LocalDate,end:LocalDate,description:String,
-                           onSelected:(LocalDate?)->Unit={},selectedDay:LocalDate?=null,onDoubleTap:(()->Unit)?=null,
-                           trend:Boolean=false,connectDots:Boolean=true,periodPicker:Boolean=true) {
-    val scope=rememberCoroutineScope();var period by rememberSaveable {mutableStateOf(ChartPeriod.MONTHLY)}
-    val colors=LocalDeltaColors.current;val motion=LocalMotion.current;val haptic=LocalHapticFeedback.current
-    val styledSeries=series.map {it.copy(color=Color(io.github.ebziboi.delta.render.ThemeContrast.readable(it.color.toArgb(),colors.bg)))}
-    val fullFirst=start.toEpochDay().toDouble();val fullLast=end.toEpochDay().toDouble()
-    val fullSpan=(fullLast-fullFirst).coerceAtLeast(1.0)
-    var first by rememberSaveable(start,end) {mutableDoubleStateOf(fullFirst)}
-    var last by rememberSaveable(start,end) {mutableDoubleStateOf(fullLast)}
-    var moving by remember {mutableStateOf(false)}
-    var periodAnimation by remember {mutableStateOf<Job?>(null)}
-    val daySaver=remember {listSaver<LocalDate?,Long>(save={it?.let {listOf(it.toEpochDay())} ?: emptyList()},restore={it.firstOrNull()?.let(LocalDate::ofEpochDay)})}
-    var selected by rememberSaveable(start,end,styledSeries.map {it.id},stateSaver=daySaver) {mutableStateOf<LocalDate?>(null)}
-    val currentSeries by rememberUpdatedState(styledSeries);val selectedCallback by rememberUpdatedState(onSelected)
-    val shownFirst=kotlin.math.ceil(first).toLong();val shownLast=kotlin.math.floor(last).toLong()
-    fun selectLatest() {
-        selected=latestRecordedDay(currentSeries,kotlin.math.ceil(first).toLong(),kotlin.math.floor(last).toLong())
-        selectedCallback(selected)
+@Composable internal fun ChartHeading(title:String,controller:ChartController,periodPicker:Boolean=true) {
+    Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+        Text(title,style=LocalDeltaType.current.title,modifier=Modifier.weight(1f))
+        if(periodPicker) ChartPeriodControl(controller.period,controller::choosePeriod)
     }
-    LaunchedEffect(start,end,styledSeries.map {it.id to it.values}) {if(selectedDay==null) selectLatest()}
-    LaunchedEffect(selectedDay) {if(selectedDay!=null) selected=selectedDay}
-    fun choosePeriod(p:ChartPeriod) {
-        period=p
-        val span=(if(p==ChartPeriod.DAILY) .999 else p.days-1).coerceIn(minOf(.999,fullSpan),fullSpan);val targetLast=(selected?.toEpochDay()?.toDouble() ?: last).coerceIn(fullFirst+span,fullLast)
-        val from=first;val to=last
-        periodAnimation?.cancel()
-        periodAnimation=scope.launch {
-            moving=true
-            animate(0f,1f,animationSpec=tween(if(motion) 380 else 0)) {v,_->first=from+(targetLast-span-from)*v;last=to+(targetLast-to)*v}
-            moving=false;selectLatest()
+}
+@Composable internal fun ChartWindows(controller:ChartController) {
+    SegmentedControl(controller.period.windows,controller.window,{it},Modifier.semantics {contentDescription="Chart time window"}) {controller.chooseWindow(it)}
+}
+
+/** One timeline implementation for weight, body fat, nutrition and derived rhythm data. */
+@Composable internal fun RecordedChart(series:List<RecordedSeries>,start:LocalDate,end:LocalDate,description:String,
+    onSelected:(LocalDate?)->Unit={},selectedDay:LocalDate?=null,onDoubleTap:(()->Unit)?=null,trend:Boolean=false,
+    connectDots:Boolean=true,periodPicker:Boolean=true,controller:ChartController?=null,header:String?=null,
+    controls:Boolean=true,journeyStart:LocalDate?=null,weekStartsOn:Int=0,fixedWindow:Boolean=false,
+    onWindowEnd:((LocalDate)->Unit)?=null,minimumYSpan:Double=1.0,target:Double?=null,historyStart:LocalDate?=null,readingNavigation:Boolean=false) {
+    val profile=controller ?: rememberChartController(description,if(trend) ChartStyle.TREND else if(connectDots) ChartStyle.CONNECTED else ChartStyle.DOTS)
+    val fixed=fixedWindow || !periodPicker
+    val averaging=if(fixed) ChartPeriod.DAILY else profile.period
+    val colors=LocalDeltaColors.current;val motion=LocalMotion.current;val haptics=LocalHapticFeedback.current;val scope=rememberCoroutineScope()
+    val raw=remember(series,averaging,weekStartsOn,end,fixed) {series.map {it.copy(values=aggregateReadings(it.values,averaging,weekStartsOn,if(fixed) LocalDate.now() else end))}}
+    val styled=raw.map {it.copy(color=Color(io.github.ebziboi.delta.render.ThemeContrast.readable(it.color.toArgb(),colors.bg)))}
+    val oldest=historyStart ?: series.flatMap {it.values}.minOfOrNull {it.day} ?: start
+    val nominalFirst=if(fixed) start else chartWindowStart(profile.window,end,journeyStart ?: start,oldest,averaging)
+    val targetSpan=(end.toEpochDay()-nominalFirst.toEpochDay()).toFloat().coerceAtLeast(1f)
+    val spanAnimation=remember(description) {Animatable(targetSpan)}
+    var resizing by remember {mutableStateOf(false)}
+    LaunchedEffect(targetSpan) {resizing=true;try {spanAnimation.animateTo(targetSpan,tween(if(motion) 320 else 0))} finally {resizing=false}}
+    val span=spanAnimation.value.toDouble()
+    val earliest=if(fixed) io.github.ebziboi.delta.data.MetricDetails.weekStart(oldest,weekStartsOn) else oldest
+    val minFirst=minOf(earliest.toEpochDay().toDouble(),nominalFirst.toEpochDay().toDouble())
+    val maxLast=if(fixed) io.github.ebziboi.delta.data.MetricDetails.weekStart(LocalDate.now(),weekStartsOn).plusDays(6).toEpochDay().toDouble() else end.toEpochDay().toDouble()
+    val minLast=minOf(maxLast,minFirst+span)
+    var right by rememberSaveable(description,nominalFirst,end,averaging,profile.revision) {mutableDoubleStateOf(end.toEpochDay().toDouble())}
+    right=right.coerceIn(minLast,maxLast)
+    val left=right-span
+    var width by remember {mutableFloatStateOf(1f)}
+    var selectedEpoch by rememberSaveable(description) {mutableStateOf<Long?>(null)}
+    var snapping by remember {mutableStateOf(false)}
+    val currentSeries by rememberUpdatedState(styled)
+    val selectedCallback by rememberUpdatedState(onSelected)
+    val windowCallback by rememberUpdatedState(onWindowEnd)
+    val currentSpan by rememberUpdatedState(span);val currentMin by rememberUpdatedState(minLast);val currentMax by rememberUpdatedState(maxLast)
+    val scroll=rememberScrollableState {delta->
+        right=(right-delta/width.coerceAtLeast(1f)*currentSpan).coerceIn(currentMin,currentMax)
+        delta
+    }
+    val moving=scroll.isScrollInProgress || snapping || resizing
+    var scrolled by remember {mutableStateOf(false)}
+    fun selectRightmost() {
+        val chosen=currentSeries.flatMap {it.values}.filter {it.day.toEpochDay().toDouble() in (right-currentSpan)..right}.maxOfOrNull {it.day}
+        selectedEpoch=chosen?.toEpochDay();selectedCallback(chosen)
+        profile.visibleFirst=LocalDate.ofEpochDay(ceil(right-currentSpan).toLong());profile.visibleLast=LocalDate.ofEpochDay(floor(right).toLong())
+    }
+    LaunchedEffect(description,averaging,profile.window,profile.revision,start,end,raw.map {it.id to it.values}) {
+        if(selectedDay==null) selectRightmost() else selectedEpoch=selectedDay.toEpochDay()
+    }
+    LaunchedEffect(selectedDay) {selectedDay?.let {selectedEpoch=it.toEpochDay()}}
+    LaunchedEffect(scroll.isScrollInProgress,resizing) {
+        if(scroll.isScrollInProgress) scrolled=true
+        if(!scroll.isScrollInProgress && !resizing) {
+            val next=if(fixed) end.toEpochDay()+round((right-end.toEpochDay())/7)*7 else right.roundToLong().toDouble()
+            val targetRight=next.coerceIn(currentMin,currentMax)
+            if(abs(targetRight-right)>.001) {
+                snapping=true;val before=right
+                try {animate(0f,1f,animationSpec=tween(if(motion) 180 else 0)) {v,_->right=before+(targetRight-before)*v}} finally {snapping=false}
+            }
+            if(selectedDay==null || abs(right-end.toEpochDay())>.1) selectRightmost()
+            if(scrolled) {haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove);scrolled=false}
+            if(fixed && abs(right-end.toEpochDay())>.1) windowCallback?.invoke(LocalDate.ofEpochDay(right.roundToLong()))
         }
     }
-    val fade by animateFloatAsState(if(moving || selected==null) 0f else 1f,if(motion) tween(220) else snap(),label="reading-highlight")
-    val markerX by animateFloatAsState(((selected?.toEpochDay()?.minus(first) ?: 0.0)/(last-first).coerceAtLeast(1.0)).toFloat(),
-        if(motion) spring(dampingRatio=.85f,stiffness=500f) else snap(),label="reading-snap")
+    val fade by animateFloatAsState(if(moving || selectedEpoch==null) 0f else 1f,tween(if(motion) 190 else 0),label="chart-selection-reveal")
+    val marker by animateFloatAsState(((selectedEpoch?.toDouble() ?: right)-left).div(span).toFloat(),if(motion) spring(.85f,480f) else snap(),label="rightmost-reading")
+    val mode=profile.mode
+    var lineMode by remember {mutableStateOf(if(mode==ChartStyle.DOTS) ChartStyle.CONNECTED else mode)}
+    LaunchedEffect(mode) {if(mode!=ChartStyle.DOTS) lineMode=mode}
+    val lineOpacity by animateFloatAsState(if(mode==ChartStyle.DOTS) 0f else 1f,tween(if(motion) 220 else 0),label="chart-line")
+    val smoothing by animateFloatAsState(if(mode==ChartStyle.TREND) 1f else 0f,tween(if(motion) 280 else 0),label="chart-smoothing")
+    val firstShown=LocalDate.ofEpochDay(ceil(left).toLong());val lastShown=LocalDate.ofEpochDay(floor(right).toLong())
     Column(verticalArrangement=Arrangement.spacedBy(10.dp)) {
-        if(periodPicker) Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.End) {ChartPeriodControl(period,::choosePeriod)}
-        FlowRow(horizontalArrangement=Arrangement.spacedBy(16.dp),verticalArrangement=Arrangement.spacedBy(6.dp)) {
-            styledSeries.forEach {s->
-                val range=s.values.filter {it.day>=start && it.day<=end}.map {it.value}
-                Text(s.label+if(range.isEmpty()) " · No data" else " · ${s.format(if(s.bars) 0.0 else range.min())} – ${s.format(s.ceiling ?: range.max())}",
-                    style=LocalDeltaType.current.bodySmall,color=s.color)
+        if(controls) {
+            if(header!=null) ChartHeading(header,profile,periodPicker)
+            else if(periodPicker) Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.End) {ChartPeriodControl(profile.period,profile::choosePeriod)}
+            if(!fixed) ChartWindows(profile)
+        }
+        FlowRow(horizontalArrangement=Arrangement.spacedBy(14.dp),verticalArrangement=Arrangement.spacedBy(5.dp)) {
+            styled.forEach {s->
+                val points=s.values.filter {it.day.toEpochDay().toDouble() in left..right}
+                Text(s.label+if(points.isEmpty()) " · No data" else " · ${s.format(if(s.bars) 0.0 else points.minOf {it.value})} – ${s.format(s.ceiling ?: points.maxOf {it.value})}",style=LocalDeltaType.current.bodySmall,color=s.color)
             }
         }
-        styledSeries.filter {it.bars && it.typical!=null}.forEach {s->
-            Text("30-day median · ${s.format(s.typical!!)}"+(if(s.typical>0) " at 75% height" else ""),style=LocalDeltaType.current.bodySmall,color=Color(colors.textDim))
-        }
-        Canvas(Modifier.fillMaxWidth().height(220.dp).semantics {
+        Canvas(Modifier.fillMaxWidth().height(210.dp).semantics {
             contentDescription=description
-            stateDescription="${LocalDate.ofEpochDay(shownFirst)} to ${LocalDate.ofEpochDay(shownLast)}; "+
-                styledSeries.joinToString {s->"${s.label}: ${s.values.count {it.day.toEpochDay() in shownFirst..shownLast}} recorded days"+(s.ceiling?.let {"; scale ceiling $it; ${s.values.count {p->p.value>it && p.day.toEpochDay() in shownFirst..shownLast}} above scale"} ?: "")}+
-                (selected?.let {"; Selected $it"} ?: "")+(if(trend) "; Smoothed trend" else "; Connected readings")
-        }.pointerInput(start,end,styledSeries.map {it.id}) {
-            detectTapGestures(onDoubleTap=onDoubleTap?.let {callback->{_:Offset->callback()}},onTap={tap->
-                val day=first+(tap.x/size.width).coerceIn(0f,1f)*(last-first)
-                selected=currentSeries.flatMap {it.values}.filter {it.day.toEpochDay().toDouble() in first..last}
-                    .minByOrNull {abs(it.day.toEpochDay()-day)}?.day
-                selectedCallback(selected)
+            stateDescription="${profile.period.label}; ${mode.label}; $firstShown to $lastShown; "+styled.joinToString {s->"${s.label}: ${s.values.count {it.day.toEpochDay().toDouble() in left..right}} ${if(s.derived) "computed" else "recorded"} periods"}+
+                (selectedEpoch?.let {"; Selected ${LocalDate.ofEpochDay(it)}"} ?: "")
+            onClick(label="Change chart style") {profile.cycle();true}
+        }.scrollable(scroll,Orientation.Horizontal).pointerInput(description) {
+            detectTapGestures(onDoubleTap={profile.cycle();haptics.performHapticFeedback(HapticFeedbackType.LongPress)},onTap={tap->
+                val inset=8.dp.toPx();val day=right-currentSpan+((tap.x-inset)/(size.width-2*inset).coerceAtLeast(1f)).coerceIn(0f,1f)*currentSpan
+                val point=currentSeries.flatMap {it.values}.filter {it.day.toEpochDay().toDouble() in (right-currentSpan)..right}.minByOrNull {abs(it.day.toEpochDay()-day)}
+                selectedEpoch=point?.day?.toEpochDay();selectedCallback(point?.day)
+                if(point!=null) haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
             })
-        }.pointerInput(start,end,styledSeries.map {it.id}) {
-            awaitEachGesture {
-                awaitFirstDown(requireUnconsumed=false)
-                var distance=Offset.Zero;var horizontal=false;var vertical=false
-                try {
-                    do {
-                        val event=awaitPointerEvent();val pan=event.calculatePan();distance+=pan
-                        val multiple=event.changes.count {it.pressed}>1
-                        if(!horizontal && !vertical) {
-                            if(event.changes.any {it.isConsumed} || (!multiple && abs(distance.y)>viewConfiguration.touchSlop && abs(distance.y)>=abs(distance.x))) vertical=true
-                            else if(!multiple && abs(distance.x)>viewConfiguration.touchSlop && abs(distance.x)>abs(distance.y)*1.4f) horizontal=true
-                        }
-                        if(horizontal) {
-                            periodAnimation?.cancel();moving=true
-                            val span=(last-first).coerceAtLeast(.999)
-                            val next=span.coerceIn(minOf(.999,fullSpan),fullSpan)
-                            val anchor=(event.calculateCentroid(useCurrent=false).x/size.width).takeIf {it.isFinite()}?.coerceIn(0f,1f) ?: .5f
-                            val from=(first+span*anchor-next*anchor-pan.x/size.width*span).coerceIn(fullFirst,fullLast-next)
-                            first=from;last=from+next
-                            event.changes.forEach {if(it.positionChanged()) it.consume()}
-                        }
-                    } while(event.changes.any {it.pressed})
-                } finally {
-                    if(horizontal) {
-                        selected=latestRecordedDay(currentSeries,kotlin.math.ceil(first).toLong(),kotlin.math.floor(last).toLong())
-                        selectedCallback(selected);moving=false
-                        if(selected!=null && motion) haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+        }) {
+            width=size.width
+            val inset=8.dp.toPx();val w=size.width-2*inset;val top=8.dp.toPx();val bottom=size.height-8.dp.toPx()
+            fun x(day:LocalDate)=inset+((day.toEpochDay()-left)/span*w).toFloat()
+            drawLine(Color(colors.outline).copy(alpha=.5f),Offset(inset,bottom),Offset(size.width-inset,bottom),1.dp.toPx())
+            clipRect(0f,0f,size.width,size.height) {
+                if(fade>0) drawLine(Color(colors.textDim).copy(alpha=.65f*fade),Offset(inset+marker*w,top),Offset(inset+marker*w,bottom),1.dp.toPx(),pathEffect=PathEffect.dashPathEffect(floatArrayOf(2.dp.toPx(),4.dp.toPx())))
+                styled.forEach {s->
+                    val visible=s.values.filter {it.day.toEpochDay().toDouble() in left..right}
+                    val neighbours=s.values.filter {it.day.toEpochDay().toDouble() in (left-35)..(right+35)}
+                    val rawLow=visible.minOfOrNull {it.value} ?: 0.0;val rawHigh=visible.maxOfOrNull {it.value} ?: 1.0
+                    val extent=(rawHigh-rawLow).coerceAtLeast(minimumYSpan)
+                    val low=if(s.bars) 0.0 else (rawLow+rawHigh-extent)/2-extent*.12
+                    val high=if(s.bars) (s.ceiling ?: rawHigh).coerceAtLeast(.001) else (rawLow+rawHigh+extent)/2+extent*.12
+                    fun y(value:Double)=bottom-((value.coerceIn(low,high)-low)/(high-low).coerceAtLeast(.001)*(bottom-top)).toFloat()
+                    if(target!=null && styled.size==1 && target in low..high) drawLine(s.color.copy(alpha=.3f),Offset(inset,y(target)),Offset(size.width-inset,y(target)),1.dp.toPx(),pathEffect=PathEffect.dashPathEffect(floatArrayOf(4.dp.toPx(),4.dp.toPx())))
+                    if(lineOpacity>0 && neighbours.size>1) {
+                        val smooth=smoothRecorded(neighbours)
+                        val plot=neighbours.mapIndexed {i,p->p.copy(value=p.value+(smooth[i].value-p.value)*smoothing)}
+                        val path=Path()
+                        if(lineMode==ChartStyle.TREND) {
+                            monotoneSpline(plot.map {SplinePoint(x(it.day),y(it.value))}).forEachIndexed {i,c->
+                                if(i==0) path.moveTo(c.first.x,c.first.y)
+                                path.cubicTo(c.c1.x,c.c1.y,c.c2.x,c.c2.y,c.end.x,c.end.y)
+                            }
+                        } else plot.forEachIndexed {i,p->if(i==0) path.moveTo(x(p.day),y(p.value)) else path.lineTo(x(p.day),y(p.value))}
+                        drawPath(path,s.color.copy(alpha=.9f*lineOpacity),style=androidx.compose.ui.graphics.drawscope.Stroke(2.2.dp.toPx(),cap=StrokeCap.Round,join=StrokeJoin.Round))
+                    }
+                    val radius=minOf(2.8.dp.toPx(),(w/visible.size.coerceAtLeast(1)*.3f).coerceAtLeast(1.2.dp.toPx()))
+                    visible.forEach {p->
+                        val at=Offset(x(p.day),y(p.value))
+                        if(p.value>high && s.bars) {
+                            val triangle=Path().apply {moveTo(at.x,0f);lineTo(at.x-4.dp.toPx(),7.dp.toPx());lineTo(at.x+4.dp.toPx(),7.dp.toPx());close()}
+                            drawPath(triangle,Color(0xFFF16F68))
+                        } else drawCircle(s.color.copy(alpha=if(mode==ChartStyle.TREND) .45f else 1f),radius,at)
+                    }
+                    visible.firstOrNull {it.day.toEpochDay()==selectedEpoch}?.let {p->
+                        val at=Offset(inset+marker*w,y(p.value))
+                        drawCircle(s.color.copy(alpha=.17f*fade),9.dp.toPx(),at)
+                        drawCircle(Color(colors.bg).copy(alpha=fade),5.dp.toPx(),at)
+                        drawCircle(s.color.copy(alpha=fade),3.5.dp.toPx(),at)
                     }
                 }
             }
-        }) {
-            val inset=8.dp.toPx();val w=size.width-2*inset;val h=size.height-16.dp.toPx()
-            fun x(day:LocalDate)=inset+((day.toEpochDay()-first)/(last-first).coerceAtLeast(1.0)*w).toFloat()
-            drawLine(Color(colors.outline).copy(alpha=.45f),Offset(inset,h),Offset(size.width-inset,h),1.dp.toPx())
-            if(fade>0) {
-                val px=inset+markerX.coerceIn(0f,1f)*w
-                drawLine(Color(colors.textDim).copy(alpha=fade*.6f),Offset(px,0f),Offset(px,h),1.dp.toPx(),pathEffect=PathEffect.dashPathEffect(floatArrayOf(2.dp.toPx(),4.dp.toPx())))
-            }
-            styledSeries.forEach {s->
-                val smoothed=if(trend && !s.bars) smoothRecorded(s.values) else s.values
-                val all=s.values.filter {it.day>=start && it.day<=end};val values=all.filter {it.day.toEpochDay().toDouble() in first..last}
-                val low=if(s.bars) 0.0 else (all.minOfOrNull {it.value} ?: 0.0)-.5
-                val high=if(s.bars) s.ceiling ?: (all.maxOfOrNull {it.value} ?: 1.0).coerceAtLeast(1e-12) else (all.maxOfOrNull {it.value} ?: 1.0)+.5
-                fun y(v:Double)=8.dp.toPx()+(1-(v.coerceIn(low,high)-low)/(high-low).coerceAtLeast(1e-12))*(h-8.dp.toPx())
-                if(trend && !s.bars) {
-                    val smooth=smoothed.filter {it.day.toEpochDay().toDouble() in first..last}
-                    smooth.zipWithNext().forEach {(a,b)->drawLine(s.color.copy(alpha=.9f),Offset(x(a.day),y(a.value).toFloat()),Offset(x(b.day),y(b.value).toFloat()),2.5.dp.toPx(),StrokeCap.Round)}
-                }
-                var previous:RecordedValue?=null
-                values.forEach {p->
-                    val px=x(p.day);val py=y(p.value).toFloat()
-                    if(s.bars) {
-                        val width=(w/(last-first+1)*.55f).toFloat().coerceIn(2.dp.toPx(),26.dp.toPx())
-                        if(p.value>0) drawRoundRect(s.color.copy(alpha=.65f),Offset(px-width/2,py),Size(width,(h-py).coerceAtLeast(1f)),androidx.compose.ui.geometry.CornerRadius(3.dp.toPx()))
-                    } else if(connectDots && !trend) previous?.let {prev->drawLine(s.color.copy(alpha=.75f),Offset(x(prev.day),y(prev.value).toFloat()),Offset(px,py),2.dp.toPx(),StrokeCap.Round)}
-                    if(s.bars && p.value>high) {
-                        val triangle=androidx.compose.ui.graphics.Path().apply {
-                            moveTo(px,1.dp.toPx());lineTo(px-4.dp.toPx(),7.dp.toPx());lineTo(px+4.dp.toPx(),7.dp.toPx());close()
-                        }
-                        drawPath(triangle,Color(colors.warn))
-                    } else drawCircle(s.color,2.8.dp.toPx(),Offset(px,py))
-                    previous=p
-                }
-                selected?.let {day->values.firstOrNull {it.day==day}?.let {p->
-                    val px=inset+markerX.coerceIn(0f,1f)*w;val py=y(p.value).toFloat()
-                    drawCircle(s.color.copy(alpha=fade*.15f),9.dp.toPx(),Offset(px,py))
-                    drawCircle(Color(colors.bg).copy(alpha=fade),5.dp.toPx(),Offset(px,py))
-                    drawCircle(s.color.copy(alpha=fade),3.5.dp.toPx(),Offset(px,py))
-                }}
-            }
-
         }
-        if(styledSeries.any {s->s.ceiling?.let {cap->s.values.any {it.value>cap && it.day.toEpochDay().toDouble() in first..last}}==true})
-            Text("△ Above chart scale · select for full value",style=LocalDeltaType.current.bodySmall,color=Color(colors.textDim))
         Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween) {
-            Text(LocalDate.ofEpochDay(shownFirst).format(java.time.format.DateTimeFormatter.ofPattern("d MMM")),style=LocalDeltaType.current.bodySmall)
-            Text((if(LocalDate.ofEpochDay(shownLast)==LocalDate.now()) "Today · " else "")+LocalDate.ofEpochDay(shownLast).format(java.time.format.DateTimeFormatter.ofPattern("d MMM")),style=LocalDeltaType.current.bodySmall)
+            Text(firstShown.format(DateTimeFormatter.ofPattern("d MMM")),style=LocalDeltaType.current.bodySmall)
+            Text(lastShown.format(DateTimeFormatter.ofPattern("d MMM yyyy")),style=LocalDeltaType.current.bodySmall)
         }
-            Column(Modifier.graphicsLayer {alpha=fade},verticalArrangement=Arrangement.spacedBy(4.dp)) {
-                selected?.let {day->
-                    Text(day.format(java.time.format.DateTimeFormatter.ofPattern("EEE, d MMM yyyy")),style=LocalDeltaType.current.bodyStrong)
-                    styledSeries.forEach {s->s.values.firstOrNull {it.day==day}?.let {Text("${s.label} · ${s.format(it.value)}",style=LocalDeltaType.current.bodySmall,color=s.color)}}
+        Column(Modifier.graphicsLayer {alpha=fade},verticalArrangement=Arrangement.spacedBy(5.dp)) {
+            val selected=selectedEpoch?.let(LocalDate::ofEpochDay)
+            selected?.let {day->
+                val rows=styled.mapNotNull {s->s.values.firstOrNull {it.day==day}?.let {s to it}}
+                val first=rows.minOfOrNull {it.second.first} ?: day;val last=rows.maxOfOrNull {it.second.last} ?: day
+                val label=if(averaging==ChartPeriod.DAILY) day.format(DateTimeFormatter.ofPattern("EEE, d MMM yyyy")) else
+                    "${first.format(DateTimeFormatter.ofPattern("d MMM"))} – ${last.format(DateTimeFormatter.ofPattern("d MMM yyyy"))}"+
+                        if(last==LocalDate.now()) (if(averaging==ChartPeriod.MONTHLY) " · month to date" else " · week to date") else ""
+                Text(label,style=LocalDeltaType.current.bodyStrong)
+                styled.forEach {s->
+                    val p=s.values.firstOrNull {it.day==day}
+                    Text("${s.label} · ${p?.let {s.format(it.value)} ?: "—"}"+(if(p!=null && averaging!=ChartPeriod.DAILY) " average · ${p.recordedDays} recorded ${if(p.recordedDays==1) "day" else "days"}" else "")+(if(p?.partial==true) " · partial labels" else ""),style=LocalDeltaType.current.bodySmall,color=s.color)
                 }
             }
+        }
+        if(readingNavigation) {
+            val dates=styled.flatMap {it.values}.map {it.day.toEpochDay()}.distinct().sorted()
+            val index=dates.indexOf(selectedEpoch)
+            fun navigate(next:Int) {
+                val value=dates.getOrNull(next) ?: return
+                if(value<left) right=(value+span).coerceIn(minLast,maxLast)
+                else if(value>right) right=value.toDouble().coerceIn(minLast,maxLast)
+                selectedEpoch=value;selectedCallback(LocalDate.ofEpochDay(value))
+            }
+            Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(24.dp,Alignment.CenterHorizontally)) {
+                TextAction("Previous",{navigate(index-1)},enabled=index>0)
+                TextAction("Next",{navigate(index+1)},enabled=index>=0 && index<dates.lastIndex)
+            }
+        }
     }
 }
-
 internal fun smoothRecorded(values:List<RecordedValue>):List<RecordedValue> {
-    val sorted=values.sortedBy {it.day}
-    var smoothed=sorted.firstOrNull()?.value ?: return emptyList()
-    return sorted.map {p->smoothed=smoothed*.65+p.value*.35;p.copy(value=smoothed)}
+    val sorted=values.sortedBy {it.day};var smooth=sorted.firstOrNull()?.value ?: return emptyList()
+    return sorted.map {p->smooth=smooth*.65+p.value*.35;p.copy(value=smooth)}
 }

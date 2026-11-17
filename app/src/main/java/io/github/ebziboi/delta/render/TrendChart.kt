@@ -229,21 +229,20 @@ object TrendChart {
         val drawing = canvas.save()
         canvas.clipRect(plot.left - 7f * density, plot.top - 7f * density,
             plot.left + (plot.width() + 7f * density) * reveal.coerceIn(0f, 1f), plot.bottom + 7f * density)
-        fun value(point: TrendPoint) = if (spec.style == ChartStyle.CONNECTED) point.kg else point.trendKg
+        fun value(point: TrendPoint) = if (spec.style != ChartStyle.TREND) point.kg else point.trendKg
 
         // Fill under the selected line.
         val line = Path()
         val fill = Path()
-        points.forEachIndexed { index, point ->
-            val px = x(point.epochMs)
-            val py = y(value(point))
-            if (index == 0) {
-                line.moveTo(px, py)
-                fill.moveTo(px, py)
-            } else {
-                line.lineTo(px, py)
-                fill.lineTo(px, py)
+        if(spec.style==ChartStyle.TREND) {
+            io.github.ebziboi.delta.ui.monotoneSpline(points.map {io.github.ebziboi.delta.ui.SplinePoint(x(it.epochMs),y(value(it)))}).forEachIndexed {index,c->
+                if(index==0) {line.moveTo(c.first.x,c.first.y);fill.moveTo(c.first.x,c.first.y)}
+                line.cubicTo(c.c1.x,c.c1.y,c.c2.x,c.c2.y,c.end.x,c.end.y)
+                fill.cubicTo(c.c1.x,c.c1.y,c.c2.x,c.c2.y,c.end.x,c.end.y)
             }
+        } else points.forEachIndexed {index,point->
+            val px=x(point.epochMs);val py=y(value(point))
+            if(index==0) {line.moveTo(px,py);fill.moveTo(px,py)} else {line.lineTo(px,py);fill.lineTo(px,py)}
         }
         fill.lineTo(x(points.last().epochMs), plot.bottom)
         fill.lineTo(x(firstMs), plot.bottom)
@@ -260,16 +259,16 @@ object TrendChart {
                 Shader.TileMode.CLAMP,
             )
         }
-        canvas.drawPath(fill, wash)
+        if(spec.style!=ChartStyle.DOTS) canvas.drawPath(fill, wash)
 
         // Raw weigh-ins.
         val raw = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             style = Paint.Style.FILL
-            color = if (spec.style == ChartStyle.CONNECTED) colors.accent else Palettes.withAlpha(colors.textDim, 0x8C)
+            color = if (spec.style != ChartStyle.TREND) colors.accent else Palettes.withAlpha(colors.textDim, 0x8C)
         }
         // Dots shrink where readings crowd together, so a dense history reads as a line rather than a string of beads.
         val spacing = (x(points.last().epochMs) - x(points.first().epochMs)) / (points.size - 1).coerceAtLeast(1)
-        val rawRadius = min((if (points.size > 150) 1.1f else if (spec.style == ChartStyle.CONNECTED) 2.5f else 1.7f) * density,
+        val rawRadius = min((if (points.size > 150) 1.1f else if (spec.style != ChartStyle.TREND) 2.8f else 1.7f) * density,
             max(.9f * density, spacing * .3f))
         for (point in points) {
             canvas.drawCircle(x(point.epochMs), y(point.kg), rawRadius, raw)
@@ -285,7 +284,7 @@ object TrendChart {
         }
         if (contrastShadow) stroke.setShadowLayer(2f * density, 0f, density, if (colors.isLight) android.graphics.Color.WHITE else android.graphics.Color.BLACK)
         else if (colors.glow) stroke.setShadowLayer(6f * density, 0f, 0f, colors.accent)
-        canvas.drawPath(line, stroke)
+        if(spec.style!=ChartStyle.DOTS) canvas.drawPath(line, stroke)
 
         // Where things stand now.
         val last = points.last()

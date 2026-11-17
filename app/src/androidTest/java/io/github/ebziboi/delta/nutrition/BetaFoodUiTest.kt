@@ -54,14 +54,14 @@ class BetaFoodUiTest {
                 assertTrue(chart.fetchSemanticsNode().config[SemanticsProperties.StateDescription].contains("scale ceiling 2666."))
                 shot("$style-capped-chart")
                 click("Nutrition details");compose.onNodeWithText("Nutrition trends",ignoreCase=true).assertExists()
-                compose.onNodeWithContentDescription("Back").performClick()
+                compose.runOnIdle {compose.activity.onBackPressedDispatcher.onBackPressed()};compose.waitForIdle()
                 compose.onNodeWithContentDescription("Combined trends graph").assertExists()
                 compose.onNodeWithText("Daily nutrition",ignoreCase=true).assertDoesNotExist()
                 click("Nutrition details");compose.runOnIdle {compose.activity.onBackPressedDispatcher.onBackPressed()}
                 compose.onNodeWithContentDescription("Combined trends graph").assertExists()
             }
             click("Diary");click("Charts")
-            compose.onNodeWithContentDescription("Back").performClick();compose.onNodeWithText("Daily nutrition",ignoreCase=true).assertExists()
+            compose.runOnIdle {compose.activity.onBackPressedDispatcher.onBackPressed()};compose.waitForIdle();compose.onNodeWithText("Daily nutrition",ignoreCase=true).assertExists()
             // Store selection uses a filter menu, with no live network request needed to select it.
             compose.onNodeWithContentDescription("Add food").performClick();click("Search");click("All stores");click("Tesco")
             compose.onNodeWithText("Tesco").assertExists();shot("store-filter")

@@ -165,7 +165,7 @@ internal fun FoodImportPage(vm:NutritionViewModel,initialBarcode:String,padding:
     })}
     if(textEditor) AlertDialog(onDismissRequest={textEditor=false},title={Text("Recognised label text")},text={
         OutlinedTextField(transcript,{transcript=it.take(18000)},Modifier.fillMaxWidth().heightIn(min=200.dp,max=420.dp),label={Text("Label transcription")})
-    },confirmButton={TextButton({val read=LabelParser.parse(transcript);labelJson=read.json();val column=read.columns[read.best];labelUnit=column.basis.unit;labelValuesJson=column.per100().toJson().toString();checked=emptyList();uncertain=emptyList();reviewed=false;textEditor=false}) {Text("Read text")}},dismissButton={TextButton({textEditor=false}) {Text("Cancel")}})
+    },confirmButton={HapticTextButton({val read=LabelParser.parse(transcript);labelJson=read.json();val column=read.columns[read.best];labelUnit=column.basis.unit;labelValuesJson=column.per100().toJson().toString();checked=emptyList();uncertain=emptyList();reviewed=false;textEditor=false}) {Text("Read text")}},dismissButton={HapticTextButton({textEditor=false}) {Text("Cancel")}})
 }
 
 @Composable
@@ -177,7 +177,7 @@ private fun LabelReadControls(read:LabelRead,title:String,onUse:(Nutrients,FoodU
     var menu by remember {mutableStateOf(false)}
     if(read.columns.size>1) Box {
         SecondaryButton("Column: ${column.basis.title}",{menu=true})
-        DropdownMenu(menu,{menu=false}) {read.columns.forEachIndexed {i,c->DropdownMenuItem({Text(c.basis.title)},{selected=i;menu=false})}}
+        DropdownMenu(menu,{menu=false}) {read.columns.forEachIndexed {i,c->HapticDropdownMenuItem({Text(c.basis.title)},{selected=i;menu=false})}}
     }
     Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
         NumberField(amount,{amount=it},"Values per",Modifier.weight(1f))

@@ -33,19 +33,23 @@ fun MetricDetailScreen(vm: AppViewModel, settings: AppSettings, initial: DetailM
     val metrics = listOf(DetailMetric.RATE,DetailMetric.AVERAGE,DetailMetric.STREAK)
     val pager = rememberPagerState(initialPage = metrics.indexOf(initial).coerceAtLeast(0), pageCount = {3})
     val scope = rememberCoroutineScope(); val motion = LocalMotion.current
+    val feedback=androidx.compose.ui.platform.LocalHapticFeedback.current
+    var previousPage by remember {mutableIntStateOf(pager.settledPage)}
+    LaunchedEffect(pager.settledPage) {if(previousPage!=pager.settledPage) {previousPage=pager.settledPage;feedback.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.TextHandleMove)}}
     var weekEpoch by rememberSaveable { mutableStateOf(MetricDetails.weekStart(LocalDate.now(),settings.weekStartsOn).toEpochDay()) }
     var selectedEpoch by rememberSaveable { mutableStateOf(LocalDate.now().toEpochDay()) }
+    val graphDays by produceState<List<MetricDay>>(emptyList(),entries) {value=kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {MetricDetails.graphDays(entries)}}
     if(initial==DetailMetric.GOAL) {
         snap?.let {ForecastDetail(it,entries,settings,padding,onBack)}
     } else Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(top=padding.calculateTopPadding(),bottom=padding.calculateBottomPadding()+8.dp),verticalArrangement=Arrangement.spacedBy(18.dp)) {
         Column(Modifier.padding(horizontal=Spacing.screen),verticalArrangement=Arrangement.spacedBy(18.dp)) {
-            ScreenHeader("Your rhythm",eyebrow="PROGRESS DETAILS",leading={TextAction("Back",onBack)})
+            ScreenHeader("Your rhythm",eyebrow="PROGRESS DETAILS")
             SegmentedControl(metrics,metrics[pager.currentPage],{when(it) {DetailMetric.RATE->"Rate";DetailMetric.AVERAGE->"Average";else->"Streak"}},Modifier.fillMaxWidth()) {
                 scope.launch {if(motion) pager.animateScrollToPage(metrics.indexOf(it)) else pager.scrollToPage(metrics.indexOf(it))}
             }
         }
         HorizontalPager(pager,Modifier.fillMaxWidth(),pageSpacing=16.dp,flingBehavior=PagerDefaults.flingBehavior(pager,snapPositionalThreshold=.25f),verticalAlignment=Alignment.Top) {page->
-            Box(Modifier.fillMaxWidth().padding(horizontal=Spacing.screen)) {MetricCalendar(metrics[page],entries,settings,weekEpoch,{weekEpoch=it},selectedEpoch,{selectedEpoch=it}) {index->
+            Box(Modifier.fillMaxWidth().padding(horizontal=Spacing.screen)) {MetricCalendar(metrics[page],entries,graphDays,settings,weekEpoch,{weekEpoch=it},selectedEpoch,{selectedEpoch=it}) {index->
                 weekEpoch=MetricDetails.weekStart(LocalDate.ofEpochDay(selectedEpoch),index).toEpochDay();vm.update {it.copy(weekStartsOn=index)}
             }}
         }
@@ -53,7 +57,7 @@ fun MetricDetailScreen(vm: AppViewModel, settings: AppSettings, initial: DetailM
 }
 
 @Composable
-private fun MetricCalendar(metric: DetailMetric, entries: List<WeightEntry>, settings: AppSettings,
+private fun MetricCalendar(metric: DetailMetric, entries: List<WeightEntry>, graphDays:List<MetricDay>, settings: AppSettings,
                            weekEpoch: Long, onWeek: (Long) -> Unit, selectedEpoch: Long, onDay: (Long) -> Unit,onStart:(Int)->Unit) {
     val today=LocalDate.now();val currentWeek=MetricDetails.weekStart(today,settings.weekStartsOn)
     val first=entries.minOfOrNull { Instant.ofEpochMilli(it.epochMs).atZone(ZoneId.systemDefault()).toLocalDate() } ?: today
@@ -62,6 +66,7 @@ private fun MetricCalendar(metric: DetailMetric, entries: List<WeightEntry>, set
     val days=remember(entries,settings,week,today) { MetricDetails.days(entries,settings,week,today) }
     val selected=days.firstOrNull { it.day.toEpochDay()==selectedEpoch && it.day<=today } ?: days.last { it.day<=today }
     val c=LocalDeltaColors.current; val type=LocalDeltaType.current;val motion=LocalMotion.current
+    val feedback=androidx.compose.ui.platform.LocalHapticFeedback.current
     fun value(day: MetricDay): String = when(metric) {
         DetailMetric.RATE -> day.rateKg?.let { Units.rate(it,settings.unit) } ?: "—"
         DetailMetric.AVERAGE -> day.averageKg?.let { Units.weightShort(it,settings.unit) } ?: "—"
@@ -88,6 +93,7 @@ private fun MetricCalendar(metric: DetailMetric, entries: List<WeightEntry>, set
             }
             fun changeWeek(step:Int) {
                 val next=week.plusWeeks(step.toLong()).coerceIn(firstWeek,currentWeek)
+                if(next!=week) feedback.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.TextHandleMove)
                 onWeek(next.toEpochDay());onDay(selected.day.plusWeeks(step.toLong()).coerceIn(next,minOf(next.plusDays(6),today)).toEpochDay())
             }
             Column(Modifier.fillMaxWidth().semantics {contentDescription="Swipe week"}.pointerInput(week,firstWeek,currentWeek) {
@@ -131,14 +137,15 @@ private fun MetricCalendar(metric: DetailMetric, entries: List<WeightEntry>, set
             }
         }
         ContentSection(tone=ModuleTone.VIOLET) {
-            Text("This week",style=type.title)
-            val values=days.filter {it.day<=today}.mapNotNull {d->
-                val v=when(metric) {DetailMetric.RATE->d.rateKg;DetailMetric.AVERAGE->d.averageKg;else->d.streak.toDouble().takeIf {d.readings>0}}
+            val profile=rememberChartController("rhythm-${metric.name}",ChartStyle.DOTS)
+            val values=graphDays.mapNotNull {d->
+                val v=when(metric) {DetailMetric.RATE->d.rateKg;DetailMetric.AVERAGE->d.averageKg;else->d.streak.toDouble()}
                 v?.let {RecordedValue(d.day,it)}
             }
-            if(values.isEmpty()) Text("No values in this week",style=type.bodySmall)
-            else RecordedChart(listOf(RecordedSeries("rhythm-${metric.name}",metric.label,Color(LocalDeltaColors.current.accent),values,{v->when(metric) {DetailMetric.RATE->Units.rate(v,settings.unit);DetailMetric.AVERAGE->Units.weight(v,settings.unit);else->"${v.toInt()} days"}})),
-                week,week.plusDays(6),"${metric.label} weekly graph",onSelected={d->d?.let {onDay(it.toEpochDay())}},selectedDay=selected.day,connectDots=false,periodPicker=false)
+            RecordedChart(listOf(RecordedSeries("rhythm-${metric.name}",metric.label,Color(LocalDeltaColors.current.accent),values,{v->when(metric) {DetailMetric.RATE->Units.rate(v,settings.unit);DetailMetric.AVERAGE->Units.weight(v,settings.unit);else->"${v.toInt()} days"}},derived=true)),
+                week,week.plusDays(6),"${metric.label} weekly graph",onSelected={d->d?.let {onDay(it.toEpochDay())}},selectedDay=selected.day,
+                controller=profile,header="Week trend",periodPicker=false,fixedWindow=true,weekStartsOn=settings.weekStartsOn,
+                onWindowEnd={last->onWeek(MetricDetails.weekStart(last,settings.weekStartsOn).coerceIn(firstWeek,currentWeek).toEpochDay())})
         }
         ContentSection {
             Text(when(metric) { DetailMetric.RATE -> "How your pace is changing";DetailMetric.AVERAGE -> "A clearer daily signal";else -> "Consistency, one day at a time" },style=type.title)
@@ -163,12 +170,12 @@ private fun ForecastDetail(snap: ProgressSnapshot, entries: List<WeightEntry>, s
     val today=LocalDate.now();val zone=ZoneId.systemDefault()
     val dayWeights=remember(entries) { InsightsCalculator.distinctReadings(entries).groupBy { Instant.ofEpochMilli(it.epochMs).atZone(zone).toLocalDate() }
         .filterKeys { it<=today }.toSortedMap().mapValues { (_,v) -> v.map { it.kg }.average() } }
-    val seven=recentPace(dayWeights,7,today);val fourteen=recentPace(dayWeights,14,today)
+    val seven=recentPace(dayWeights,7,today);val fourteen=recentPace(dayWeights,14,today);val monthly=recentPace(dayWeights,30,today)
     val recent=seven.rate;val fortnight=fourteen.rate
     val recentDate=MetricDetails.project(snap.currentKg,snap.targetKg,recent)
     val cards=listOf(CardSlot("summary","Forecast summary"),CardSlot("path","Projection graph"),CardSlot("signals","Recent signals"),CardSlot("quality","Forecast quality"))
     val (order,saveOrder)=rememberPageCardOrder("forecast",cards.map {it.id})
-    ReorderableCards(cards,order,padding,saveOrder,header={ScreenHeader("Your forecast",eyebrow="GOAL BY",leading={TextAction("Back",onBack)})}) {id->when(id) {
+    ReorderableCards(cards,order,padding,saveOrder,header={ScreenHeader("Your forecast",eyebrow="GOAL BY")}) {id->when(id) {
     "summary"->    ContentSection(tone=ModuleTone.SAGE,framed=true) {
         Caption(if(snap.reached) "Goal reached" else "At your recent pace")
         Text(when { snap.reached -> "You made it";snap.targetKg==null -> "Choose a target";else -> snap.projectedDay?.let(Format::day) ?: "No date yet" },style=type.number)
@@ -181,7 +188,7 @@ private fun ForecastDetail(snap: ProgressSnapshot, entries: List<WeightEntry>, s
     }
     "signals"->ContentSection {
         Text("Recent signals",style=type.title)
-        listOf(seven,fourteen).forEach {pace->
+        listOf(seven,fourteen,monthly).forEach {pace->
             Text("Last ${pace.days} days · ${pace.rate?.let {Units.rate(it,settings.unit)} ?: "No rate yet"}",style=type.bodyStrong)
             StatusPill(pace.reliability,Color(if(pace.reliability=="Higher confidence") c.good else c.warn))
             Text(pace.reason,style=type.bodySmall)
@@ -208,7 +215,7 @@ private fun ForecastDetail(snap: ProgressSnapshot, entries: List<WeightEntry>, s
 @Composable
 private fun DirectionButton(label:String,right:Boolean,enabled:Boolean,onClick:()->Unit) {
     val tint=Color(if(LocalAppearance.current.designStyle==DesignStyle.TUBIK) 0xFFF16F68.toInt() else LocalDeltaColors.current.accent).copy(alpha=if(enabled) 1f else .3f)
-    androidx.compose.material3.IconButton(onClick,enabled=enabled,modifier=Modifier.size(44.dp).semantics {contentDescription=label}) {
+    HapticIconButton(onClick,enabled=enabled,modifier=Modifier.size(44.dp).semantics {contentDescription=label}) {
         Canvas(Modifier.size(11.dp)) {
             val path=androidx.compose.ui.graphics.Path().apply {
                 if(right) {moveTo(0f,0f);lineTo(size.width,size.height/2);lineTo(0f,size.height)}

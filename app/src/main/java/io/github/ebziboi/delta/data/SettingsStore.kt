@@ -53,6 +53,7 @@ class SettingsStore(context: Context) {
         val ACCENT = stringPreferencesKey("accent")
         val TYPE_STYLE = stringPreferencesKey("type_style")
         val MOTION = booleanPreferencesKey("motion")
+        val HAPTICS = booleanPreferencesKey("haptics")
         val WEEK_START = longPreferencesKey("week_starts_on")
         val HOME_CARDS = stringPreferencesKey("home_cards_v1")
         val WEIGHT_CARDS = stringPreferencesKey("weight_cards_v1")
@@ -134,7 +135,7 @@ class SettingsStore(context: Context) {
     suspend fun importForBeta(array: org.json.JSONArray) {
         require(appContext.packageName in setOf("io.github.ebziboi.delta.beta","io.github.ebziboi.delta")) { "Only the beta can import a snapshot" }
         require(array.length()<=100)
-        val allowed=setOf(Keys.ONBOARDED,Keys.TARGET_BODY_FAT,Keys.TARGET_KG,Keys.START_DAY,Keys.TARGET_DAY,Keys.UNIT,Keys.THEME,Keys.ACCENT,Keys.TYPE_STYLE,Keys.MOTION,Keys.WEEK_START,Keys.HOME_CARDS,Keys.WEIGHT_CARDS,Keys.BODY_FAT_CARDS,Keys.BODY_FAT_CHART,Keys.APP_CHART,Keys.WIDGET_CHART,Keys.PROJECTION,Keys.WIDGET_GLASS,Keys.WIDGET_THEME,Keys.WIDGET_OPACITY_DARK,Keys.WIDGET_OPACITY_LIGHT,Keys.LAST_SYNC,Keys.PROGRESS_DISPLAY,Keys.PROGRESS_BAR_STYLE,Keys.PERCENTAGE_DESIGN,Keys.APP_ICON,Keys.APPEARANCE,Keys.GLASS_APPEARANCE,Keys.TUBIK_APPEARANCE,Keys.GLASS_LEGACY).map {it.name}.toSet()
+        val allowed=setOf(Keys.ONBOARDED,Keys.TARGET_BODY_FAT,Keys.TARGET_KG,Keys.START_DAY,Keys.TARGET_DAY,Keys.UNIT,Keys.THEME,Keys.ACCENT,Keys.TYPE_STYLE,Keys.MOTION,Keys.HAPTICS,Keys.WEEK_START,Keys.HOME_CARDS,Keys.WEIGHT_CARDS,Keys.BODY_FAT_CARDS,Keys.BODY_FAT_CHART,Keys.APP_CHART,Keys.WIDGET_CHART,Keys.PROJECTION,Keys.WIDGET_GLASS,Keys.WIDGET_THEME,Keys.WIDGET_OPACITY_DARK,Keys.WIDGET_OPACITY_LIGHT,Keys.LAST_SYNC,Keys.PROGRESS_DISPLAY,Keys.PROGRESS_BAR_STYLE,Keys.PERCENTAGE_DESIGN,Keys.APP_ICON,Keys.APPEARANCE,Keys.GLASS_APPEARANCE,Keys.TUBIK_APPEARANCE,Keys.GLASS_LEGACY).map {it.name}.toSet()
         val safe=androidx.datastore.preferences.core.mutablePreferencesOf()
         for(index in 0 until array.length()) {
             val j=array.getJSONObject(index);val name=j.getString("key")
@@ -179,6 +180,7 @@ class SettingsStore(context: Context) {
             accent = named(prefs[Keys.ACCENT], defaults.accent),
             typeStyle = named(prefs[Keys.TYPE_STYLE], defaults.typeStyle),
             motion = prefs[Keys.MOTION] ?: defaults.motion,
+            haptics = prefs[Keys.HAPTICS] ?: defaults.haptics,
             bodyFatChart = named(prefs[Keys.BODY_FAT_CHART], defaults.bodyFatChart),
             weekStartsOn = (prefs[Keys.WEEK_START] ?: 0L).coerceIn(0L,6L).toInt(),
             homeCardOrder = CardLayouts.normalized(prefs[Keys.HOME_CARDS]?.split(",").orEmpty(),CardLayouts.home),
@@ -217,6 +219,7 @@ class SettingsStore(context: Context) {
         prefs[Keys.ACCENT] = settings.accent.name
         prefs[Keys.TYPE_STYLE] = settings.typeStyle.name
         prefs[Keys.MOTION] = settings.motion
+        prefs[Keys.HAPTICS] = settings.haptics
         prefs[Keys.WEEK_START] = settings.weekStartsOn.coerceIn(0,6).toLong()
         prefs[Keys.HOME_CARDS] = CardLayouts.normalized(settings.homeCardOrder,CardLayouts.home).joinToString(",")
         prefs[Keys.WEIGHT_CARDS] = CardLayouts.normalized(settings.weightCardOrder,CardLayouts.measurement).joinToString(",")

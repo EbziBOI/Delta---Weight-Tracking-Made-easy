@@ -206,6 +206,7 @@ private fun MainScreen(
             GlassBottomNavBar(itemCount=TABS.size, logLabel=if(tab==3) "Add food" else "Log weight", onLog = if (tab != 2) ({ if(tab==3) foodAddSignal++ else if (!io.github.ebziboi.delta.BuildConfig.IS_BETA && health?.canWrite == false) requestAccess() else logging = true }) else null) {
                 TABS.forEach { item ->
                     NavigationBarItem(
+                        interactionSource=rememberHapticInteractionSource(),
                         selected = tab == item.id,
                         onClick = { metric = null; tab = item.id },
                         icon = {

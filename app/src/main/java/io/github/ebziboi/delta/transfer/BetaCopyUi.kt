@@ -62,11 +62,11 @@ fun BetaCopyCard(health:HealthState?,onConnect:()->Unit) {
     }
     confirm?.let {kind->
         AlertDialog(onDismissRequest={confirm=null},title={Text("Copy into beta?")},text={Text("This replaces the beta's measurements${if(kind=="delta") ", goals and appearance" else ""}. Your current Delta app, Health Connect records, and beta food diary stay unchanged.")},
-            confirmButton={TextButton({confirm=null;if(kind=="delta") copy() else scope.launch {
+            confirmButton={HapticTextButton({confirm=null;if(kind=="delta") copy() else scope.launch {
                 busy=true
                 try {app.repo.copyHealthConnectForBeta();app.repo.updateSettings {it.copy(onboardingDone=true)};message="Readings copied to beta"}
                 catch(_:Exception) {message="Couldn't copy readings. Check Health Connect read access and try again."}
                 finally {busy=false}
-            }}) {Text("Copy")}},dismissButton={TextButton({confirm=null}) {Text("Cancel")}})
+            }}) {Text("Copy")}},dismissButton={HapticTextButton({confirm=null}) {Text("Cancel")}})
     }
 }

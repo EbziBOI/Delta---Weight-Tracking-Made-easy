@@ -20,6 +20,7 @@ import io.github.ebziboi.delta.data.CardLayouts
 import kotlin.math.abs
 
 internal data class CardSlot(val id:String,val label:String,val compact:Boolean=false)
+internal val LocalCardGestureClaim = staticCompositionLocalOf<(Any,Boolean)->Unit> {{_,_->}}
 internal val LocalCardReordering = staticCompositionLocalOf<(Boolean)->Unit> {{}}
 
 /** Long presses are confined to headings; chart and calendar gestures retain their own touch area. */
@@ -29,6 +30,7 @@ internal fun ReorderableCards(
     onOrderChange:(List<String>)->Unit, header:@Composable ()->Unit, content:@Composable (String)->Unit,
 ) {
     val grid=rememberLazyGridState()
+    val gestureClaims=remember {mutableSetOf<Any>()}
     val currentContent by rememberUpdatedState(content)
     val currentHeader by rememberUpdatedState(header)
     val ids=cards.map {it.id}
@@ -118,6 +120,7 @@ internal fun ReorderableCards(
         modifier=Modifier.fillMaxSize().pointerInput(grid,headingHeight,sidePadding) {
             awaitEachGesture {
                 val down=awaitFirstDown(requireUnconsumed=false)
+                if(gestureClaims.isNotEmpty()) return@awaitEachGesture
                 val touch=down.position+Offset(-sidePadding,grid.layoutInfo.viewportStartOffset.toFloat())
                 val item=grid.layoutInfo.visibleItemsInfo.firstOrNull {item->
                     item.index>0 && touch.x>=item.offset.x && touch.x<item.offset.x+item.size.width &&
@@ -161,7 +164,7 @@ internal fun ReorderableCards(
                         if(index>0) add(CustomAccessibilityAction("Move earlier") {persistMove(visible.toMutableList().apply {add(index-1,removeAt(index))});true})
                         if(index<visible.lastIndex) add(CustomAccessibilityAction("Move later") {persistMove(visible.toMutableList().apply {add(index+1,removeAt(index))});true})
                     }
-                }) {currentContent(id)}
+                }) {CompositionLocalProvider(LocalCardGestureClaim provides {token,active->if(active) gestureClaims.add(token) else gestureClaims.remove(token)}) {currentContent(id)}}
         }
     }
 }

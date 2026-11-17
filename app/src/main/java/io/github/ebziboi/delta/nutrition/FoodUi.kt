@@ -36,8 +36,8 @@ internal fun FoodSearchPage(vm: NutritionViewModel,state: NutritionState,padding
             Box {
                 SecondaryButton(vm.selectedStore?.let {id->vm.storeOrder.firstOrNull {it.id==id}?.label} ?: "All stores",{storeMenu=true},enabled=!vm.busy)
                 androidx.compose.material3.DropdownMenu(storeMenu,{storeMenu=false}) {
-                    androidx.compose.material3.DropdownMenuItem({Text("All stores")},{vm.chooseStore(null);storeMenu=false})
-                    vm.storeOrder.forEach {store->androidx.compose.material3.DropdownMenuItem({Text(store.label)},{vm.chooseStore(store.id);storeMenu=false})}
+                    HapticDropdownMenuItem({Text("All stores")},{vm.chooseStore(null);storeMenu=false})
+                    vm.storeOrder.forEach {store->HapticDropdownMenuItem({Text(store.label)},{vm.chooseStore(store.id);storeMenu=false})}
                 }
             }
             GlassTextField(query,{query=it},"Search foods",Modifier.fillMaxWidth())
@@ -127,7 +127,7 @@ internal fun PortionPage(food:Food,entry:DiaryEntry?,day:LocalDate,meal:Meal,pad
         onDelete?.let { TextAction("Delete entry",{confirmDelete=true}) }
         onDeleteFood?.let { TextAction("Delete from library",{confirmDelete=true}) }
     }
-    if(confirmDelete) AlertDialog(onDismissRequest={confirmDelete=false},title={Text(if(onDelete!=null) "Delete this entry?" else "Delete this saved food?")},text={if(onDeleteFood!=null) Text("Past diary entries will be kept.")},confirmButton={TextButton({confirmDelete=false;(onDelete ?: onDeleteFood)?.invoke()}){Text("Delete")}},dismissButton={TextButton({confirmDelete=false}){Text("Cancel")}})
+    if(confirmDelete) AlertDialog(onDismissRequest={confirmDelete=false},title={Text(if(onDelete!=null) "Delete this entry?" else "Delete this saved food?")},text={if(onDeleteFood!=null) Text("Past diary entries will be kept.")},confirmButton={HapticTextButton({confirmDelete=false;(onDelete ?: onDeleteFood)?.invoke()}){Text("Delete")}},dismissButton={HapticTextButton({confirmDelete=false}){Text("Cancel")}})
 }
 
 @Composable
@@ -197,8 +197,8 @@ internal fun RecipeEditor(vm:NutritionViewModel,state:NutritionState,padding:Pad
     }
     ingredients.getOrNull(editingIngredient)?.let {item->
         AlertDialog(onDismissRequest={editingIngredient=-1},title={Text(item.food.name)},text={NumberField(ingredientAmount,{ingredientAmount=it},"Amount (${item.food.unit.symbol})",Modifier.fillMaxWidth())},
-            confirmButton={TextButton({vm.recipeIngredients=ingredients.mapIndexed {index,value->if(index==editingIngredient) value.copy(amount=ingredientAmount.number()!!) else value};editingIngredient=-1},
-                enabled=ingredientAmount.number()?.let {it>0 && it<=100000}==true) {Text("Save amount")}},dismissButton={TextButton({editingIngredient=-1}) {Text("Cancel")}})
+            confirmButton={HapticTextButton({vm.recipeIngredients=ingredients.mapIndexed {index,value->if(index==editingIngredient) value.copy(amount=ingredientAmount.number()!!) else value};editingIngredient=-1},
+                enabled=ingredientAmount.number()?.let {it>0 && it<=100000}==true) {Text("Save amount")}},dismissButton={HapticTextButton({editingIngredient=-1}) {Text("Cancel")}})
     }
 }
 
@@ -253,7 +253,7 @@ internal fun CopyDiaryPage(state:NutritionState,to:LocalDate,padding:PaddingValu
         Text("To ${to.format(dayFormat)}",style=LocalDeltaType.current.title)
         SecondaryButton("From ${source.format(dayFormat)}",{picker=true},Modifier.fillMaxWidth())
         FlowRow(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
-            (listOf("Whole day")+Meal.entries.map {it.label}).forEach {label->FilterChip(selected==label,{selected=label},label={Text(label)})}
+            (listOf("Whole day")+Meal.entries.map {it.label}).forEach {label->FilterChip(selected==label,{selected=label},label={Text(label)},interactionSource=rememberHapticInteractionSource())}
         }
         ContentSection {
             Text("${entries.size} entries",style=LocalDeltaType.current.title)

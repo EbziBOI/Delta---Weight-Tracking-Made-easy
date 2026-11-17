@@ -122,7 +122,7 @@ fun DeltaTheme(settings: AppSettings, content: @Composable () -> Unit) {
         LocalCanvasType provides canvasType,
         LocalMotion provides motion,
     ) {
-        MaterialTheme(colorScheme = scheme, shapes = shapes, typography = typography, content = content)
+        MaterialTheme(colorScheme = scheme, shapes = shapes, typography = typography) {HapticTheme(settings.haptics,content)}
     }
 }
 

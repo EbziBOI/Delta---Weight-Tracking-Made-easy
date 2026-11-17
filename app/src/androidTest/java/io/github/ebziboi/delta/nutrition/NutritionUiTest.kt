@@ -48,7 +48,7 @@ class NutritionUiTest {
                 compose.waitUntil(10000) {repo.state.value.entries.any {it.food.name==foodName && it.amount==125.0}}
                 click("Targets");field("Daily energy (kcal)","2000");click("% of energy");click("Save targets")
                 compose.waitUntil(10000) {repo.state.value.targets.mode==MacroMode.PERCENT}
-                click("Charts");click("30 days");shot("$style-charts");back()
+                click("Charts");shot("$style-charts");back()
                 click("Fasting");click("Start fast");compose.waitUntil(10000) {repo.state.value.fasts.any {it.end==null}}
                 shot("$style-fasting");click("End fast")
                 compose.onAllNodesWithText("End fast").onLast().performClick()
@@ -171,7 +171,7 @@ class NutritionUiTest {
         compose.onNodeWithContentDescription("Add food").performClick();compose.waitForIdle()
     }
     private fun stage(text:String) {File(context.filesDir,"nutrition-review").apply {mkdirs()}.resolve("step.txt").writeText(text)}
-    private fun back() {compose.onNodeWithContentDescription("Back").performScrollTo().performClick();compose.waitForIdle()}
+    private fun back() {compose.runOnIdle {compose.activity.onBackPressedDispatcher.onBackPressed()};compose.waitForIdle()}
     private fun shot(name:String) {
         compose.waitForIdle()
         val device=UiDevice.getInstance(InstrumentationRegistry.getInstrumentation())

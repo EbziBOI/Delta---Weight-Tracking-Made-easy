@@ -45,12 +45,12 @@ internal fun FastingPage(vm:NutritionViewModel,state:NutritionState,padding:Padd
         } else ContentSection(tone=ModuleTone.SAGE,framed=true) {
             Caption("Start a fast")
             FlowRow(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
-                listOf(12,14,16,18,20).forEach {h ->FilterChip(hours.number()==h.toDouble(),{hours=h.toString()},label={Text("$h:${24-h}")})}
+                listOf(12,14,16,18,20).forEach {h ->FilterChip(hours.number()==h.toDouble(),{hours=h.toString()},label={Text("$h:${24-h}")},interactionSource=rememberHapticInteractionSource())}
             }
             NumberField(hours,{hours=it},"Fasting hours",Modifier.fillMaxWidth())
             hours.number()?.takeIf {it>0 && it<24}?.let {Text("${amountText(it)} h fasting · ${amountText(24-it)} h eating window",style=LocalDeltaType.current.bodySmall)}
             Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween) {
-                Text("Choose start time",style=LocalDeltaType.current.body);Switch(customStart,{customStart=it})
+                Text("Choose start time",style=LocalDeltaType.current.body);Switch(customStart,{customStart=it},interactionSource=rememberHapticInteractionSource())
             }
             if(customStart) {
                 SecondaryButton(LocalDate.ofEpochDay(startEpoch).format(dayFormat),{datePicker=true})
@@ -75,6 +75,6 @@ internal fun FastingPage(vm:NutritionViewModel,state:NutritionState,padding:Padd
     }
     if(datePicker) NutritionDatePicker(LocalDate.ofEpochDay(startEpoch),{datePicker=false},{startEpoch=it.toEpochDay()})
     if(ending) AlertDialog(onDismissRequest={ending=false},title={Text("End this fast?")},text={Text("Your elapsed time will be saved in fasting history.")},
-        confirmButton={TextButton({ending=false;vm.run {vm.repo.finishFast()}}){Text("End fast")}},dismissButton={TextButton({ending=false}){Text("Continue fast")}})
-    deleting?.let {f ->AlertDialog(onDismissRequest={deleting=null},title={Text("Delete this fast?")},confirmButton={TextButton({deleting=null;vm.run {vm.repo.deleteFast(f.id)}}){Text("Delete")}},dismissButton={TextButton({deleting=null}){Text("Cancel")}})}
+        confirmButton={HapticTextButton({ending=false;vm.run {vm.repo.finishFast()}}){Text("End fast")}},dismissButton={HapticTextButton({ending=false}){Text("Continue fast")}})
+    deleting?.let {f ->AlertDialog(onDismissRequest={deleting=null},title={Text("Delete this fast?")},confirmButton={HapticTextButton({deleting=null;vm.run {vm.repo.deleteFast(f.id)}}){Text("Delete")}},dismissButton={HapticTextButton({deleting=null}){Text("Cancel")}})}
 }

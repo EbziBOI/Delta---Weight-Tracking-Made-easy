@@ -1,6 +1,11 @@
 package io.github.ebziboi.delta
 
+import io.github.ebziboi.delta.ui.HapticButton
+import io.github.ebziboi.delta.ui.HapticSlider
+import io.github.ebziboi.delta.ui.HapticDropdownMenuItem
 import android.os.Bundle
+import androidx.compose.runtime.getValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.rememberScrollState
@@ -29,7 +34,8 @@ class PermissionsRationaleActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
-            DeltaTheme(AppSettings()) {
+            val settings by (application as DeltaApp).repo.settings.collectAsStateWithLifecycle(initialValue=AppSettings())
+            DeltaTheme(settings) {
                 Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
                     Column(
                         modifier = Modifier
@@ -56,7 +62,7 @@ class PermissionsRationaleActivity : ComponentActivity() {
                             "Your measurements stay on your phone. Delta has no account, no server and " +
                                 "no analytics."
                         )
-                        Button(onClick = { finish() }) { Text("Close") }
+                        HapticButton(onClick = { finish() }) { Text("Close") }
                     }
                 }
             }

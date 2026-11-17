@@ -106,7 +106,7 @@ private fun PhotoEstimateDialog(initial:Ingredient?,onDismiss:()->Unit,onSave:(I
             }
             TextAction(if(more) "Fewer nutrients" else "More nutrients",{more=!more})
         }
-    },confirmButton={TextButton({onSave(Ingredient(Food(id=initial?.food?.id ?: newId(),name=name.trim(),per100=fields.mapNotNull {(k,v)->v.number()?.let {Nutrient.valueOf(k) to it}}.toMap(),source=FoodSource.PHOTO),grams.number()!!))},enabled=valid){Text("Save review")}},dismissButton={TextButton(onDismiss){Text("Cancel")}})
+    },confirmButton={HapticTextButton({onSave(Ingredient(Food(id=initial?.food?.id ?: newId(),name=name.trim(),per100=fields.mapNotNull {(k,v)->v.number()?.let {Nutrient.valueOf(k) to it}}.toMap(),source=FoodSource.PHOTO),grams.number()!!))},enabled=valid){Text("Save review")}},dismissButton={HapticTextButton(onDismiss){Text("Cancel")}})
 }
 
 @Composable

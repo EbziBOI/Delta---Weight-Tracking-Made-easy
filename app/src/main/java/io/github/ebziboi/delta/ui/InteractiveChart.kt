@@ -27,6 +27,14 @@ import kotlin.math.abs
 
 @Composable
 fun InteractiveChart(spec: ChartSpec, modifier: Modifier = Modifier, bodyFat: List<BodyFatEntry> = emptyList(), onDoubleTap: (() -> Unit)? = null,periodPicker:Boolean=true) {
+    val haptic=androidx.compose.ui.platform.LocalHapticFeedback.current
+    val profile=rememberChartController(if(spec.showFullProjection) "forecast-projection" else "interactive-${spec.metric}",spec.style)
+    if(!spec.showFullProjection) {
+        val zone=java.time.ZoneId.systemDefault();val today=java.time.LocalDate.now();val c=LocalDeltaColors.current
+        val values=spec.points.map {RecordedValue(java.time.Instant.ofEpochMilli(it.epochMs).atZone(zone).toLocalDate(),it.kg)}
+        RecordedChart(listOf(RecordedSeries("${spec.metric}",if(spec.metric==ChartMetric.BODY_FAT) "Body fat" else "Weight",Color(c.accent),values,{if(spec.metric==ChartMetric.BODY_FAT) BodyFat.format(it) else Units.weight(it,spec.unit)})),values.minOfOrNull {it.day} ?: today,today,if(spec.metric==ChartMetric.BODY_FAT) "Body fat graph" else "Weight graph",controller=profile,header=if(spec.metric==ChartMetric.BODY_FAT) "Body composition" else "Weight trend",target=spec.targetKg)
+        return
+    }
     val scope=rememberCoroutineScope();var period by rememberSaveable {mutableStateOf(ChartPeriod.MONTHLY)}
     val colors = LocalDeltaColors.current
     val motion=LocalMotion.current
@@ -76,10 +84,10 @@ fun InteractiveChart(spec: ChartSpec, modifier: Modifier = Modifier, bodyFat: Li
             contentDescription = if (spec.metric == ChartMetric.BODY_FAT) "Body fat graph" else "Weight graph"
             stateDescription = String.format(Locale.US, "Zoom %.1fx", zoom) +
                 (viewport?.let { " · ${Format.moment(it.first)} to ${Format.moment(it.last)}" } ?: "")
-            if (onDoubleTap != null) onClick(label = "Switch graph style") { doubleTap?.invoke(); true }
+            onClick(label = "Change chart style") { profile.cycle(); true }
         }.pointerInput(spec.metric) {
             detectTapGestures(onTap = { selected = layout[0]?.nearest(it.x, it.y) },
-                onDoubleTap = { doubleTap?.invoke() })
+                onDoubleTap = { profile.cycle();haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress) })
         }.pointerInput(spec.metric) {
             awaitEachGesture {
                 awaitFirstDown(requireUnconsumed = false)
@@ -111,7 +119,7 @@ fun InteractiveChart(spec: ChartSpec, modifier: Modifier = Modifier, bodyFat: Li
         }) {
             drawIntoCanvas { canvas ->
                 val frame = TrendChart.draw(canvas.nativeCanvas, RectF(0f, 0f, size.width, size.height),
-                    currentSpec.copy(viewport = viewport, selectedPoint = selected,selectionReveal=markerReveal,highlightLatest=false,
+                    currentSpec.copy(style=profile.mode,viewport = viewport, selectedPoint = selected,selectionReveal=markerReveal,highlightLatest=false,
                         endEpochMs=if(currentSpec.showFullProjection) null else java.time.LocalDate.now().plusDays(1).atStartOfDay(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()-1), colors, fonts, density, true, reveal = reveal.value)
                 layout[0]=frame
                 fullRange=frame?.full
