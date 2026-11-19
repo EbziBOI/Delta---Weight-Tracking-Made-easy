@@ -135,7 +135,7 @@ class NutritionUiTest {
                 shot("$style-keyboard")
                 device.pressBack()
                 compose.waitUntil(10000) {compose.activity.window.decorView.rootWindowInsets?.isVisible(android.view.WindowInsets.Type.ime())!=true}
-                back();click("Scan barcode")
+                back();compose.onNodeWithContentDescription("Scan barcode").performClick();compose.waitForIdle()
                 // The camera permission UI or the manual barcode fallback must be available.
                 assertTrue(device.wait(androidx.test.uiautomator.Until.hasObject(androidx.test.uiautomator.By.text("Barcode number")),10000))
                 device.pressBack()

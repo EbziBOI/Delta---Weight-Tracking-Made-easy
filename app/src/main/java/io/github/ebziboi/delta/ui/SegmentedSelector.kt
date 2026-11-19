@@ -40,9 +40,22 @@ import androidx.compose.ui.unit.*
                 val down=awaitFirstDown(requireUnconsumed=false)
                 claim(gestureToken,true)
                 try {
-                val press=awaitLongPressOrCancellation(down.id) ?: return@awaitEachGesture
-                held=true;heldIndex=(press.position.x/width*currentOptions.size).toInt().coerceIn(currentOptions.indices)
-                choose(currentOptions[heldIndex]);haptic.performHapticFeedback(HapticFeedbackType.LongPress);press.consume()
+                // A horizontal swipe slides between options straight away; holding still lifts the thumb.
+                val slop=viewConfiguration.touchSlop
+                var swiped=false
+                val outcome=withTimeoutOrNull(viewConfiguration.longPressTimeoutMillis) {
+                    while(true) {
+                        val event=awaitPointerEvent();val change=event.changes.firstOrNull {it.id==down.id} ?: return@withTimeoutOrNull false
+                        if(!change.pressed) return@withTimeoutOrNull false
+                        val dx=change.position.x-down.position.x;val dy=change.position.y-down.position.y
+                        if(kotlin.math.abs(dy)>slop && kotlin.math.abs(dy)>kotlin.math.abs(dx)) return@withTimeoutOrNull false
+                        if(kotlin.math.abs(dx)>slop) {change.consume();swiped=true;return@withTimeoutOrNull true}
+                    }
+                    @Suppress("UNREACHABLE_CODE") false
+                }
+                if(outcome==false) return@awaitEachGesture
+                held=true;heldIndex=(down.position.x/width*currentOptions.size).toInt().coerceIn(currentOptions.indices)
+                choose(currentOptions[heldIndex]);haptic.performHapticFeedback(if(swiped) HapticFeedbackType.TextHandleMove else HapticFeedbackType.LongPress)
                 try {
                     do {
                         val event=awaitPointerEvent();val change=event.changes.firstOrNull {it.id==down.id} ?: break

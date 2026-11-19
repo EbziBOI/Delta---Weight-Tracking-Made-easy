@@ -42,7 +42,7 @@ fun Nutrients.scaled(factor: Double): Nutrients {
 }
 fun newId(): String = UUID.randomUUID().toString()
 enum class Meal(val label: String) { BREAKFAST("Breakfast"), LUNCH("Lunch"), DINNER("Dinner"), SNACKS("Snacks"), OTHER("Other") }
-enum class FoodSource { OPEN_FOOD_FACTS, CUSTOM, RECIPE, PHOTO, HEALTH_CONNECT }
+enum class FoodSource { OPEN_FOOD_FACTS, CUSTOM, RECIPE, PHOTO, HEALTH_CONNECT, RESTAURANT }
 enum class FoodUnit(val symbol: String) { GRAMS("g"), MILLILITRES("ml") }
 
 data class Ingredient(val food: Food, val amount: Double) {
@@ -72,7 +72,10 @@ data class Food(
     val subtitle get() = listOf(brand.takeIf { it.isNotBlank() }, when(source) {
         FoodSource.OPEN_FOOD_FACTS -> "Open Food Facts"; FoodSource.CUSTOM -> when {sourceUrl!=null->"Product page";labelChecked.isNotEmpty()->"Package label";else->"Custom food"}
         FoodSource.RECIPE -> "Recipe"; FoodSource.PHOTO -> "Photo estimate"; FoodSource.HEALTH_CONNECT -> "Health Connect"
+        FoodSource.RESTAURANT -> "Menu guide · approx."
     }).filterNotNull().joinToString(" · ")
+    /** A product record that lacks the label values needed to log it meaningfully. */
+    val missingNutrition: Boolean get() = Nutrient.ENERGY !in per100 && Nutrient.macros.none { it in per100 }
 }
 
 data class DiaryEntry(
@@ -153,7 +156,7 @@ internal fun foodFromJson(j: JSONObject, depth: Int = 0): Food {
     val a=j.optJSONArray("ingredients") ?: JSONArray()
     return Food(j.getString("id"),j.getString("name"),j.optString("brand"),j.getJSONObject("nutrients").nutrients(),
         FoodUnit.valueOf(j.optString("unit","GRAMS")),j.positive("serving"),j.optString("servingLabel","Serving"),j.positive("pack"),
-        FoodSource.valueOf(j.getString("source")),j.optString("barcode").takeIf { it.isNotBlank() && it != "null" },
+        FoodSource.entries.find { it.name==j.optString("source") } ?: FoodSource.CUSTOM,j.optString("barcode").takeIf { it.isNotBlank() && it != "null" },
         (0 until a.length()).map { a.getJSONObject(it).let { i -> Ingredient(foodFromJson(i.getJSONObject("food"),depth+1),i.getDouble("amount")) } },
         j.positive("servings"),j.positive("yield"),j.optBoolean("favourite"),j.optBoolean("estimated"),
         j.optJSONArray("stores")?.let {a->(0 until a.length()).map {a.getString(it).take(100)}.take(50)} ?: emptyList(),

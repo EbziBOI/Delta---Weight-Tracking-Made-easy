@@ -1,6 +1,6 @@
 # Delta
 
-**Stage 2 is now in the main Delta release.** Install the versioned APK as an update to Delta. Beta users can copy their diary and settings through **Settings → Backup and transfer**; see [release notes](docs/RELEASE-0.2.43.md).
+**Stage 2 is now in the main Delta release.** Install the versioned APK as an update to Delta. Beta users can copy their diary and settings through **Settings → Backup and transfer**; see [release notes](docs/RELEASE-0.2.44.md).
 
 An open-source weight and nutrition tracker for Android, built around home-screen
 widgets that show where you started, where you are now and where you are going.
@@ -48,6 +48,13 @@ background and blur when you switch back. The visual reference is
 - Full backup and confirmed copying between Beta and main Delta preserve diary, measurements, goals, appearance and individual chart choices
 - Your rhythm's week strip swipes independently, with one bounded triangle-arrow pair, coral in Tubik
 - Store-filtered food search starts with major UK grocers and learns from local search/logging use
+- Diary: tap a day on the seven-day macro chart to open it everywhere (kcal headline, macros, meals); swipe the chart for weeks and the summary card for days. Protein, carbs and fat sit beside the kcal total with their targets
+- Every nutrient breakdown donut is tappable: choose a segment to see a bar chart of the foods that supplied it. The diary card expands to show the selected day’s breakdown
+- Repeat suggests only foods previously eaten at that meal, ranked by frequency and recency, and swipes between meals; the meal defaults to the time of day. Diary lines swipe left to delete, with Undo
+- Add food keeps search and the barcode scanner in a persistent bottom bar, with swipeable Recent / My foods / Recipes / Fast food tabs, instant local matches and one-tap quick add
+- Bundled UK fast-food menus (McDonald’s, KFC, Burger King, Subway, Greggs, Nando’s, Domino’s, Five Guys, Starbucks, Costa) with approximate published values and links to each chain’s guide
+- The scanner is full screen with a viewfinder, flashlight, 2× zoom, tap to focus, number entry and a gallery button; products the database lacks, or lists without nutrition, open straight into label entry (per 100 g or per serving)
+- Every selector also responds to a horizontal swipe; trend lines use a centred, time-weighted fit that no longer lags recent readings
 - A compact Progress/Diary/History dock with an adjacent plus button; both hide on downward scrolling and return together. Active tabs use accent text and icons without a pill
 - A single Health Connect status pill opens its dedicated access and sync page
 - Short, equally sized top/bottom fades retain fully black ends while content scrolls behind the toolbar

@@ -62,9 +62,11 @@ class BetaFoodUiTest {
             }
             click("Diary");click("Charts")
             compose.runOnIdle {compose.activity.onBackPressedDispatcher.onBackPressed()};compose.waitForIdle();compose.onNodeWithText("Daily nutrition",ignoreCase=true).assertExists()
-            // Store selection uses a filter menu, with no live network request needed to select it.
-            compose.onNodeWithContentDescription("Add food").performClick();click("Search");click("All stores");click("Tesco")
-            compose.onNodeWithText("Tesco").assertExists();shot("store-filter")
+            // Typing shows store chips beside the online search, with no live network request needed to select one.
+            compose.onNodeWithContentDescription("Add food").performClick();compose.waitForIdle()
+            compose.onNodeWithContentDescription("Search foods").performTextInput("milk");compose.waitForIdle()
+            click("Tesco");compose.onNodeWithText("Tesco").assertIsSelected();shot("store-filter")
+            compose.onNodeWithContentDescription("Search foods").performTextClearance();compose.waitForIdle()
             context.startActivity(io.github.ebziboi.delta.widget.FoodBitmapWidget.launchIntent(context,"search"))
             compose.waitUntil(10000) {compose.activity.intent.getStringExtra("food_route")=="search"}
             compose.waitForIdle();click("Custom food")

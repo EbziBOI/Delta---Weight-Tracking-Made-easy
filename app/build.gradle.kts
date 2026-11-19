@@ -7,7 +7,7 @@ plugins {
 }
 
 // CI passes a build number so every APK can install over the previous one.
-val releaseVersionCode = 43
+val releaseVersionCode = 44
 val isBeta = providers.gradleProperty("delta.channel").orElse("stable").get() == "beta"
 val ciRun = System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull() ?: 0
 // Main CI run 34 follows the optional base-package candidate at version code 42.
@@ -115,6 +115,9 @@ dependencies {
     // Real backdrop blur for the floating glass bars (falls back to a tinted pane before Android 12).
     // Pinned to the last release built against Compose 1.10 and Kotlin 2.2.
     implementation("dev.chrisbanes.haze:haze:1.7.2")
+
+    // Pure logic (trend fitting, suggestions, menu data) runs on the JVM.
+    testImplementation("junit:junit:4.13.2")
 
     // On-device smoke test: launches the app on an emulator and photographs it.
     androidTestImplementation("androidx.test.espresso:espresso-core:3.7.0")

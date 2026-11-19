@@ -49,6 +49,8 @@ internal fun latestRecordedDay(series:List<RecordedSeries>,first:Long,last:Long)
     val colors=LocalDeltaColors.current;val motion=LocalMotion.current;val haptics=LocalHapticFeedback.current;val scope=rememberCoroutineScope()
     val raw=remember(series,averaging,weekStartsOn,end,fixed) {series.map {it.copy(values=aggregateReadings(it.values,averaging,weekStartsOn,if(fixed) LocalDate.now() else end))}}
     val styled=raw.map {it.copy(color=Color(io.github.ebziboi.delta.render.ThemeContrast.readable(it.color.toArgb(),colors.bg)))}
+    // Fitted once per data change across the whole history, so panning never reshapes the line.
+    val trends=remember(raw) {raw.map {s->smoothRecorded(s.values).associate {it.day to it.value}}}
     val oldest=historyStart ?: series.flatMap {it.values}.minOfOrNull {it.day} ?: start
     val nominalFirst=if(fixed) start else chartWindowStart(profile.window,end,journeyStart ?: start,oldest,averaging)
     val targetSpan=(end.toEpochDay()-nominalFirst.toEpochDay()).toFloat().coerceAtLeast(1f)
@@ -138,7 +140,7 @@ internal fun latestRecordedDay(series:List<RecordedSeries>,first:Long,last:Long)
             drawLine(Color(colors.outline).copy(alpha=.5f),Offset(inset,bottom),Offset(size.width-inset,bottom),1.dp.toPx())
             clipRect(0f,0f,size.width,size.height) {
                 if(fade>0) drawLine(Color(colors.textDim).copy(alpha=.65f*fade),Offset(inset+marker*w,top),Offset(inset+marker*w,bottom),1.dp.toPx(),pathEffect=PathEffect.dashPathEffect(floatArrayOf(2.dp.toPx(),4.dp.toPx())))
-                styled.forEach {s->
+                styled.forEachIndexed {seriesIndex,s->
                     val visible=s.values.filter {it.day.toEpochDay().toDouble() in left..right}
                     val neighbours=s.values.filter {it.day.toEpochDay().toDouble() in (left-35)..(right+35)}
                     val rawLow=visible.minOfOrNull {it.value} ?: 0.0;val rawHigh=visible.maxOfOrNull {it.value} ?: 1.0
@@ -148,8 +150,8 @@ internal fun latestRecordedDay(series:List<RecordedSeries>,first:Long,last:Long)
                     fun y(value:Double)=bottom-((value.coerceIn(low,high)-low)/(high-low).coerceAtLeast(.001)*(bottom-top)).toFloat()
                     if(target!=null && styled.size==1 && target in low..high) drawLine(s.color.copy(alpha=.3f),Offset(inset,y(target)),Offset(size.width-inset,y(target)),1.dp.toPx(),pathEffect=PathEffect.dashPathEffect(floatArrayOf(4.dp.toPx(),4.dp.toPx())))
                     if(lineOpacity>0 && neighbours.size>1) {
-                        val smooth=smoothRecorded(neighbours)
-                        val plot=neighbours.mapIndexed {i,p->p.copy(value=p.value+(smooth[i].value-p.value)*smoothing)}
+                        val fitted=trends.getOrNull(seriesIndex).orEmpty()
+                        val plot=neighbours.map {p->p.copy(value=p.value+((fitted[p.day] ?: p.value)-p.value)*smoothing)}
                         val path=Path()
                         if(lineMode==ChartStyle.TREND) {
                             monotoneSpline(plot.map {SplinePoint(x(it.day),y(it.value))}).forEachIndexed {i,c->
@@ -211,7 +213,33 @@ internal fun latestRecordedDay(series:List<RecordedSeries>,first:Long,last:Long)
         }
     }
 }
-internal fun smoothRecorded(values:List<RecordedValue>):List<RecordedValue> {
-    val sorted=values.sortedBy {it.day};var smooth=sorted.firstOrNull()?.value ?: return emptyList()
-    return sorted.map {p->smooth=smooth*.65+p.value*.35;p.copy(value=smooth)}
+/**
+ * Centred, time-aware trend: a Gaussian-weighted local linear fit around each reading.
+ * Unlike a running average it does not lag behind recent readings, irregular gaps are weighted
+ * by real time, and the ends follow the local slope instead of flattening. Each fitted value is
+ * kept within the readings that contributed to it, so the line never invents peaks.
+ */
+internal fun smoothRecorded(values:List<RecordedValue>,strength:Double=1.0):List<RecordedValue> {
+    val sorted=values.sortedBy {it.day}
+    if(sorted.size<3) return sorted
+    val x=DoubleArray(sorted.size) {sorted[it].day.toEpochDay().toDouble()}
+    val gaps=(1 until x.size).map {x[it]-x[it-1]}.filter {it>0}.sorted()
+    val typicalGap=(gaps.getOrNull(gaps.size/2) ?: 1.0).coerceAtLeast(1.0)
+    val sigma=maxOf(4.5,typicalGap*2.5)*strength.coerceIn(.25,4.0)
+    val reach=sigma*3;val twoSigmaSq=2*sigma*sigma
+    var lo=0;var hi=0
+    return sorted.mapIndexed {i,p->
+        while(x[i]-x[lo]>reach) lo++
+        if(hi<i) hi=i
+        while(hi+1<x.size && x[hi+1]-x[i]<=reach) hi++
+        var sw=0.0;var sd=0.0;var sy=0.0;var sdd=0.0;var sdy=0.0;var low=Double.MAX_VALUE;var high=-Double.MAX_VALUE
+        for(j in lo..hi) {
+            val d=x[j]-x[i];val w=exp(-d*d/twoSigmaSq);val v=sorted[j].value
+            sw+=w;sd+=w*d;sy+=w*v;sdd+=w*d*d;sdy+=w*d*v
+            if(w>.01) {low=minOf(low,v);high=maxOf(high,v)}
+        }
+        val det=sw*sdd-sd*sd
+        val fit=if(det>1e-9*sw*sw) (sy*sdd-sd*sdy)/det else sy/sw
+        p.copy(value=if(fit.isFinite()) fit.coerceIn(low,high) else p.value)
+    }
 }

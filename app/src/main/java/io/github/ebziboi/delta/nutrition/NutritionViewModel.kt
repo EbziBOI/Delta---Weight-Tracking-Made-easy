@@ -52,22 +52,33 @@ class NutritionViewModel(app: Application): AndroidViewModel(app) {
     }
     fun cancel() { generation++;job?.cancel();busy=false }
     fun search(query: String) = run { results=off.search(query,selectedStore);if(results.isNotEmpty()) selectedStore?.let {stores.recordChoice(it)};searched=true;storeOrder=stores.ranked() }
-    fun barcode(code:String,onFound:(Food)->Unit,onMissing:((String)->Unit)?=null)=run {resolveBarcode(code,onFound,onMissing)}
-    private suspend fun resolveBarcode(code:String,onFound:(Food)->Unit,onMissing:((String)->Unit)?) {
+    /** A short-lived "Undo" offer for the last diary change. */
+    class Undo(val label:String,val action:suspend ()->Unit)
+    var undo by mutableStateOf<Undo?>(null)
+    private var undoJob:Job?=null
+    fun offerUndo(label:String,action:suspend ()->Unit) {
+        undo=Undo(label,action);undoJob?.cancel()
+        undoJob=viewModelScope.launch {kotlinx.coroutines.delay(6000);undo=null}
+    }
+    fun performUndo() {val u=undo ?: return;undo=null;undoJob?.cancel();run {u.action()}}
+    fun barcode(code:String,onFound:(Food)->Unit,onMissing:((String)->Unit)?=null,onIncomplete:((Food)->Unit)?=null)=run {resolveBarcode(code,onFound,onMissing,onIncomplete)}
+    private suspend fun resolveBarcode(code:String,onFound:(Food)->Unit,onMissing:((String)->Unit)?,onIncomplete:((Food)->Unit)?=null) {
         val wanted=ProductPages.canonicalBarcode(code) ?: throw IllegalArgumentException("Enter a valid barcode")
-        val saved=repo.state.value.foods.firstOrNull {ProductPages.canonicalBarcode(it.barcode)==wanted}
+        val saved=repo.state.value.foods.firstOrNull {ProductPages.canonicalBarcode(it.barcode)==wanted && !it.missingNutrition}
         if(saved!=null) {onFound(saved);return}
         val food=try {off.barcode(code)} catch(e:CancellationException) {throw e} catch(e:Exception) {
             if(onMissing==null) throw e
             message="Database lookup unavailable. Try the product page or its label.";null
         }
-        if(food!=null) onFound(food)
+        // A product the database knows but without label values goes straight to manual entry.
+        if(food!=null && food.missingNutrition && onIncomplete!=null) onIncomplete(food)
+        else if(food!=null) onFound(food)
         else if(onMissing!=null) onMissing(code)
         else throw IllegalArgumentException("Product not found. Import its product page or read its label.")
     }
-    internal fun barcodePhoto(uri:Uri,crop:LabelCrop,onFound:(Food)->Unit,onMissing:((String)->Unit)?)=run {
+    internal fun barcodePhoto(uri:Uri,crop:LabelCrop,onFound:(Food)->Unit,onMissing:((String)->Unit)?,onIncomplete:((Food)->Unit)?=null)=run {
         val code=BarcodePhotos.decode(getApplication(),uri,crop) ?: throw IllegalArgumentException("No barcode recognised. Crop closer, rotate the photo, or enter the number.")
-        resolveBarcode(code,onFound,onMissing)
+        resolveBarcode(code,onFound,onMissing,onIncomplete)
     }
     fun analyse(provider: PhotoProvider) = run {
         val uri=photoUri ?: error("Choose a photo first")

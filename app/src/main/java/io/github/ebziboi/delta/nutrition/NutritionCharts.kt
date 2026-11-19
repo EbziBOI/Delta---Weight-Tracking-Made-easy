@@ -117,9 +117,7 @@ internal fun NutritionChartsPage(state:NutritionState,weights:List<WeightEntry>,
         }
         "sources"->ContentSection {
             Text("Food contributions",style=LocalDeltaType.current.title)
-            val sources=logged.filter {nutrient in it.food.per100}.groupBy {it.food.name}.mapValues {(_,e)->e.total(nutrient).amount}.entries.sortedByDescending {it.value}.take(5)
-            if(sources.isEmpty()) Text("No reported sources in this period")
-            sources.forEach {NutritionRow(it.key,nutrientText(it.value,nutrient))}
+            FoodContributions(logged,nutrient,Color(c.accent))
             Meal.entries.forEach {meal->val e=logged.filter {it.meal==meal};if(e.isNotEmpty()) NutritionRow(meal.label,nutrientText(e.total(nutrient).takeIf {it.reported>0}?.amount,nutrient),"${e.size} foods")}
         }
         "targets"->ContentSection {
