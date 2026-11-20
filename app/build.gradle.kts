@@ -7,7 +7,7 @@ plugins {
 }
 
 // CI passes a build number so every APK can install over the previous one.
-val releaseVersionCode = 45
+val releaseVersionCode = 46
 val isBeta = providers.gradleProperty("delta.channel").orElse("stable").get() == "beta"
 val ciRun = System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull() ?: 0
 // Main CI run 34 follows the optional base-package candidate at version code 42.

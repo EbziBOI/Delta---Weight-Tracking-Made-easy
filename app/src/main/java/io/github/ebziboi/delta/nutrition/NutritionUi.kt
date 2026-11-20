@@ -265,7 +265,12 @@ internal fun Modifier.horizontalSwipe(onSwipe:(Int)->Unit):Modifier=composed {
 private fun DiaryPage(state: NutritionState,day: LocalDate,meal: Meal,padding: PaddingValues,onDay: (LocalDate)->Unit,onMeal: (Meal)->Unit,
                       onAdd:(Meal)->Unit,onEntry:(DiaryEntry)->Unit,onRoute:(String)->Unit,onDate:()->Unit,onRepeat:(DiaryEntry)->Unit,onDelete:(DiaryEntry)->Unit) {
     val c=LocalDeltaColors.current;val type=LocalDeltaType.current;val today=LocalDate.now()
-    val entries=state.entries.filter {it.day==day};val energy=entries.total(Nutrient.ENERGY);val target=state.targets.target(Nutrient.ENERGY)
+    val energySettings by (LocalContext.current.applicationContext as io.github.ebziboi.delta.DeltaApp).repo.settings.collectAsStateWithLifecycle(initialValue=null)
+    val energyDays by rememberEnergyDays()
+    val dayBudget=energyDays.firstOrNull {it.day==day}
+    // With the automatic target, every day is judged against its own budget.
+    val entries=state.entries.filter {it.day==day};val energy=entries.total(Nutrient.ENERGY)
+    val target=dayBudget?.takeIf {energySettings?.energy?.let {e->e.enabled && e.autoBudget}==true}?.budgetKcal ?: state.targets.target(Nutrient.ENERGY)
     val colours=macroColours()
     // The chart's week follows the selected day, sliding only when the day leaves it.
     var chartEnd by rememberSaveable {mutableLongStateOf(day.toEpochDay())}
@@ -341,10 +346,10 @@ private fun DiaryPage(state: NutritionState,day: LocalDate,meal: Meal,padding: P
                 }
             }
         }
-        if(day==today) {
-            val energyOn by (LocalContext.current.applicationContext as io.github.ebziboi.delta.DeltaApp).repo.settings.collectAsStateWithLifecycle(initialValue=null)
+        energySettings?.let {settings->
             val balance by rememberEnergyBalance()
-            energyOn?.let {settings->EnergyCard(balance,settings.energy.enabled,energy.amount.takeIf {energy.known},{onRoute("energy")},{onRoute("energy-setup")})}
+            if(day==today || (settings.energy.enabled && dayBudget!=null))
+                EnergyCard(balance,dayBudget,settings.energy.enabled,energy.amount.takeIf {energy.known && entries.isNotEmpty()},{onRoute("energy")},{onRoute("energy-setup")})
         }
         Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(8.dp)) {
             listOf(Triple("Charts","charts",io.github.ebziboi.delta.R.drawable.ic_bar_chart),Triple("Fasting","fasting",io.github.ebziboi.delta.R.drawable.ic_schedule),

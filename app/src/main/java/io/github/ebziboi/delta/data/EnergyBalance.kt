@@ -57,7 +57,7 @@ data class Workout(val start:Long,val end:Long,val title:String)
 
 /** What Health Connect supplied for the energy maths. */
 data class EnergyHealthData(val heightCm:Double?=null,val restingKcal:Double?=null,val activity:List<DailyActivity> = emptyList(),
-                            val workouts:List<Workout> = emptyList(),val readAt:Long=0)
+                            val workouts:List<Workout> = emptyList(),val readAt:Long=0,val canReadWorkouts:Boolean=false)
 
 data class EnergyInputs(
     val profile:EnergyProfile,
@@ -100,6 +100,10 @@ data class EnergyBalance(
     val loggedDays:Int,
     val weighIns:Int,
     val needsProfile:Boolean,
+    /** Whether [activityKcal] is the average of measured Health Connect activity rather than a chosen level. */
+    val activityFromHealth:Boolean=false,
+    /** The lowest budget Delta will set while losing weight. */
+    val floorKcal:Double=0.0,
 )
 
 object EnergyMath {
@@ -107,7 +111,7 @@ object EnergyMath {
     /** Roughly 0.04 kcal per step for a 70 kg adult, scaled by weight. */
     fun stepKcal(steps:Long,kg:Double)=steps*kg*.00055
     fun bmi(kg:Double,heightCm:Double)=kg/((heightCm/100)*(heightCm/100))
-    fun bmiBand(bmi:Double)=when {bmi<18.5->"Below the healthy range";bmi<25->"Healthy range";bmi<30->"Above the healthy range";else->"Well above the healthy range"}
+    fun bmiBand(bmi:Double)=BmiGroup.of(bmi).label
     /** Mifflin–St Jeor; an unspecified sex uses the midpoint of the two constants. */
     fun mifflin(kg:Double,heightCm:Double,age:Int,sex:Sex)=10*kg+6.25*heightCm-5*age+when(sex) {Sex.MALE->5.0;Sex.FEMALE->-161.0;Sex.UNSPECIFIED->-78.0}
     /** Katch–McArdle, from lean mass: better than height/age formulas whenever body fat is known. */
@@ -146,7 +150,8 @@ object EnergyMath {
         // Activity from the last 14 complete days.
         val window=input.health.activity.filter {it.day<today && ChronoUnit.DAYS.between(it.day,today)<=14}
         val perDay=window.mapNotNull {a->a.activeKcal?.takeIf {it>0} ?: a.steps?.takeIf {it>0}?.let {stepKcal(it,kg)}}
-        val (activity,activityMethod)=if(p.useHealthActivity && perDay.size>=3) {
+        val fromHealth=p.useHealthActivity && perDay.size>=3
+        val (activity,activityMethod)=if(fromHealth) {
             val average=perDay.average()
             average*p.activityCredit to "Health Connect · ${Math.round(average)} kcal/day active over ${perDay.size} days, ${Math.round(p.activityCredit*100)}% counted"
         } else resting*(p.activityLevel.factor-1.1) to "${p.activityLevel.label} (×${p.activityLevel.factor})"
@@ -169,8 +174,10 @@ object EnergyMath {
         val target=input.targetKg?.takeIf {it.isFinite() && it in 20.0..400.0}
         val gap=target?.let {it-kg} ?: 0.0
         var capped=false
+        // No deficit is planned for anyone already under a BMI of 18.5.
+        val underweight=bmi!=null && bmi<BodyMetrics.HEALTHY_LOW && gap<0
         val wanted=when {
-            target==null || abs(gap)<.3 -> 0.0
+            target==null || abs(gap)<.3 || underweight -> 0.0
             input.targetDay!=null && input.targetDay.isAfter(today) -> gap*KCAL_PER_KG/ChronoUnit.DAYS.between(today,input.targetDay).toDouble()
             else -> (if(gap<0) -p.weeklyKg else p.weeklyKg.coerceAtMost(.5))*KCAL_PER_KG/7
         }
@@ -184,6 +191,7 @@ object EnergyMath {
         budget=(budget/10).roundToLong()*10.0
         val pace=(budget-maintenance)*7/KCAL_PER_KG
         val note=when {
+            underweight -> "Your BMI is under 18.5, so Delta plans to maintain your weight rather than lose more."
             target==null -> "Set a target weight for a deficit or surplus. This budget maintains your weight."
             abs(gap)<.3 -> "You're at your target, so this budget maintains it."
             floored -> "Held at a minimum of ${Math.round(floor)} kcal; that paces ${fmt(abs(pace))} kg a week."
@@ -195,7 +203,7 @@ object EnergyMath {
         val todayActivity=input.health.activity.firstOrNull {it.day==today}
         return EnergyBalance(kg,height,age,bmi,bmi?.let(::bmiBand),resting,restingMethod,activity,activityMethod,
             todayActivity?.activeKcal,todayActivity?.steps,input.health.workouts.filter {day(it.start)==today},
-            formula,observed,confidence,maintenance,change,budget,pace,note,capped,floored,logged.size,trendPoints.size,needsProfile)
+            formula,observed,confidence,maintenance,change,budget,pace,note,capped,floored,logged.size,trendPoints.size,needsProfile,fromHealth,floor)
     }
     private fun fmt(v:Double)=String.format(java.util.Locale.UK,"%.2f",v).trimEnd('0').trimEnd('.')
 }

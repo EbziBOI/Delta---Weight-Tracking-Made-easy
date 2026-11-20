@@ -34,9 +34,17 @@ private fun kcal(v:Double)=java.text.DecimalFormat("#,##0").format(Math.round(v)
     return app.energy.balance.collectAsStateWithLifecycle()
 }
 
-/** The day's budget on the Diary: what's left, maintenance and today's activity. Tapping opens the breakdown. */
+@Composable internal fun rememberEnergyDays():State<List<DayBudget>> {
+    val app=LocalContext.current.applicationContext as DeltaApp
+    return app.energy.days.collectAsStateWithLifecycle()
+}
+
+/**
+ * The selected day's budget on the Diary: what's left (or how it went), maintenance and that day's activity.
+ * Tapping opens the breakdown.
+ */
 @Composable
-internal fun EnergyCard(balance:EnergyBalance?,enabled:Boolean,eaten:Double?,onOpen:()->Unit,onSetUp:()->Unit) {
+internal fun EnergyCard(balance:EnergyBalance?,day:DayBudget?,enabled:Boolean,eaten:Double?,onOpen:()->Unit,onSetUp:()->Unit) {
     val c=LocalDeltaColors.current;val type=LocalDeltaType.current
     if(!enabled) {
         Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(Radii.control)).background(Color(c.text).copy(alpha=.05f)).clickable(role=Role.Button,onClick=onSetUp)
@@ -54,60 +62,87 @@ internal fun EnergyCard(balance:EnergyBalance?,enabled:Boolean,eaten:Double?,onO
         if(balance==null) {
             Caption("Energy budget");Text("Log a weigh-in to work out your budget.",style=type.bodySmall,color=Color(c.textDim));return@ContentSection
         }
+        val today=day==null || day.isToday
+        val budget=day?.budgetKcal ?: balance.budgetKcal
+        val maintenance=day?.maintenanceKcal ?: balance.maintenanceKcal
         Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.Bottom,horizontalArrangement=Arrangement.spacedBy(12.dp)) {
             Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(2.dp)) {
-                Caption("Energy budget")
-                ValueWithUnit(kcal(balance.budgetKcal),"kcal",style=type.numberLarge)
+                Caption(if(today) "Energy budget" else "Budget that day")
+                ValueWithUnit(kcal(budget),"kcal",style=type.numberLarge)
             }
             eaten?.let {e->
-                val left=balance.budgetKcal-e
+                val left=budget-e
                 Column(horizontalAlignment=Alignment.End) {
                     Text(kcal(abs(left)),style=type.number,color=Color(if(left>=0) c.good else c.warn))
-                    Text(if(left>=0) "kcal left" else "kcal over",style=type.label,color=Color(c.textDim))
+                    Text(if(left>=0) (if(today) "kcal left" else "kcal under") else "kcal over",style=type.label,color=Color(c.textDim))
                 }
             }
         }
-        Text("Maintenance ${kcal(balance.maintenanceKcal)} · ${if(abs(balance.dailyChange)<5) "maintaining" else if(balance.budgetKcal<balance.maintenanceKcal) "deficit ${kcal(balance.maintenanceKcal-balance.budgetKcal)}" else "surplus ${kcal(balance.budgetKcal-balance.maintenanceKcal)}"}",
+        Text("Maintenance ${kcal(maintenance)} · ${if(abs(budget-maintenance)<10) "maintaining" else if(budget<maintenance) "deficit ${kcal(maintenance-budget)}" else "surplus ${kcal(budget-maintenance)}"}",
             style=type.bodySmall,color=Color(c.textDim))
-        val today=listOfNotNull(balance.todayActiveKcal?.takeIf {it>0}?.let {"${kcal(it)} kcal active"},balance.todaySteps?.takeIf {it>0}?.let {"${java.text.DecimalFormat("#,##0").format(it)} steps"},
-            balance.todayWorkouts.takeIf {it.isNotEmpty()}?.joinToString {w->"${w.title} ${((w.end-w.start)/60000)} min"})
-        if(today.isNotEmpty()) Text("Today · "+today.joinToString(" · "),style=type.bodySmall)
-        if(balance.confidence>0) Text("Learned from your logs · ${Math.round(balance.confidence*100)}% of maintenance",style=type.label,color=Color(c.accent))
-        else if(balance.needsProfile) Text("Add height and age for a closer estimate",style=type.label,color=Color(c.warn))
+        if(today) {
+            val now=listOfNotNull(balance.todayActiveKcal?.takeIf {it>0}?.let {"${kcal(it)} kcal active"},balance.todaySteps?.takeIf {it>0}?.let {"${java.text.DecimalFormat("#,##0").format(it)} steps"},
+                balance.todayWorkouts.takeIf {it.isNotEmpty()}?.joinToString {w->"${w.title} ${((w.end-w.start)/60000)} min"})
+            if(now.isNotEmpty()) Text("Today · "+now.joinToString(" · "),style=type.bodySmall)
+            if(day!=null && day.budgetKcal-balance.budgetKcal>=10) Text("+${kcal(day.budgetKcal-balance.budgetKcal)} kcal earned above your usual activity",style=type.label,color=Color(c.good))
+        } else if(day!=null) {
+            val past=listOfNotNull(day.activityKcal?.takeIf {day.activityMeasured}?.let {"${kcal(it)} kcal activity counted"},day.steps?.takeIf {it>0}?.let {"${java.text.DecimalFormat("#,##0").format(it)} steps"})
+            if(past.isNotEmpty()) Text(past.joinToString(" · "),style=type.bodySmall)
+            day.vsMaintenance?.takeIf {day.complete}?.let {Text("${if(it<=0) "Deficit" else "Surplus"} of ${kcal(abs(it))} kcal against maintenance",style=type.label,color=Color(if(it<=0) c.good else c.warn))}
+            if(day.estimated) Text("Estimated with your current profile",style=type.label,color=Color(c.textDim))
+        }
+        if(today) {
+            if(balance.confidence>0) Text("Learned from your logs · ${Math.round(balance.confidence*100)}% of maintenance",style=type.label,color=Color(c.accent))
+            else if(balance.needsProfile) Text("Add height and age for a closer estimate",style=type.label,color=Color(c.warn))
+        }
     }
 }
 
 @Composable
 internal fun EnergyDetailPage(balance:EnergyBalance?,padding:PaddingValues,onBack:()->Unit,onSettings:()->Unit) {
     val c=LocalDeltaColors.current;val type=LocalDeltaType.current
+    val app=LocalContext.current.applicationContext as DeltaApp
+    val days by rememberEnergyDays()
+    val settings by app.repo.settings.collectAsStateWithLifecycle(initialValue=null)
+    val weights by app.repo.entries.collectAsStateWithLifecycle(initialValue=emptyList())
+    val fat by app.repo.bodyFat.collectAsStateWithLifecycle(initialValue=emptyList())
+    val food by app.nutrition.state.collectAsStateWithLifecycle()
+    val health by app.energy.healthData.collectAsStateWithLifecycle()
     NutritionPage("Energy budget",padding,onBack) {
         if(balance==null) {
             Text("Turn on the energy budget and log a weigh-in to see it here.",style=type.body)
             PrimaryButton("Body & energy settings",onSettings,Modifier.fillMaxWidth());return@NutritionPage
         }
+        val unit=settings?.unit ?: WeightUnit.KG
+        val today=days.lastOrNull()?.takeIf {it.isToday}
         ContentSection(tone=ModuleTone.VIOLET,framed=true) {
-            Caption("Daily budget")
-            ValueWithUnit(kcal(balance.budgetKcal),"kcal",style=type.numberLarge.copy(fontSize=40.sp,lineHeight=44.sp))
+            Caption("Today's budget")
+            ValueWithUnit(kcal(today?.budgetKcal ?: balance.budgetKcal),"kcal",style=type.numberLarge.copy(fontSize=40.sp,lineHeight=44.sp))
             Text(balance.goalNote,style=type.bodySmall)
+            if(today!=null && today.budgetKcal-balance.budgetKcal>=10) Text("Includes ${kcal(today.budgetKcal-balance.budgetKcal)} kcal of activity above your usual today.",style=type.label,color=Color(c.good))
             if(balance.capped || balance.floored) Text("Faster changes are hard to sustain and can cost muscle.",style=type.label,color=Color(c.textDim))
         }
+        if(days.isNotEmpty()) EnergyBalanceSection(days,weights,unit) {app.energy.recalculatePast()}
+        val current=settings
+        if(current!=null && days.isNotEmpty()) {
+            val advice=remember(balance,days,food.entries,health,current.targetKg,weights,unit) {
+                EnergyHistory.advice(adviceInputs(balance,current.energy,days,food.entries,health,current.targetKg,weights,unit))
+            }
+            AdviceSection(advice)
+        }
+        val recentFat=remember(fat) {fat.filter {BodyFat.valid(it.percent) && System.currentTimeMillis()-it.epochMs<=45L*86_400_000}.maxByOrNull {it.epochMs}}
+        BodyReport(balance,current?.energy ?: EnergyProfile(),current?.targetKg,recentFat,unit)
         ContentSection {
             Caption("How it's worked out")
             NutritionRow("Resting energy",kcal(balance.restingKcal),balance.restingMethod)
             NutritionRow("Digesting food","+${kcal(balance.restingKcal*.1)}","About 10% of what you eat")
-            NutritionRow("Activity","+${kcal(balance.activityKcal)}",balance.activityMethod)
+            NutritionRow("Activity","+${kcal(balance.activityKcal)}",balance.activityMethod+if(balance.activityFromHealth) " · each day uses its own activity" else "")
             NutritionRow("Estimate",kcal(balance.formulaKcal),"Resting + digestion + activity")
             balance.observedKcal?.let {NutritionRow("From your logs",kcal(it),"${balance.loggedDays} fully logged days and ${balance.weighIns} weigh-ins in the last 4 weeks")}
                 ?: Text("After about two weeks of complete logging and regular weigh-ins, Delta learns your real maintenance from how your weight responds.",style=type.bodySmall,color=Color(c.textDim))
             NutritionRow("Maintenance",kcal(balance.maintenanceKcal),if(balance.confidence>0) "${Math.round(balance.confidence*100)}% learned, ${Math.round((1-balance.confidence)*100)}% estimate" else "Estimate")
             NutritionRow(if(balance.dailyChange<=0) "Deficit" else "Surplus",kcal(abs(balance.budgetKcal-balance.maintenanceKcal)),"${String.format(java.util.Locale.UK,"%.2f",abs(balance.paceKgPerWeek))} kg a week at 7,700 kcal per kg")
-        }
-        ContentSection {
-            Caption("Body")
-            NutritionRow("Weight",String.format(java.util.Locale.UK,"%.1f kg",balance.currentKg),"7-day average")
-            balance.heightCm?.let {NutritionRow("Height","${Math.round(it)} cm")}
             balance.age?.let {NutritionRow("Age","$it")}
-            balance.bmi?.let {NutritionRow("BMI",String.format(java.util.Locale.UK,"%.1f",it),balance.bmiBand+" · BMI doesn't account for muscle; body fat says more")}
         }
         if(balance.todayActiveKcal!=null || balance.todaySteps!=null || balance.todayWorkouts.isNotEmpty()) ContentSection {
             Caption("Today from Health Connect")
