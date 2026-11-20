@@ -69,6 +69,7 @@ fun ProgressScreen(
     onOpenSettings: () -> Unit,
     onMetric: (DetailMetric) -> Unit = {},
     onNutrition:()->Unit={},
+    onEnergy:(String)->Unit={vm.openFood(if(it=="setup") "energy-setup" else it)},
 ) {
     val snapshot by vm.snapshot.collectAsStateWithLifecycle()
     val entries by vm.entries.collectAsStateWithLifecycle()
@@ -102,8 +103,8 @@ fun ProgressScreen(
                 "goal_setup" -> ContentSection {Text("Set a target weight",style=LocalDeltaType.current.title);PrimaryButton("Open settings",onOpenSettings)}
                 "rate","goal","average","streak" -> KeyFigure(id,snap,insights,unit,onMetric)
                 "trend" -> HomeTrends(entries,snap.bodyFat,nutrition,settings,onMetric,onNutrition)
-                "energy" -> io.github.ebziboi.delta.nutrition.HomeEnergyCard {vm.openFood("energy")}
-                "bmi" -> io.github.ebziboi.delta.nutrition.HomeBmiCard(snap.currentKg,{vm.openFood("energy")},{vm.openFood("energy-setup")})
+                "energy" -> io.github.ebziboi.delta.nutrition.HomeEnergyCard {onEnergy("energy")}
+                "bmi" -> io.github.ebziboi.delta.nutrition.HomeBmiCard(snap.currentKg,{onEnergy("energy")},{onEnergy("setup")})
                 "insights" -> InsightsCard(snap,entries,settings,Modifier,onMetric)
                 "recent" -> RecentCard(insights,snap.losing,unit,Modifier)
             }

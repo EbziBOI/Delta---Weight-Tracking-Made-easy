@@ -78,6 +78,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
      * [announce] it also says how it went.
      */
     fun refresh(announce: Boolean = false) {
+        // Activity for the energy budget is read on its own, so a failed weight sync can't hold it back.
+        runCatching {(getApplication<android.app.Application>() as io.github.ebziboi.delta.DeltaApp).energy.refreshNow()}
         viewModelScope.launch {
             _health.value = runCatching { repo.health.state() }.getOrDefault(_health.value)
             if (_syncing.value) return@launch
@@ -87,7 +89,6 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 try {nutritionRepo.syncHealth(repo.health)}
                 catch(cancelled:kotlinx.coroutines.CancellationException) {throw cancelled}
                 catch(_:Exception) {if(announce) _messages.tryEmit("Food sync failed. Your saved meals are unchanged.")}
-                runCatching {(getApplication<android.app.Application>() as io.github.ebziboi.delta.DeltaApp).energy.refresh()}
                 weights
             } catch (cancelled: kotlinx.coroutines.CancellationException) {
                 throw cancelled

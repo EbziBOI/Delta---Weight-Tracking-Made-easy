@@ -139,11 +139,13 @@ private fun MainScreen(
     var foodAddSignal by rememberSaveable { androidx.compose.runtime.mutableIntStateOf(0) }
     var nutritionDetail by remember { mutableStateOf(false) }
     var homeNutrition by rememberSaveable {mutableStateOf(false)}
+    // The energy page (and its settings) opened from a Home card, shown over Home like the other details.
+    var homeEnergy by rememberSaveable {mutableStateOf<String?>(null)}
     var requestedFoodRoute by rememberSaveable {mutableStateOf("diary")}
     var foodRouteSignal by rememberSaveable {androidx.compose.runtime.mutableLongStateOf(0)}
     val foodOpen by vm.foodOpen.collectAsStateWithLifecycle()
     LaunchedEffect(foodOpen) {foodOpen?.let {request->
-        metric=null;homeNutrition=false;tab=3;requestedFoodRoute=request.route;foodRouteSignal=request.token;vm.consumeFoodOpen()
+        metric=null;homeNutrition=false;homeEnergy=null;tab=3;requestedFoodRoute=request.route;foodRouteSignal=request.token;vm.consumeFoodOpen()
     }}
     val weights by vm.entries.collectAsStateWithLifecycle()
     val snap by vm.snapshot.collectAsStateWithLifecycle()
@@ -168,17 +170,24 @@ private fun MainScreen(
         contentWindowInsets = WindowInsets(0),
         containerColor = Color.Transparent,
         contentColor = Color(colors.text),
-        snackbarHost = { SnackbarHost(snackbar,Modifier.navigationBarsPadding().padding(bottom=if(dockVisible && !homeNutrition && metric==null) 72.dp else 8.dp)) },
+        snackbarHost = { SnackbarHost(snackbar,Modifier.navigationBarsPadding().padding(bottom=if(dockVisible && !homeNutrition && homeEnergy==null && metric==null) 72.dp else 8.dp)) },
     ) { scaffoldPadding ->
         val padding = PaddingValues(
             top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 8.dp,
             bottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding())
-        val hasActions = !homeNutrition && tab != 2 && metric == null && !(tab==3 && nutritionDetail)
+        val hasActions = !homeNutrition && homeEnergy==null && tab != 2 && metric == null && !(tab==3 && nutritionDetail)
         // Screens run the full height, so content scrolls on behind the floating glass bar
         // (their padding keeps the last item clear of it) instead of stopping at a hard edge.
         androidx.compose.foundation.layout.Box(Modifier.fillMaxSize().padding(scaffoldPadding)) {
             androidx.compose.runtime.CompositionLocalProvider(LocalHeaderActionSpace provides if(hasActions) {if(tab==3) 52.dp else 104.dp} else 0.dp, LocalCardReordering provides {active -> if(active) dockVisible=false}) {
-            if(homeNutrition) screens.SaveableStateProvider("home-nutrition-charts") {
+            if(homeEnergy!=null) screens.SaveableStateProvider("home-$homeEnergy") {
+                val back={homeEnergy=if(homeEnergy=="energy/setup") "energy" else null}
+                if(homeEnergy=="energy") {
+                    val balance by io.github.ebziboi.delta.nutrition.rememberEnergyBalance()
+                    io.github.ebziboi.delta.nutrition.EnergyDetailPage(balance,padding,back) {homeEnergy="energy/setup"}
+                } else io.github.ebziboi.delta.nutrition.NutritionPage("Body & energy",padding,back) {io.github.ebziboi.delta.nutrition.EnergySettings()}
+            }
+            else if(homeNutrition) screens.SaveableStateProvider("home-nutrition-charts") {
                 io.github.ebziboi.delta.nutrition.HomeNutritionCharts(padding,weights,settings.unit,onBack={homeNutrition=false})
             }
             else if (metric != null) screens.SaveableStateProvider("detail-${metric!!.name}") { when(metric!!) {
@@ -188,7 +197,7 @@ private fun MainScreen(
                 else -> MetricDetailScreen(vm,settings,metric!!,padding,closeDetail)
             } }
             else screens.SaveableStateProvider("tab-$tab") { when (tab) {
-                0 -> ProgressScreen(vm, settings, health, padding, requestAccess, onOpenSettings = { tab = 2 }, onMetric = { detailParent=null;metric=it },onNutrition={homeNutrition=true})
+                0 -> ProgressScreen(vm, settings, health, padding, requestAccess, onOpenSettings = { tab = 2 }, onMetric = { detailParent=null;metric=it },onNutrition={homeNutrition=true},onEnergy={homeEnergy=it})
                 1 -> HistoryScreen(vm, settings, padding)
                 3 -> io.github.ebziboi.delta.nutrition.NutritionScreen(padding, foodAddSignal, {nutritionDetail=it;if(!it) dockVisible=true}, weights, weightUnit=settings.unit,openRoute=requestedFoodRoute,openSignal=foodRouteSignal)
                 else -> SettingsScreen(vm, settings, health, padding, requestAccess)
@@ -198,9 +207,9 @@ private fun MainScreen(
             EdgeShading()
             if(hasActions) Row(Modifier.align(androidx.compose.ui.Alignment.TopEnd).statusBarsPadding().padding(top=8.dp,end=20.dp),horizontalArrangement=Arrangement.spacedBy(8.dp)) {
                 if(tab!=3) GlassIconButton(io.github.ebziboi.delta.R.drawable.ic_sync,"Sync with Health Connect",{vm.refresh(announce=true)})
-                GlassIconButton(io.github.ebziboi.delta.R.drawable.ic_settings,"Settings",{metric=null;tab=2})
+                GlassIconButton(io.github.ebziboi.delta.R.drawable.ic_settings,"Settings",{metric=null;homeEnergy=null;tab=2})
             }
-            AnimatedVisibility(!homeNutrition && dockVisible && metric == null && !(tab==3 && nutritionDetail), modifier = Modifier.align(androidx.compose.ui.Alignment.BottomCenter),
+            AnimatedVisibility(!homeNutrition && homeEnergy==null && dockVisible && metric == null && !(tab==3 && nutritionDetail), modifier = Modifier.align(androidx.compose.ui.Alignment.BottomCenter),
                 enter = if (LocalMotion.current) slideInVertically { it } else androidx.compose.animation.EnterTransition.None,
                 exit = if (LocalMotion.current) slideOutVertically { it } else androidx.compose.animation.ExitTransition.None) {
             GlassBottomNavBar(itemCount=TABS.size, logLabel=if(tab==3) "Add food" else "Log weight", onLog = if (tab != 2) ({ if(tab==3) foodAddSignal++ else if (!io.github.ebziboi.delta.BuildConfig.IS_BETA && health?.canWrite == false) requestAccess() else logging = true }) else null) {
@@ -208,7 +217,7 @@ private fun MainScreen(
                     NavigationBarItem(
                         interactionSource=rememberHapticInteractionSource(),
                         selected = tab == item.id,
-                        onClick = { metric = null; tab = item.id },
+                        onClick = { metric = null; homeEnergy = null; tab = item.id },
                         icon = {
                             when (item.id) {
                                 0 -> Icon(androidx.compose.ui.res.painterResource(io.github.ebziboi.delta.R.drawable.ic_delta_mark), contentDescription = null, modifier = Modifier.size(20.dp))

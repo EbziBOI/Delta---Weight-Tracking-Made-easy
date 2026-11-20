@@ -68,18 +68,21 @@ fun ContentSection(
         return
     }
     val colors = LocalDeltaColors.current
+    // Tappable cards press in like the tiles and buttons do.
+    val source=rememberHapticInteractionSource()
+    val press=if(onClick!=null) Modifier.pressScale(source,.98f) else Modifier
     if (framed) {
-        val interaction=if(onClick!=null) Modifier.clickable(role=Role.Button,onClick=onClick) else Modifier
+        val interaction=if(onClick!=null) Modifier.clickable(interactionSource=source,indication=androidx.compose.material3.ripple(),role=Role.Button,onClick=onClick) else Modifier
         CompositionLocalProvider(LocalContentColor provides Color(colors.text)) {
-            Column(modifier.fillMaxWidth().then(if(LocalMotion.current) Modifier.animateContentSize() else Modifier).refractiveGlass(RoundedCornerShape(Radii.card),colors).then(interaction).padding(20.dp),
+            Column(modifier.then(press).fillMaxWidth().then(if(LocalMotion.current) Modifier.animateContentSize() else Modifier).refractiveGlass(RoundedCornerShape(Radii.card),colors).then(interaction).padding(20.dp),
                 verticalArrangement = Arrangement.spacedBy(spacing),content=content)
         }
         return
     }
     val shape=RoundedCornerShape(Radii.tile)
-    var section=modifier.fillMaxWidth().clip(shape).background(Color(colors.surface).copy(alpha=
+    var section=modifier.then(press).fillMaxWidth().clip(shape).background(Color(colors.surface).copy(alpha=
         if(LocalAppearance.current.reduceTransparency) 1f else if(colors.isLight) .56f else .38f))
-    if (onClick != null) section = section.clickable(role = Role.Button, onClick = onClick)
+    if (onClick != null) section = section.clickable(interactionSource=source,indication=androidx.compose.material3.ripple(),role = Role.Button, onClick = onClick)
     CompositionLocalProvider(LocalContentColor provides Color(colors.text)) {
         Column(section.padding(16.dp), verticalArrangement = Arrangement.spacedBy(spacing), content = content)
     }

@@ -80,7 +80,7 @@ jobs:
         run: |
           TAG="build-${{ github.run_number }}"
           APK="Delta-${DELTA_VERSION}.apk"
-          cp docs/RELEASE-0.2.47.md "$RUNNER_TEMP/release-notes.md"
+          cp docs/RELEASE-0.2.48.md "$RUNNER_TEMP/release-notes.md"
           printf '\nBuilt from %s on %s.\n' '${{ github.sha }}' '${{ github.ref_name }}' >> "$RUNNER_TEMP/release-notes.md"
           # Re-running a build keeps its number, so replace the file if the release already exists.
           if gh release view "$TAG" > /dev/null 2>&1; then

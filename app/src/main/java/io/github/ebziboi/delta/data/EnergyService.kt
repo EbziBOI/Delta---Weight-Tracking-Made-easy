@@ -90,6 +90,7 @@ class EnergyService(context:Context,private val weights:WeightRepository,private
                 workouts=if(access.canReadExercise) runCatching {weights.health.readWorkouts(Instant.now().minus(java.time.Duration.ofDays(HISTORY_DAYS.toLong())))}
                     .recoverCatching {weights.health.readWorkouts(Instant.now().minus(java.time.Duration.ofDays(30)))}.getOrDefault(previous.workouts) else emptyList(),
                 canReadWorkouts=access.canReadExercise,
+                canReadActivity=access.canReadActivity,
                 readAt=System.currentTimeMillis())
         }
         if(profile.writeNutrition) write()
@@ -107,6 +108,15 @@ class EnergyService(context:Context,private val weights:WeightRepository,private
             val changed=writer.reconcile(state.entries)
             if(changed>0) "Updated $changed food ${if(changed==1) "entry" else "entries"} in Health Connect" else _writeStatus.value ?: "Diary is up to date in Health Connect"
         } catch(e:CancellationException) {throw e} catch(_:Exception) {"Couldn't write food to Health Connect. Delta will try again."}
+    }
+
+    private val _refreshing=MutableStateFlow(false)
+    val refreshing:StateFlow<Boolean> = _refreshing.asStateFlow()
+    /** Reads Health Connect again now, for the energy page. */
+    fun refreshNow()=scope.launch {
+        if(_refreshing.value) return@launch
+        _refreshing.value=true
+        try {runCatching {refresh()}} finally {_refreshing.value=false}
     }
 
     /** Writes the whole diary now. */

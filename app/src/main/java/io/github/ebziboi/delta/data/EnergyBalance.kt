@@ -57,7 +57,9 @@ data class Workout(val start:Long,val end:Long,val title:String)
 
 /** What Health Connect supplied for the energy maths. */
 data class EnergyHealthData(val heightCm:Double?=null,val restingKcal:Double?=null,val activity:List<DailyActivity> = emptyList(),
-                            val workouts:List<Workout> = emptyList(),val readAt:Long=0,val canReadWorkouts:Boolean=false)
+                            val workouts:List<Workout> = emptyList(),val readAt:Long=0,val canReadWorkouts:Boolean=false,
+                            /** Whether Delta may read active calories or steps; false also before the first read. */
+                            val canReadActivity:Boolean=false)
 
 data class EnergyInputs(
     val profile:EnergyProfile,
@@ -184,7 +186,8 @@ object EnergyMath {
         // At most 1% of body weight a week down, or 0.5% up.
         val limit=if(wanted<0) kg*.01*KCAL_PER_KG/7 else kg*.005*KCAL_PER_KG/7
         val change=if(abs(wanted)>limit) {capped=true;if(wanted<0) -limit else limit} else wanted
-        val floor=maxOf(resting,minimumIntake(p.sex))
+        // Rounded up to the 10 kcal the budget is shown in, so the note and the budget agree.
+        val floor=kotlin.math.ceil(maxOf(resting,minimumIntake(p.sex))/10)*10
         var budget=maintenance+change
         val floored=budget<floor && change<0
         if(floored) budget=floor

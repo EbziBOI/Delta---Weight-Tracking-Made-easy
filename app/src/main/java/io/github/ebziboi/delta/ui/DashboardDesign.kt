@@ -45,13 +45,14 @@ fun DashboardModule(modifier: Modifier = Modifier, tone: ModuleTone = ModuleTone
     val colors = theme.drawColors()
     val shape=RoundedCornerShape(Radii.card)
     val backdrop=LocalGlassBackdrop.current
-    var pane = modifier.then(if(LocalMotion.current) Modifier.animateContentSize() else Modifier).fillMaxWidth().clip(shape)
+    val source=rememberHapticInteractionSource()
+    var pane = modifier.then(if(onClick!=null) Modifier.pressScale(source,.98f) else Modifier).then(if(LocalMotion.current) Modifier.animateContentSize() else Modifier).fillMaxWidth().clip(shape)
     pane=if(Build.VERSION.SDK_INT>=31 && backdrop!=null && appearance.glassBlurRadius>0 && !appearance.reduceTransparency) pane.hazeEffect(backdrop) {
         backgroundColor=Color(root.bg);blurRadius=appearance.glassBlurRadius.dp;noiseFactor=.01f
         tints=listOf(HazeTint(Color(base).copy(alpha=opacity)))
         fallbackTint=HazeTint(Color(base).copy(alpha=opacity))
     } else pane.background(Color(base).copy(alpha=opacity))
-    if (onClick != null) pane = pane.clickable(role = Role.Button, onClick = onClick)
+    if (onClick != null) pane = pane.clickable(interactionSource=source,indication=androidx.compose.material3.ripple(),role = Role.Button, onClick = onClick)
     CompositionLocalProvider(LocalDeltaColors provides colors, LocalDerivedTheme provides theme,
         LocalContentColor provides Color(colors.text)) {
         Column(pane.padding(20.dp), verticalArrangement = Arrangement.spacedBy(spacing), content = content)

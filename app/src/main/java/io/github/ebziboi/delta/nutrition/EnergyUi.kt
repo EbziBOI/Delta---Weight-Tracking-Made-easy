@@ -78,6 +78,7 @@ internal fun EnergyCard(balance:EnergyBalance?,day:DayBudget?,enabled:Boolean,ea
                 }
             }
         }
+        eaten?.let {BudgetBar(it,budget,gaining=budget-maintenance>50)}
         Text("Maintenance ${kcal(maintenance)} · ${if(abs(budget-maintenance)<10) "maintaining" else if(budget<maintenance) "deficit ${kcal(maintenance-budget)}" else "surplus ${kcal(budget-maintenance)}"}",
             style=type.bodySmall,color=Color(c.textDim))
         if(today) {
@@ -88,13 +89,24 @@ internal fun EnergyCard(balance:EnergyBalance?,day:DayBudget?,enabled:Boolean,ea
         } else if(day!=null) {
             val past=listOfNotNull(day.activityKcal?.takeIf {day.activityMeasured}?.let {"${kcal(it)} kcal activity counted"},day.steps?.takeIf {it>0}?.let {"${java.text.DecimalFormat("#,##0").format(it)} steps"})
             if(past.isNotEmpty()) Text(past.joinToString(" · "),style=type.bodySmall)
-            day.vsMaintenance?.takeIf {day.complete}?.let {Text("${if(it<=0) "Deficit" else "Surplus"} of ${kcal(abs(it))} kcal against maintenance",style=type.label,color=Color(if(it<=0) c.good else c.warn))}
             if(day.estimated) Text("Estimated with your current profile",style=type.label,color=Color(c.textDim))
         }
         if(today) {
             if(balance.confidence>0) Text("Learned from your logs · ${Math.round(balance.confidence*100)}% of maintenance",style=type.label,color=Color(c.accent))
             else if(balance.needsProfile) Text("Add height and age for a closer estimate",style=type.label,color=Color(c.warn))
         }
+    }
+}
+
+/** The plan in a sentence, in the person's own unit. */
+internal fun goalLine(b:EnergyBalance,unit:WeightUnit,targetKg:Double?):String {
+    val pace=abs(b.paceKgPerWeek)
+    val weeks=targetKg?.takeIf {pace>.01}?.let {abs(b.currentKg-it)/pace}?.let {Math.round(it)}?.takeIf {it>0}
+    return when {
+        abs(b.budgetKcal-b.maintenanceKcal)<10 -> b.goalNote
+        b.floored -> "Held at your minimum of ${kcal(b.floorKcal)} kcal: about ${Units.amount(pace,unit)} a week."
+        b.capped -> "Held at a safer ${Units.amount(pace,unit)} a week."
+        else -> "${if(b.paceKgPerWeek<0) "Losing" else "Gaining"} about ${Units.amount(pace,unit)} a week"+(weeks?.let {", target in about $it ${if(it==1L) "week" else "weeks"}"} ?: "")+"."
     }
 }
 
@@ -116,14 +128,18 @@ internal fun EnergyDetailPage(balance:EnergyBalance?,padding:PaddingValues,onBac
         val unit=settings?.unit ?: WeightUnit.KG
         val today=days.lastOrNull()?.takeIf {it.isToday}
         ContentSection(tone=ModuleTone.VIOLET,framed=true) {
-            Caption("Today's budget")
-            ValueWithUnit(kcal(today?.budgetKcal ?: balance.budgetKcal),"kcal",style=type.numberLarge.copy(fontSize=40.sp,lineHeight=44.sp))
-            Text(balance.goalNote,style=type.bodySmall)
-            today?.let {DeficitMeter(it,Modifier.padding(top=4.dp))}
-            if(today!=null && today.budgetKcal-balance.budgetKcal>=10) Text("Includes ${kcal(today.budgetKcal-balance.budgetKcal)} kcal of activity above your usual today.",style=type.label,color=Color(c.good))
-            if(balance.capped || balance.floored) Text("Faster changes are hard to sustain and can cost muscle.",style=type.label,color=Color(c.textDim))
+            Caption("Today")
+            if(today!=null) TodayBudget(today,big=true)
+            else ValueWithUnit(kcal(balance.budgetKcal),"kcal",style=type.numberLarge)
+            Text(goalLine(balance,unit,settings?.targetKg),style=type.bodySmall)
+            val now=listOfNotNull(balance.todayActiveKcal?.takeIf {it>0}?.let {"${kcal(it)} kcal active"},balance.todaySteps?.takeIf {it>0}?.let {"${java.text.DecimalFormat("#,##0").format(it)} steps"},
+                balance.todayWorkouts.takeIf {it.isNotEmpty()}?.joinToString {w->"${w.title} ${((w.end-w.start)/60000)} min"})
+            if(now.isNotEmpty()) Text("Health Connect today: "+now.joinToString(" · "),style=type.label,color=Color(c.textDim))
+            if(today!=null && today.budgetKcal-balance.budgetKcal>=10) Text("+${kcal(today.budgetKcal-balance.budgetKcal)} kcal added for activity above your usual.",style=type.label,color=Color(c.good))
         }
-        if(days.isNotEmpty()) EnergyBalanceSection(days,weights,unit) {app.energy.recalculatePast()}
+        val refreshing by app.energy.refreshing.collectAsStateWithLifecycle()
+        LaunchedEffect(Unit) {app.energy.refreshNow()}
+        if(days.isNotEmpty()) EnergyBalanceSection(days,weights,unit,health,settings?.energy?.useHealthActivity ?: false,refreshing,{app.energy.refreshNow()},onSettings)
         val current=settings
         if(current!=null && days.isNotEmpty()) {
             val advice=remember(balance,days,food.entries,health,current.targetKg,weights,unit) {
@@ -142,14 +158,10 @@ internal fun EnergyDetailPage(balance:EnergyBalance?,padding:PaddingValues,onBac
             balance.observedKcal?.let {NutritionRow("From your logs",kcal(it),"${balance.loggedDays} fully logged days and ${balance.weighIns} weigh-ins in the last 4 weeks")}
                 ?: Text("After about two weeks of complete logging and regular weigh-ins, Delta learns your real maintenance from how your weight responds.",style=type.bodySmall,color=Color(c.textDim))
             NutritionRow("Maintenance",kcal(balance.maintenanceKcal),if(balance.confidence>0) "${Math.round(balance.confidence*100)}% learned, ${Math.round((1-balance.confidence)*100)}% estimate" else "Estimate")
-            NutritionRow(if(balance.dailyChange<=0) "Deficit" else "Surplus",kcal(abs(balance.budgetKcal-balance.maintenanceKcal)),"${String.format(java.util.Locale.UK,"%.2f",abs(balance.paceKgPerWeek))} kg a week at 7,700 kcal per kg")
+            NutritionRow(if(balance.budgetKcal<=balance.maintenanceKcal) "Deficit" else "Surplus",kcal(abs(balance.budgetKcal-balance.maintenanceKcal)),"${Units.amount(abs(balance.paceKgPerWeek),unit)} a week at 7,700 kcal per kg")
             balance.age?.let {NutritionRow("Age","$it")}
-        }
-        if(balance.todayActiveKcal!=null || balance.todaySteps!=null || balance.todayWorkouts.isNotEmpty()) ContentSection {
-            Caption("Today from Health Connect")
-            balance.todayActiveKcal?.let {NutritionRow("Active energy","${kcal(it)} kcal")}
-            balance.todaySteps?.let {NutritionRow("Steps",java.text.DecimalFormat("#,##0").format(it))}
-            balance.todayWorkouts.forEach {w->NutritionRow(w.title,"${(w.end-w.start)/60000} min",java.time.Instant.ofEpochMilli(w.start).atZone(java.time.ZoneId.systemDefault()).toLocalTime().withNano(0).withSecond(0).toString())}
+            if(balance.capped || balance.floored) Text("Faster changes are hard to sustain and can cost muscle, so Delta limits the pace.",style=type.label,color=Color(c.textDim))
+            TextAction("Recalculate past days with current settings",{app.energy.recalculatePast()})
         }
         SecondaryButton("Body & energy settings",onSettings,Modifier.fillMaxWidth(),icon=io.github.ebziboi.delta.R.drawable.ic_tune)
         Text("Estimates, not medical advice. Talk to a professional before large changes, during pregnancy, or with a health condition.",style=type.label,color=Color(c.textDim))
