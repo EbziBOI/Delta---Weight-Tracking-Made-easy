@@ -1,6 +1,6 @@
 # Delta
 
-**Stage 2 is now in the main Delta release.** Install the versioned APK as an update to Delta. Beta users can copy their diary and settings through **Settings → Backup and transfer**; see [release notes](docs/RELEASE-0.2.44.md).
+**Stage 2 is now in the main Delta release.** Install the versioned APK as an update to Delta. Beta users can copy their diary and settings through **Settings → Backup and transfer**; see [release notes](docs/RELEASE-0.2.45.md).
 
 An open-source weight and nutrition tracker for Android, built around home-screen
 widgets that show where you started, where you are now and where you are going.
@@ -40,7 +40,8 @@ background and blur when you switch back. The visual reference is
 - Signature, Orbit, Bloom, Contours, Ribbon, Mosaic and Summit percentage complications follow both design themes and scale into widgets
 - Hold a card’s heading and drag to rearrange Home, Weight trend or Body composition. Each page saves its own order, including individual Home metric tiles and detail insight cards. Dragging scrolls the page near its edges; graph and calendar touches retain their own behavior
 - Combined Home trends with independent Weight, Body fat and Nutrition toggles; recorded-only points, today at the right edge and an animated selection marker after date panning
-- Read-only Health Connect food integration, including supported micronutrients; imported totals stay separate from local diary entries
+- Health Connect food integration, including supported micronutrients; imported totals stay separate from local diary entries. Optionally, the local diary is written to Health Connect too (main app only): edits update and deletions remove the same records, and Delta never reads its own entries back
+- Optional energy budget (Settings → Body & energy): resting energy from lean mass when body fat is known, otherwise from height, age and sex; activity from Health Connect active calories and steps (discounted, 75% by default) or a chosen activity level; maintenance learned from complete logging days and the weight trend; and a deficit or surplus from your target and date, capped at 1% of body weight a week and never below resting energy. BMI and today's activity and workouts are shown alongside, and the budget can set the diary's energy target automatically
 - Four diet widgets: Energy budget, Macro balance, Food diary with quick add, and a live Fasting clock; all resize with per-widget settings and previews
 - Nutrition charts place the 30-day median of recorded daily totals at 75% height and mark larger values with an overflow triangle, retaining their full values
 - Three compact, equal-width Home detail cards form a staircase outside the chart; Android Back returns to Home
@@ -51,9 +52,11 @@ background and blur when you switch back. The visual reference is
 - Diary: tap a day on the seven-day macro chart to open it everywhere (kcal headline, macros, meals); swipe the chart for weeks and the summary card for days. Protein, carbs and fat sit beside the kcal total with their targets
 - Every nutrient breakdown donut is tappable: choose a segment to see a bar chart of the foods that supplied it. The diary card expands to show the selected day’s breakdown
 - Repeat suggests only foods previously eaten at that meal, ranked by frequency and recency, and swipes between meals; the meal defaults to the time of day. Diary lines swipe left to delete, with Undo
-- Add food keeps search and the barcode scanner in a persistent bottom bar, with swipeable Recent / My foods / Recipes / Fast food tabs, instant local matches and one-tap quick add
+- Add food keeps search and the barcode scanner in a raised bottom bar, with swipeable Recent / My foods / Recipes / Fast food tabs, instant local matches and one-tap quick add. Online search starts when typing pauses, typed barcodes are looked up directly, "200g rice" or "2 eggs" sets the portion, small typos still match, your own foods are ranked by how often you eat them, and Recent leads with what you usually have at this meal
+- About 170 built-in everyday foods and home-style dishes (fried egg, a bowl of pasta, spaghetti bolognese, jacket potato, curry, sandwiches, fruit, drinks…) with typical portions, found by everyday names and listed by category in the Everyday tab
 - Bundled UK fast-food menus (McDonald’s, KFC, Burger King, Subway, Greggs, Nando’s, Domino’s, Five Guys, Starbucks, Costa) with approximate published values and links to each chain’s guide
-- The scanner is full screen with a viewfinder, flashlight, 2× zoom, tap to focus, number entry and a gallery button; products the database lacks, or lists without nutrition, open straight into label entry (per 100 g or per serving)
+- The scanner is full screen with a viewfinder, flashlight, tap to focus, pinch zoom, number entry and a gallery button, and offers every back lens the phone exposes (for example 0.6×, 1×, 3× and 5× on a Galaxy Ultra) inside Delta; products the database lacks, or lists without nutrition, open straight into label entry with an in-place label scan
+- Nutrition labels are photographed with Delta's own camera, which captures automatically once a readable table is in view, finds and crops the table, and reads it on the phone. The reader understands English, French, German, Spanish, Italian, Dutch, Polish, Portuguese and Danish row names, tolerates OCR misspellings, keeps values in their columns, pairs kJ/kcal figures, corrects a "g" misread as "9" only when the label's arithmetic requires it, and fills salt from sodium (or the reverse); consistent reads are ready to save without an extra review step
 - Every selector also responds to a horizontal swipe; trend lines use a centred, time-weighted fit that no longer lags recent readings
 - A compact Progress/Diary/History dock with an adjacent plus button; both hide on downward scrolling and return together. Active tabs use accent text and icons without a pill
 - A single Health Connect status pill opens its dedicated access and sync page
@@ -63,7 +66,8 @@ background and blur when you switch back. The visual reference is
 - Insights open a dedicated view with 7-day, 30-day and journey periods. Expand each statistic for its calculation: daily averages, recorded change, previous-period comparison, coverage, fitted pace, range, variation and recording rhythm. Duplicate readings and future timestamps are excluded
 - Choose art, a smooth/segmented/dotted bar, thicker card-perimeter progress with a goal percentage, or both in **Settings → Complications**, with a live card preview
 - Glass dashboard panels, animated progress fills and press feedback respect Reduce motion
-- Vertical graph drags scroll the page; horizontal pans and flings select the rightmost visible reading when they settle, with centered disabled boundary controls
+- Vertical graph drags scroll the page; horizontal pans and flings select the rightmost visible reading when they settle, with centered disabled boundary controls. Tapping a dot selects it immediately, holding and sliding scrubs through readings, and a double tap on the same spot changes the style. Workouts from Health Connect appear as ticks on the home graph
+- History swipes between Weight and Body fat
 - The home complication fits the card’s available width, alongside the current weight with compact, aligned journey totals
 - Original supplied launcher artwork, preserving its detail and gradients with adaptive-mask padding
 - Per-widget graph ranges: 1 week, 1 month, 3 months, 1 year or the full journey
@@ -131,7 +135,7 @@ Requires Android 9 or newer; Health Connect works best on Android 14 or newer.
 
 ## Privacy
 
-Your weight and diary are stored on your phone. Delta has no account, backend or
+Your weight and diary are stored on your phone. If you turn on writing in Body & energy, diary entries are also written to Health Connect on the phone; the optional height, age and sex are kept in Delta's settings and never leave the device. Delta has no account, backend or
 analytics. Food searches and barcode lookups go to Open Food Facts. The camera
 barcode decoder and nutrition-label OCR run on-device. Optional web lookup opens
 Google and retailer/manufacturer pages, whose normal website policies apply; it

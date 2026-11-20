@@ -32,7 +32,7 @@ internal fun NutritionPie(entries:List<DiaryEntry>) {
         }
         SegmentedControl(listOf(false,true),mass,{if(it) "Nutrient mass" else "Macro energy"}) {mass=it;if(!it) chosen=chosen.intersect(Nutrient.macros.toSet()).ifEmpty {Nutrient.macros.toSet()};save()}
         val slices=list.mapIndexed {i,n->BreakdownSlice(n,weights[i],totals[i],colours[i%colours.size])}
-        BreakdownDonut(slices,entries,if(mass) "${amountText(Math.round(total*10)/10.0)} g" else "${amountText(Math.round(total).toDouble())}",if(mass) "reported mass" else "kcal from macros",energyShares=!mass)
+        BreakdownDonut(slices,entries,if(mass) "${amountText(Math.round(total*10)/10.0)} g" else "${amountText(Math.round(total).toDouble())}",if(mass) "total mass" else "kcal",energyShares=!mass)
         Text(if(mass) "Shares of selected reported nutrient mass, converted to grams. Some nutrients overlap: sugars are part of carbohydrate." else "Energy calculated from protein and carbohydrate at 4 kcal/g, fat at 9 kcal/g. Missing labels leave this breakdown incomplete.",style=LocalDeltaType.current.bodySmall,color=Color(LocalDeltaColors.current.textDim))
     }
     if(menu) AlertDialog(onDismissRequest={menu=false},title={Text("Pie nutrients")},text={

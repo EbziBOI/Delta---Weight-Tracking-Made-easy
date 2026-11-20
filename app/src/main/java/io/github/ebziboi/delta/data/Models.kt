@@ -165,6 +165,8 @@ data class AppSettings(
     val percentageDesign: PercentageDesign = PercentageDesign.ADAPTIVE,
     /** Null preserves a saved legacy theme until appearance controls are first changed. */
     val appearance: AppAppearance? = null,
+    /** Optional body profile and energy-budget choices. */
+    val energy: EnergyProfile = EnergyProfile(),
     val savedGlassAppearance: AppAppearance? = null,
     val savedTubikAppearance: AppAppearance? = null,
     val savedGlassUsesLegacy: Boolean = false,

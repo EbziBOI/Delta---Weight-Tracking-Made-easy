@@ -48,7 +48,12 @@ class FoodImportUiTest {
             compose.onNodeWithText("Paste label text").performScrollTo().performClick()
             compose.onNodeWithText("Label transcription").performTextReplacement("Per 100g\nEnergy 590 kcal\nFat 62.9g\nCarbohydrate 3.7g\nProtein 2g\nSalt 1.13g")
             compose.onNodeWithText("Read text").performClick()
-            compose.onNodeWithText("Use label values").performScrollTo().performClick()
+            // The dialog's keyboard may still be closing and moving the page; retry once if the tap missed.
+            compose.onNodeWithText("Use label values").performScrollTo().performClick();compose.waitForIdle()
+            if(compose.onAllNodesWithText("values taken from the label",substring=true).fetchSemanticsNodes().isEmpty()) {
+                Thread.sleep(800);compose.onNodeWithText("Use label values").performScrollTo().performClick();compose.waitForIdle()
+            }
+            compose.onNodeWithText("values taken from the label",substring=true).assertExists()
             restoration.emulateSavedInstanceStateRestore()
             compose.onNodeWithText("Oasis label review").assertExists()
             compose.onNodeWithText("Save food").performScrollTo().assertIsNotEnabled()

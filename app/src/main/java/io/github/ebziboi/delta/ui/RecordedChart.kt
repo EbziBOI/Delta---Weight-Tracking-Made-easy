@@ -14,6 +14,7 @@ import androidx.compose.ui.graphics.*
 import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.*
 import androidx.compose.ui.unit.dp
@@ -42,11 +43,13 @@ internal fun latestRecordedDay(series:List<RecordedSeries>,first:Long,last:Long)
     onSelected:(LocalDate?)->Unit={},selectedDay:LocalDate?=null,onDoubleTap:(()->Unit)?=null,trend:Boolean=false,
     connectDots:Boolean=true,periodPicker:Boolean=true,controller:ChartController?=null,header:String?=null,
     controls:Boolean=true,journeyStart:LocalDate?=null,weekStartsOn:Int=0,fixedWindow:Boolean=false,
-    onWindowEnd:((LocalDate)->Unit)?=null,minimumYSpan:Double=1.0,target:Double?=null,historyStart:LocalDate?=null,readingNavigation:Boolean=false) {
+    onWindowEnd:((LocalDate)->Unit)?=null,minimumYSpan:Double=1.0,target:Double?=null,historyStart:LocalDate?=null,readingNavigation:Boolean=false,
+    markers:Set<LocalDate> = emptySet()) {
     val profile=controller ?: rememberChartController(description,if(trend) ChartStyle.TREND else if(connectDots) ChartStyle.CONNECTED else ChartStyle.DOTS)
     val fixed=fixedWindow || !periodPicker
     val averaging=if(fixed) ChartPeriod.DAILY else profile.period
     val colors=LocalDeltaColors.current;val motion=LocalMotion.current;val haptics=LocalHapticFeedback.current;val scope=rememberCoroutineScope()
+    val claim=LocalCardGestureClaim.current;val gestureToken=remember {Any()}
     val raw=remember(series,averaging,weekStartsOn,end,fixed) {series.map {it.copy(values=aggregateReadings(it.values,averaging,weekStartsOn,if(fixed) LocalDate.now() else end))}}
     val styled=raw.map {it.copy(color=Color(io.github.ebziboi.delta.render.ThemeContrast.readable(it.color.toArgb(),colors.bg)))}
     // Fitted once per data change across the whole history, so panning never reshapes the line.
@@ -127,26 +130,85 @@ internal fun latestRecordedDay(series:List<RecordedSeries>,first:Long,last:Long)
                 (selectedEpoch?.let {"; Selected ${LocalDate.ofEpochDay(it)}"} ?: "")
             onClick(label="Change chart style") {profile.cycle();true}
         }.scrollable(scroll,Orientation.Horizontal).pointerInput(description) {
-            detectTapGestures(onDoubleTap={profile.cycle();haptics.performHapticFeedback(HapticFeedbackType.LongPress)},onTap={tap->
-                val inset=8.dp.toPx();val day=right-currentSpan+((tap.x-inset)/(size.width-2*inset).coerceAtLeast(1f)).coerceIn(0f,1f)*currentSpan
-                val point=currentSeries.flatMap {it.values}.filter {it.day.toEpochDay().toDouble() in (right-currentSpan)..right}.minByOrNull {abs(it.day.toEpochDay()-day)}
-                selectedEpoch=point?.day?.toEpochDay();selectedCallback(point?.day)
-                if(point!=null) haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-            })
+            // Tap a dot to select it straight away (no double-tap delay); tap the same spot twice to change style;
+            // hold and slide to scrub through readings. Any other movement is left to panning and page scrolling.
+            var lastTap=0L;var lastTapAt=Offset.Zero
+            fun pick(at:Offset,byPosition:Boolean):LocalDate? {
+                val inset=8.dp.toPx();val w=(size.width-2*inset).coerceAtLeast(1f);val top=8.dp.toPx();val bottom=size.height-8.dp.toPx()
+                val r=right;val l=r-currentSpan
+                val points=currentSeries.flatMap {s->
+                    val (low,high)=seriesScale(s,l,r,minimumYSpan)
+                    s.values.filter {it.day.toEpochDay().toDouble() in l..r}.map {p->
+                        val x=inset+((p.day.toEpochDay()-l)/currentSpan*w).toFloat()
+                        val y=bottom-((p.value.coerceIn(low,high)-low)/(high-low).coerceAtLeast(.001)*(bottom-top)).toFloat()
+                        p.day to Offset(x,y)
+                    }
+                }
+                if(points.isEmpty()) return null
+                val reach=28.dp.toPx()
+                val near=if(byPosition) points.filter {(it.second-at).getDistance()<=reach}.minByOrNull {(it.second-at).getDistance()} else null
+                return (near ?: points.minByOrNull {abs(it.second.x-at.x)})?.first
+            }
+            fun choose(day:LocalDate?,feedback:HapticFeedbackType) {
+                if(day==null) return
+                if(selectedEpoch!=day.toEpochDay()) haptics.performHapticFeedback(feedback)
+                selectedEpoch=day.toEpochDay();selectedCallback(day)
+            }
+            awaitEachGesture {
+                val down=awaitFirstDown(requireUnconsumed=false)
+                val slop=viewConfiguration.touchSlop
+                var released=down.position
+                val outcome=withTimeoutOrNull(viewConfiguration.longPressTimeoutMillis) {
+                    var result=2
+                    while(true) {
+                        val event=awaitPointerEvent();val change=event.changes.firstOrNull {it.id==down.id}
+                        if(change==null || event.changes.size>1) break
+                        if(!change.pressed) {released=change.position;change.consume();result=1;break}
+                        if(change.isConsumed || (change.position-down.position).getDistance()>slop) break
+                    }
+                    result
+                }
+                when(outcome) {
+                    1->{
+                        val now=down.uptimeMillis
+                        if(now-lastTap<viewConfiguration.doubleTapTimeoutMillis && (released-lastTapAt).getDistance()<32.dp.toPx()) {
+                            lastTap=0L;profile.cycle();haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                        } else {
+                            lastTap=now;lastTapAt=released
+                            choose(pick(released,true),HapticFeedbackType.TextHandleMove)
+                        }
+                    }
+                    null->{
+                        // Held still: scrub. Consuming each move keeps the chart from panning and the page from scrolling.
+                        claim(gestureToken,true)
+                        try {
+                            choose(pick(down.position,false),HapticFeedbackType.LongPress)
+                            while(true) {
+                                val event=awaitPointerEvent();val change=event.changes.firstOrNull {it.id==down.id} ?: break
+                                change.consume()
+                                if(!change.pressed) break
+                                choose(pick(change.position,false),HapticFeedbackType.TextHandleMove)
+                            }
+                        } finally {claim(gestureToken,false)}
+                    }
+                    else->{}
+                }
+            }
         }) {
             width=size.width
             val inset=8.dp.toPx();val w=size.width-2*inset;val top=8.dp.toPx();val bottom=size.height-8.dp.toPx()
             fun x(day:LocalDate)=inset+((day.toEpochDay()-left)/span*w).toFloat()
             drawLine(Color(colors.outline).copy(alpha=.5f),Offset(inset,bottom),Offset(size.width-inset,bottom),1.dp.toPx())
+            // Workouts from Health Connect: small ticks on the baseline.
+            markers.filter {it.toEpochDay().toDouble() in left..right}.forEach {d->
+                val mx=x(d);drawCircle(Color(colors.good).copy(alpha=.8f),2.4.dp.toPx(),Offset(mx,bottom-3.dp.toPx()))
+            }
             clipRect(0f,0f,size.width,size.height) {
                 if(fade>0) drawLine(Color(colors.textDim).copy(alpha=.65f*fade),Offset(inset+marker*w,top),Offset(inset+marker*w,bottom),1.dp.toPx(),pathEffect=PathEffect.dashPathEffect(floatArrayOf(2.dp.toPx(),4.dp.toPx())))
                 styled.forEachIndexed {seriesIndex,s->
                     val visible=s.values.filter {it.day.toEpochDay().toDouble() in left..right}
                     val neighbours=s.values.filter {it.day.toEpochDay().toDouble() in (left-35)..(right+35)}
-                    val rawLow=visible.minOfOrNull {it.value} ?: 0.0;val rawHigh=visible.maxOfOrNull {it.value} ?: 1.0
-                    val extent=(rawHigh-rawLow).coerceAtLeast(minimumYSpan)
-                    val low=if(s.bars) 0.0 else (rawLow+rawHigh-extent)/2-extent*.12
-                    val high=if(s.bars) (s.ceiling ?: rawHigh).coerceAtLeast(.001) else (rawLow+rawHigh+extent)/2+extent*.12
+                    val (low,high)=seriesScale(s,left,right,minimumYSpan)
                     fun y(value:Double)=bottom-((value.coerceIn(low,high)-low)/(high-low).coerceAtLeast(.001)*(bottom-top)).toFloat()
                     if(target!=null && styled.size==1 && target in low..high) drawLine(s.color.copy(alpha=.3f),Offset(inset,y(target)),Offset(size.width-inset,y(target)),1.dp.toPx(),pathEffect=PathEffect.dashPathEffect(floatArrayOf(4.dp.toPx(),4.dp.toPx())))
                     if(lineOpacity>0 && neighbours.size>1) {
@@ -213,6 +275,16 @@ internal fun latestRecordedDay(series:List<RecordedSeries>,first:Long,last:Long)
         }
     }
 }
+/** The value range a series is drawn against for the visible window, shared by drawing and tap hit-testing. */
+internal fun seriesScale(s:RecordedSeries,left:Double,right:Double,minimumYSpan:Double):Pair<Double,Double> {
+    val visible=s.values.filter {it.day.toEpochDay().toDouble() in left..right}
+    val rawLow=visible.minOfOrNull {it.value} ?: 0.0;val rawHigh=visible.maxOfOrNull {it.value} ?: 1.0
+    val extent=(rawHigh-rawLow).coerceAtLeast(minimumYSpan)
+    val low=if(s.bars) 0.0 else (rawLow+rawHigh-extent)/2-extent*.12
+    val high=if(s.bars) (s.ceiling ?: rawHigh).coerceAtLeast(.001) else (rawLow+rawHigh+extent)/2+extent*.12
+    return low to high
+}
+
 /**
  * Centred, time-aware trend: a Gaussian-weighted local linear fit around each reading.
  * Unlike a running average it does not lag behind recent readings, irregular gaps are weighted

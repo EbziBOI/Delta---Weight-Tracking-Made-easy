@@ -76,6 +76,7 @@ class SettingsStore(context: Context) {
         val GLASS_APPEARANCE = stringPreferencesKey("glass_appearance_v1")
         val TUBIK_APPEARANCE = stringPreferencesKey("tubik_appearance_v1")
         val GLASS_LEGACY = booleanPreferencesKey("glass_design_legacy")
+        val ENERGY = stringPreferencesKey("energy_profile_v1")
     }
 
     val settings: Flow<AppSettings> = appContext.settingsStore.data
@@ -135,7 +136,7 @@ class SettingsStore(context: Context) {
     suspend fun importForBeta(array: org.json.JSONArray) {
         require(appContext.packageName in setOf("io.github.ebziboi.delta.beta","io.github.ebziboi.delta")) { "Only the beta can import a snapshot" }
         require(array.length()<=100)
-        val allowed=setOf(Keys.ONBOARDED,Keys.TARGET_BODY_FAT,Keys.TARGET_KG,Keys.START_DAY,Keys.TARGET_DAY,Keys.UNIT,Keys.THEME,Keys.ACCENT,Keys.TYPE_STYLE,Keys.MOTION,Keys.HAPTICS,Keys.WEEK_START,Keys.HOME_CARDS,Keys.WEIGHT_CARDS,Keys.BODY_FAT_CARDS,Keys.BODY_FAT_CHART,Keys.APP_CHART,Keys.WIDGET_CHART,Keys.PROJECTION,Keys.WIDGET_GLASS,Keys.WIDGET_THEME,Keys.WIDGET_OPACITY_DARK,Keys.WIDGET_OPACITY_LIGHT,Keys.LAST_SYNC,Keys.PROGRESS_DISPLAY,Keys.PROGRESS_BAR_STYLE,Keys.PERCENTAGE_DESIGN,Keys.APP_ICON,Keys.APPEARANCE,Keys.GLASS_APPEARANCE,Keys.TUBIK_APPEARANCE,Keys.GLASS_LEGACY).map {it.name}.toSet()
+        val allowed=setOf(Keys.ONBOARDED,Keys.TARGET_BODY_FAT,Keys.TARGET_KG,Keys.START_DAY,Keys.TARGET_DAY,Keys.UNIT,Keys.THEME,Keys.ACCENT,Keys.TYPE_STYLE,Keys.MOTION,Keys.HAPTICS,Keys.WEEK_START,Keys.HOME_CARDS,Keys.WEIGHT_CARDS,Keys.BODY_FAT_CARDS,Keys.BODY_FAT_CHART,Keys.APP_CHART,Keys.WIDGET_CHART,Keys.PROJECTION,Keys.WIDGET_GLASS,Keys.WIDGET_THEME,Keys.WIDGET_OPACITY_DARK,Keys.WIDGET_OPACITY_LIGHT,Keys.LAST_SYNC,Keys.PROGRESS_DISPLAY,Keys.PROGRESS_BAR_STYLE,Keys.PERCENTAGE_DESIGN,Keys.APP_ICON,Keys.APPEARANCE,Keys.GLASS_APPEARANCE,Keys.TUBIK_APPEARANCE,Keys.GLASS_LEGACY,Keys.ENERGY).map {it.name}.toSet()
         val safe=androidx.datastore.preferences.core.mutablePreferencesOf()
         for(index in 0 until array.length()) {
             val j=array.getJSONObject(index);val name=j.getString("key")
@@ -203,6 +204,7 @@ class SettingsStore(context: Context) {
             percentageDesign = named(prefs[Keys.PERCENTAGE_DESIGN], PercentageDesign.ADAPTIVE),
             appIcon = prefs[Keys.APP_ICON] ?: "Classic",
             appearance = decodeAppearance(prefs[Keys.APPEARANCE]) ?: if (prefs[Keys.THEME] == null) AppAppearance() else null,
+            energy = EnergyProfile.parse(prefs[Keys.ENERGY]),
         )
     }
 
@@ -238,6 +240,7 @@ class SettingsStore(context: Context) {
         prefs[Keys.PERCENTAGE_DESIGN] = settings.percentageDesign.name
         prefs[Keys.APP_ICON] = settings.appIcon
         put(prefs, Keys.APPEARANCE, settings.appearance?.let(::encodeAppearance))
+        prefs[Keys.ENERGY] = settings.energy.json()
         put(prefs, Keys.GLASS_APPEARANCE, settings.savedGlassAppearance?.let(::encodeAppearance))
         put(prefs, Keys.TUBIK_APPEARANCE, settings.savedTubikAppearance?.let(::encodeAppearance))
         prefs[Keys.GLASS_LEGACY] = settings.savedGlassUsesLegacy

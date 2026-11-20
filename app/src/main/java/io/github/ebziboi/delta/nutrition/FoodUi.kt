@@ -27,25 +27,66 @@ import androidx.compose.ui.unit.dp
 import io.github.ebziboi.delta.ui.*
 import java.time.LocalDate
 
-private val searchTabs=listOf("Recent","My foods","Recipes","Fast food")
+private val searchTabs=listOf("Recent","My foods","Everyday","Recipes","Fast food")
 
-/** Words in [query] each start a word of the food's name or brand. */
+/** Words in [query] each start a word of the food's name or brand, allowing one typo in longer words. */
 internal fun Food.matches(query:String):Boolean {
     val words=FastFood.normalise(query).split(' ').filter {it.isNotBlank()}
-    val hay=FastFood.normalise("$name $brand").split(' ')
-    return words.isNotEmpty() && words.all {w->hay.any {it.startsWith(w)}}
+    val hay=FastFood.normalise("$name $brand").split(' ').filter {it.isNotBlank()}
+    return words.isNotEmpty() && words.all {w->hay.any {it.startsWith(w) || (w.length>=4 && typoMatch(w,it))}}
+}
+
+/** True when [word] is within one edit (a missed, extra, swapped or wrong letter) of the start of [target], with the same first letter. */
+internal fun typoMatch(word:String,target:String):Boolean {
+    if(word.isEmpty() || target.isEmpty() || word[0]!=target[0] || target.length<word.length-1) return false
+    return ((word.length-1)..minOf(word.length+1,target.length)).any {len->len>0 && editDistance(word,target.take(len))<=1}
+}
+
+/** Optimal string alignment distance: insertions, deletions, substitutions and adjacent swaps each cost one. */
+internal fun editDistance(a:String,b:String):Int {
+    val d=Array(a.length+1) {i->IntArray(b.length+1) {j->if(i==0) j else if(j==0) i else 0}}
+    for(i in 1..a.length) for(j in 1..b.length) {
+        val cost=if(a[i-1]==b[j-1]) 0 else 1
+        d[i][j]=minOf(d[i-1][j]+1,d[i][j-1]+1,d[i-1][j-1]+cost)
+        if(i>1 && j>1 && a[i-1]==b[j-2] && a[i-2]==b[j-1]) d[i][j]=minOf(d[i][j],d[i-2][j-2]+1)
+    }
+    return d[a.length][b.length]
+}
+
+/** A portion typed with the search, such as "200g rice", "rice 200 g", "2 eggs" or "half avocado". */
+internal data class QueryPortion(val text:String,val amount:Double?=null,val count:Double?=null) {
+    val label get()=amount?.let {"${amountText(it)} g/ml"} ?: count?.let {"${amountText(it)}×"}
+    /** The amount to log for [food], or null when the portion can't be applied to it. */
+    fun amountFor(food:Food):Double?=amount ?: count?.let {c->food.serving?.let {it*c}}
+}
+private val numberWords=mapOf("a" to 1.0,"an" to 1.0,"one" to 1.0,"half" to .5,"two" to 2.0,"three" to 3.0,"four" to 4.0,"five" to 5.0,"six" to 6.0)
+internal fun parsePortion(query:String):QueryPortion {
+    val q=query.trim().replace(Regex("\\s+")," ")
+    if(q.matches(Regex("[0-9]{6,14}"))) return QueryPortion(q)
+    fun mass(n:String,unit:String):Double?=n.replace(',','.').toDoubleOrNull()?.let {v->when(unit.lowercase()) {"kg","l","litre","litres","liter","liters"->v*1000;else->v}}?.takeIf {it>0 && it<=5000}
+    val units="g|gr|gram|grams|ml|millilitres?|milliliters?|kg|l|litres?|liters?"
+    Regex("^(\\d+(?:[.,]\\d+)?)\\s*($units)\\s+(?:of\\s+)?(.+)$",RegexOption.IGNORE_CASE).find(q)?.let {m->
+        mass(m.groupValues[1],m.groupValues[2])?.let {return QueryPortion(m.groupValues[3].trim(),amount=it)}}
+    Regex("^(.+?)\\s+(\\d+(?:[.,]\\d+)?)\\s*($units)$",RegexOption.IGNORE_CASE).find(q)?.let {m->
+        mass(m.groupValues[2],m.groupValues[3])?.let {return QueryPortion(m.groupValues[1].trim(),amount=it)}}
+    Regex("^(\\d+(?:[.,]\\d+)?|a|an|one|half|two|three|four|five|six)\\s*(?:x\\s*|×\\s*|\\s)(?:of\\s+)?(.{3,})$",RegexOption.IGNORE_CASE).find(q)?.let {m->
+        val n=numberWords[m.groupValues[1].lowercase()] ?: m.groupValues[1].replace(',','.').toDoubleOrNull()
+        if(n!=null && n>0 && n<=20) return QueryPortion(m.groupValues[2].trim(),count=n)
+    }
+    return QueryPortion(q)
 }
 
 @Composable
 internal fun FoodSearchPage(vm: NutritionViewModel,state: NutritionState,padding: PaddingValues,onBack:()->Unit,onFood:(Food)->Unit,
                             onCustom:()->Unit,onRecipe:()->Unit,onPhoto:()->Unit,ingredientsOnly:Boolean=false,onImport:((String)->Unit)?=null,
-                            onMissing:((String)->Unit)?=null,onIncomplete:((Food)->Unit)?=null,onQuickAdd:((Food)->Unit)?=null,
-                            mealLabel:String?=null,meal:Meal?=null,onMeal:((Meal)->Unit)?=null) {
+                            onMissing:((String)->Unit)?=null,onIncomplete:((Food)->Unit)?=null,onQuickAdd:((Food,Double?)->Unit)?=null,
+                            mealLabel:String?=null,meal:Meal?=null,onMeal:((Meal)->Unit)?=null,day:LocalDate=LocalDate.now()) {
     androidx.activity.compose.BackHandler(onBack=onBack)
     var query by rememberSaveable { mutableStateOf("") }
     var searchedQuery by rememberSaveable { mutableStateOf<String?>(null) }
     var tab by rememberSaveable { mutableIntStateOf(0) }
     var chainId by rememberSaveable { mutableStateOf(FastFood.chains.first().id) }
+    var groupId by rememberSaveable { mutableStateOf(CommonFoods.groups.first().id) }
     val context=LocalContext.current;val c=LocalDeltaColors.current;val type=LocalDeltaType.current
     val scope=rememberCoroutineScope();val focus=androidx.compose.ui.platform.LocalFocusManager.current
     val pager=androidx.compose.foundation.pager.rememberPagerState(initialPage=tab) {searchTabs.size}
@@ -55,9 +96,24 @@ internal fun FoodSearchPage(vm: NutritionViewModel,state: NutritionState,padding
         if(result.resultCode==android.app.Activity.RESULT_OK) result.data?.getStringExtra("barcode")?.let {vm.barcode(it,onFood,missing,onIncomplete)}
     }
     fun scan()=runCatching {scanner.launch(Intent(context,BarcodeActivity::class.java))}.onFailure {vm.message="Camera unavailable. Search by name instead."}
-    fun searchOnline() {if(query.trim().length>=2 && !vm.busy) {focus.clearFocus();searchedQuery=query.trim();vm.search(query)}}
+    val portion=remember(query) {parsePortion(query)}
+    val terms=portion.text
+    val typedBarcode=terms.takeIf {ProductPages.canonicalBarcode(it)!=null && it.all(Char::isDigit)}
+    fun searchOnline(hideKeyboard:Boolean=true) {
+        if(vm.busy) return
+        if(typedBarcode!=null) {focus.clearFocus();vm.barcode(typedBarcode,onFood,missing,onIncomplete);return}
+        if(terms.length>=2) {if(hideKeyboard) focus.clearFocus();searchedQuery=query.trim();vm.search(terms,quiet=!hideKeyboard)}
+    }
+    // Searching online starts by itself once typing pauses, so the search key is optional.
+    LaunchedEffect(query,vm.busy) {
+        if(typedBarcode==null && terms.length>=3 && searchedQuery!=query.trim() && !vm.busy) {kotlinx.coroutines.delay(900);searchOnline(hideKeyboard=false)}
+    }
+    // Picking a food carries the typed portion into the portion page.
+    val pick:(Food)->Unit={f->vm.pendingPortion=portion.takeIf {it.amount!=null || it.count!=null};onFood(f)}
     val history=remember(state.entries,state.foods) {state.entries.filterNot {it.fromHealthConnect}.sortedByDescending {it.created}.distinctBy {it.food.id}.map { e -> state.foods.find {it.id==e.food.id} ?: e.food }}
-    val quick=if(ingredientsOnly) null else onQuickAdd
+    val frequency=remember(state.entries) {state.entries.filterNot {it.fromHealthConnect}.groupingBy {it.food.id}.eachCount()}
+    val quickAmount=if(ingredientsOnly) null else onQuickAdd
+    val quick:((Food)->Unit)?=quickAmount?.let {add->{f:Food->add(f,portion.amountFor(f))}}
     Column(Modifier.fillMaxSize().imePadding()) {
         Column(Modifier.padding(horizontal=20.dp).padding(top=padding.calculateTopPadding()),verticalArrangement=Arrangement.spacedBy(12.dp)) {
             ScreenHeader(if(ingredientsOnly) "Ingredient" else "Add food",eyebrow=mealLabel,leading={GlassIconButton(io.github.ebziboi.delta.R.drawable.ic_arrow_back,"Back",onBack,size=40.dp)}) {
@@ -68,19 +124,25 @@ internal fun FoodSearchPage(vm: NutritionViewModel,state: NutritionState,padding
                 }
             }
             if(query.isBlank()) SegmentedControl(searchTabs.indices.toList(),pager.currentPage,{searchTabs[it]}) {i->scope.launch {pager.animateScrollToPage(i)}}
+            else portion.label?.let {label->Text("Portion $label · applied when you pick a food",style=type.label,color=Color(c.accent))}
         }
         Box(Modifier.weight(1f).fillMaxWidth()) {
             if(query.isBlank()) androidx.compose.foundation.pager.HorizontalPager(pager,Modifier.fillMaxSize(),beyondViewportPageCount=1) {page->
                 when(searchTabs[page]) {
-                    "Fast food" -> FastFoodTab(chainId,{chainId=it},onFood,quick,vm.busy)
+                    "Fast food" -> FastFoodTab(chainId,{chainId=it},pick,quick,vm.busy)
+                    "Everyday" -> EverydayTab(groupId,{groupId=it},pick,quick,vm.busy)
                     else -> {
                         val foods=when(searchTabs[page]) {
                             "My foods" -> state.foods.filter {it.source==FoodSource.CUSTOM || it.favourite}.sortedByDescending {it.favourite}
                             "Recipes" -> state.foods.filter {it.source==FoodSource.RECIPE}
                             else -> history.take(60)
                         }
-                        FoodList(foods,onFood,quick,vm.busy,header={
+                        FoodList(foods,pick,quick,vm.busy,header={
                             if(page<=1 && !ingredientsOnly) CreateActions(onCustom,onRecipe,onPhoto,onImport?.let {{it("")}},vm.busy)
+                            if(page==0 && meal!=null && quick!=null) {
+                                val usual=remember(state.entries,meal,day) {repeatSuggestions(state.entries,meal,day,6)}
+                                if(usual.isNotEmpty()) UsualFoods(meal,usual,{e->pick(state.foods.find {it.id==e.food.id} ?: e.food)},{e->quickAmount?.invoke(state.foods.find {it.id==e.food.id} ?: e.food,e.amount)},vm.busy)
+                            }
                             if(foods.isEmpty()) EmptyHint(when(searchTabs[page]) {
                                 "Recipes" -> "Your saved recipes will appear here." to ("New recipe" to onRecipe)
                                 "My foods" -> "Create a food or save a favourite." to ("Custom food" to onCustom)
@@ -90,36 +152,45 @@ internal fun FoodSearchPage(vm: NutritionViewModel,state: NutritionState,padding
                     }
                 }
             } else {
-                val local=remember(query,history,state.foods) {(history+state.foods).distinctBy {it.id}.filter {it.matches(query)}.take(12)}
-                val menu=remember(query) {FastFood.search(query,12)}
+                val local=remember(terms,history,state.foods,frequency) {(history+state.foods).distinctBy {it.id}.filter {it.matches(terms)}
+                    .sortedWith(compareByDescending<Food> {FastFood.normalise(it.name).startsWith(FastFood.normalise(terms))}.thenByDescending {frequency[it.id] ?: 0}.thenByDescending {it.favourite}).take(12)}
+                val menu=remember(terms) {FastFood.search(terms,12)}
+                val everyday=remember(terms,local) {CommonFoods.search(terms,10).filter {c->local.none {it.id==c.id}}}
                 val fresh=searchedQuery==query.trim()
                 androidx.compose.foundation.lazy.LazyColumn(Modifier.fillMaxSize(),contentPadding=PaddingValues(start=12.dp,end=12.dp,top=4.dp,bottom=16.dp)) {
+                    if(typedBarcode!=null) item {
+                        SecondaryButton(if(vm.busy) "Looking up…" else "Look up barcode $typedBarcode",{searchOnline()},Modifier.fillMaxWidth().padding(4.dp),enabled=!vm.busy,icon=io.github.ebziboi.delta.R.drawable.ic_barcode)
+                    }
                     if(local.isNotEmpty()) {
                         item {SectionLabel("Your foods")}
-                        items(local,key={"l:"+it.id}) {FoodRow(it,{onFood(it)},quick?.let {q->{q(it)}},vm.busy)}
+                        items(local,key={"l:"+it.id}) {FoodRow(it,{pick(it)},quick?.let {q->{q(it)}},vm.busy)}
+                    }
+                    if(everyday.isNotEmpty()) {
+                        item {SectionLabel("Everyday foods · typical values")}
+                        items(everyday,key={"c:"+it.id}) {FoodRow(it,{pick(it)},quick?.let {q->{q(it)}},vm.busy)}
                     }
                     if(menu.isNotEmpty()) {
                         item {SectionLabel("Fast food · menu guide")}
-                        items(menu,key={"m:"+it.id}) {FoodRow(it,{onFood(it)},quick?.let {q->{q(it)}},vm.busy)}
+                        items(menu,key={"m:"+it.id}) {FoodRow(it,{pick(it)},quick?.let {q->{q(it)}},vm.busy)}
                     }
                     item {
                         Column(Modifier.padding(top=8.dp),verticalArrangement=Arrangement.spacedBy(8.dp)) {
                             SectionLabel("Supermarket products · Open Food Facts")
                             StoreChips(vm) {if(fresh) searchOnline()}
-                            if(!fresh || vm.busy) SecondaryButton(if(vm.busy) "Searching…" else "Search products for “${query.trim()}”",::searchOnline,Modifier.fillMaxWidth(),enabled=!vm.busy && query.trim().length>=2,icon=io.github.ebziboi.delta.R.drawable.ic_search)
+                            if(!fresh || vm.busy || !vm.searched) SecondaryButton(if(vm.busy) "Searching…" else "Search products for “$terms”",{searchOnline()},Modifier.fillMaxWidth(),enabled=!vm.busy && terms.length>=2,icon=io.github.ebziboi.delta.R.drawable.ic_search)
                         }
                     }
                     if(fresh && !vm.busy) {
                         if(vm.searched && vm.results.isEmpty()) item {
                             Column(Modifier.padding(vertical=12.dp,horizontal=8.dp),verticalArrangement=Arrangement.spacedBy(8.dp)) {
-                                Text("No products found for “${query.trim()}”.",style=type.body)
+                                Text("No products found for “$terms”.",style=type.body)
                                 Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
                                     SecondaryButton("Scan barcode",{scan()},Modifier.weight(1f))
                                     SecondaryButton("Custom food",onCustom,Modifier.weight(1f))
                                 }
                             }
                         }
-                        items(vm.results,key={"o:"+it.id}) {f->FoodRow(f,{if(f.missingNutrition && onIncomplete!=null) onIncomplete(f) else onFood(f)},if(f.missingNutrition) null else quick?.let {q->{q(f)}},vm.busy)}
+                        items(vm.results,key={"o:"+it.id}) {f->FoodRow(f,{if(f.missingNutrition && onIncomplete!=null) onIncomplete(f) else pick(f)},if(f.missingNutrition) null else quick?.let {q->{q(f)}},vm.busy)}
                     }
                     item {
                         val uri=androidx.compose.ui.platform.LocalUriHandler.current
@@ -128,11 +199,12 @@ internal fun FoodSearchPage(vm: NutritionViewModel,state: NutritionState,padding
                 }
             }
         }
-        // Persistent search dock: always within thumb reach, and above the keyboard while typing.
-        Column(Modifier.fillMaxWidth().background(androidx.compose.ui.graphics.Brush.verticalGradient(listOf(Color(c.bg).copy(alpha=0f),Color(c.bg).copy(alpha=.92f),Color(c.bg))))
-            .navigationBarsPadding().padding(start=16.dp,end=16.dp,top=14.dp,bottom=10.dp)) {
-            Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(10.dp)) {
-                SearchField(query,{query=it},Modifier.weight(1f),onSearch=::searchOnline)
+        // Persistent search dock: within thumb reach and above the keyboard while typing. It sits clear of the
+        // screen's bottom edge fade on a glass panel so it never blends into the shading.
+        Box(Modifier.fillMaxWidth().background(androidx.compose.ui.graphics.Brush.verticalGradient(listOf(Color(c.bg).copy(alpha=0f),Color(c.bg).copy(alpha=.9f))))
+            .navigationBarsPadding().padding(start=12.dp,end=12.dp,top=10.dp,bottom=30.dp)) {
+            Row(Modifier.fillMaxWidth().refractiveGlass(RoundedCornerShape(34.dp)).padding(6.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+                SearchField(query,{query=it},Modifier.weight(1f),onSearch={searchOnline()})
                 GlassIconButton(io.github.ebziboi.delta.R.drawable.ic_barcode,"Scan barcode",{scan()},size=56.dp,tint=Color(c.accent),enabled=!vm.busy)
             }
         }
@@ -150,6 +222,30 @@ internal fun FoodSearchPage(vm: NutritionViewModel,state: NutritionState,padding
         shape=RoundedCornerShape(28.dp),
         colors=OutlinedTextFieldDefaults.colors(focusedTextColor=Color(c.text),unfocusedTextColor=Color(c.text),focusedContainerColor=Color(c.surfaceHigh),unfocusedContainerColor=Color(c.surfaceHigh),
             focusedBorderColor=Color(c.accent),unfocusedBorderColor=Color(c.glass.edge),cursorColor=Color(c.accent)))
+}
+
+/** Foods usually eaten at this meal, one tap to add with the usual amount. */
+@Composable private fun UsualFoods(meal:Meal,entries:List<DiaryEntry>,onOpen:(DiaryEntry)->Unit,onAdd:(DiaryEntry)->Unit,busy:Boolean) {
+    val c=LocalDeltaColors.current;val type=LocalDeltaType.current
+    Column(Modifier.fillMaxWidth().padding(vertical=4.dp),verticalArrangement=Arrangement.spacedBy(6.dp)) {
+        Caption("Usual for ${meal.label.lowercase()}",Modifier.padding(start=8.dp,top=6.dp))
+        androidx.compose.foundation.lazy.LazyRow(horizontalArrangement=Arrangement.spacedBy(8.dp),contentPadding=PaddingValues(horizontal=4.dp)) {
+            items(entries,key={"usual:"+it.food.id}) {e->
+                Row(Modifier.clip(RoundedCornerShape(Radii.control)).background(Color(c.accent).copy(alpha=.1f)).clickable(enabled=!busy) {onOpen(e)}
+                    .padding(start=12.dp,end=4.dp,top=4.dp,bottom=4.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+                    Column(Modifier.widthIn(max=170.dp)) {
+                        Text(e.food.name,style=type.bodySmall,maxLines=1,overflow=androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                        Text("${amountText(e.amount)} ${e.food.unit.symbol} · ${e.nutrients[Nutrient.ENERGY]?.let {amountText(Math.round(it).toDouble())+" kcal"} ?: "—"}",style=type.label,color=Color(c.textDim),maxLines=1)
+                    }
+                    Box(Modifier.size(36.dp).clip(CircleShape).background(Color(c.accent).copy(alpha=.18f))
+                        .clickable(enabled=!busy,role=androidx.compose.ui.semantics.Role.Button,onClickLabel="Add ${e.food.name}") {onAdd(e)}
+                        .semantics {contentDescription="Add ${e.food.name} again"},contentAlignment=Alignment.Center) {
+                        DeltaIcon(io.github.ebziboi.delta.R.drawable.ic_add,null,tint=Color(c.accent),size=18.dp)
+                    }
+                }
+            }
+        }
+    }
 }
 
 @Composable private fun SectionLabel(text:String) {Caption(text,Modifier.padding(start=8.dp,top=12.dp,bottom=4.dp))}
@@ -199,6 +295,23 @@ internal fun FoodSearchPage(vm: NutritionViewModel,state: NutritionState,padding
     }
 }
 
+@Composable private fun EverydayTab(groupId:String,onGroup:(String)->Unit,onFood:(Food)->Unit,onQuickAdd:((Food)->Unit)?,busy:Boolean) {
+    val group=CommonFoods.groups.firstOrNull {it.id==groupId} ?: CommonFoods.groups.first()
+    val c=LocalDeltaColors.current
+    androidx.compose.foundation.lazy.LazyColumn(Modifier.fillMaxSize(),contentPadding=PaddingValues(start=12.dp,end=12.dp,top=8.dp,bottom=16.dp)) {
+        item {
+            androidx.compose.foundation.lazy.LazyRow(horizontalArrangement=Arrangement.spacedBy(8.dp),contentPadding=PaddingValues(horizontal=4.dp,vertical=4.dp)) {
+                items(CommonFoods.groups,key={it.id}) {g->Chip(g.label,g.id==group.id) {onGroup(g.id)}}
+            }
+        }
+        items(group.items,key={it.id}) {f->FoodRow(f,{onFood(f)},onQuickAdd?.let {q->{q(f)}},busy)}
+        item {
+            Text("Typical values for home-style portions. Recipes and portion sizes vary; adjust the amount, or open a food and correct its values to save your own version.",
+                style=LocalDeltaType.current.label,color=Color(c.textDim),modifier=Modifier.padding(horizontal=8.dp,vertical=12.dp))
+        }
+    }
+}
+
 @Composable private fun FastFoodTab(chainId:String,onChain:(String)->Unit,onFood:(Food)->Unit,onQuickAdd:((Food)->Unit)?,busy:Boolean) {
     val chain=FastFood.chains.firstOrNull {it.id==chainId} ?: FastFood.chains.first()
     val uri=androidx.compose.ui.platform.LocalUriHandler.current;val c=LocalDeltaColors.current
@@ -230,6 +343,7 @@ internal fun FoodSearchPage(vm: NutritionViewModel,state: NutritionState,padding
         val icon=when(food.source) {
             FoodSource.RESTAURANT->io.github.ebziboi.delta.R.drawable.ic_restaurant;FoodSource.OPEN_FOOD_FACTS->io.github.ebziboi.delta.R.drawable.ic_barcode
             FoodSource.RECIPE->io.github.ebziboi.delta.R.drawable.ic_layers;FoodSource.PHOTO->io.github.ebziboi.delta.R.drawable.ic_auto_awesome
+            FoodSource.GENERIC->io.github.ebziboi.delta.R.drawable.ic_restaurant
             else->if(food.favourite) io.github.ebziboi.delta.R.drawable.ic_favorite_fill else io.github.ebziboi.delta.R.drawable.ic_food
         }
         Box(Modifier.size(38.dp).clip(CircleShape).background(Color(c.accent).copy(alpha=.12f)),contentAlignment=Alignment.Center) {DeltaIcon(icon,null,tint=Color(c.accent),size=18.dp)}
@@ -253,10 +367,12 @@ internal fun FoodSearchPage(vm: NutritionViewModel,state: NutritionState,padding
 @Composable
 internal fun PortionPage(food:Food,entry:DiaryEntry?,day:LocalDate,meal:Meal,padding:PaddingValues,busy:Boolean,onBack:()->Unit,
                          onSave:(Double,Meal)->Unit,onDelete:(()->Unit)?,onFavourite:()->Unit,onEdit:(()->Unit)?,onDeleteFood:(()->Unit)?,isIngredient:Boolean=false,
-                         onFillNutrition:(()->Unit)?=null,onEditCopy:(()->Unit)?=null) {
+                         onFillNutrition:(()->Unit)?=null,onEditCopy:(()->Unit)?=null,suggested:QueryPortion?=null) {
     val options=listOfNotNull(food.unit.symbol,"Serving".takeIf {food.serving!=null},"Pack".takeIf {food.pack!=null})
-    var portion by rememberSaveable(food.id,entry?.id) { mutableStateOf(if(entry!=null) food.unit.symbol else if(food.serving!=null) "Serving" else food.unit.symbol) }
-    var quantity by rememberSaveable(food.id,entry?.id) { mutableStateOf(entry?.amount?.let(::editText) ?: if(food.serving!=null) "1" else "100") }
+    val counted=suggested?.count?.takeIf {food.serving!=null && entry==null}
+    val typed=suggested?.amount?.takeIf {entry==null}
+    var portion by rememberSaveable(food.id,entry?.id) { mutableStateOf(if(entry!=null || typed!=null) food.unit.symbol else if(food.serving!=null) "Serving" else food.unit.symbol) }
+    var quantity by rememberSaveable(food.id,entry?.id) { mutableStateOf(entry?.amount?.let(::editText) ?: typed?.let(::editText) ?: counted?.let(::editText) ?: if(food.serving!=null) "1" else "100") }
     var selectedMeal by rememberSaveable(entry?.id) {mutableStateOf(entry?.meal ?: meal)}
     var confirmDelete by remember { mutableStateOf(false) }
     val factor=when(portion) {"Serving" -> food.serving ?: 1.0;"Pack" -> food.pack ?: 1.0;else -> 1.0}
@@ -305,6 +421,7 @@ internal fun PortionPage(food:Food,entry:DiaryEntry?,day:LocalDate,meal:Meal,pad
         SecondaryButton(if(food.favourite) "Remove favourite" else "Save favourite",onFavourite,Modifier.fillMaxWidth(),enabled=!busy)
         onEdit?.let {SecondaryButton(if(food.source==FoodSource.RECIPE) "Edit recipe" else "Edit custom food",it,Modifier.fillMaxWidth(),enabled=!busy)}
         onEditCopy?.let {SecondaryButton("Correct values (saves a copy)",it,Modifier.fillMaxWidth(),enabled=!busy,icon=io.github.ebziboi.delta.R.drawable.ic_edit)}
+        if(food.source==FoodSource.GENERIC) Text("Typical values for a home-style portion; recipes vary. Adjust the amount, or correct the values to save your own version.",style=type.label,color=Color(c.textDim))
         if(food.source==FoodSource.RESTAURANT) Text("Approximate values from ${food.brand}’s published UK nutrition information. Recipes and portions change; check the official guide for exact figures.",style=type.label,color=Color(c.textDim))
         food.sourceUrl?.let {url->
             val uri=androidx.compose.ui.platform.LocalUriHandler.current
@@ -342,12 +459,30 @@ internal fun FoodEditor(food:Food?,padding:PaddingValues,busy:Boolean,onBack:()-
         if(size!=null && toServing!=perServing) fields=fields.mapValues {(_,v)->v.number()?.let {n->editText(Math.round((if(toServing) n*size/100 else n*100/size)*1000)/1000.0)} ?: v}
         perServing=toServing
     }
+    var labelNote by remember {mutableStateOf<String?>(null)}
+    // Reads the pack's table straight into this form: per-100 values, plus the serving size when the label prints one.
+    val scanner=rememberLabelScanner({result,_->
+        val read=result.read;val column=read.columns[read.best];val per100=column.per100().filterKeys {it !in result.uncertain}.withSaltAndSodium()
+        if(per100.isEmpty()) {labelNote="The table was found, but its quantity is unclear. Type the values below.";return@rememberLabelScanner}
+        unit=column.basis.unit
+        if(perServing) perServing=false
+        fields=fields+per100.mapKeys {it.key.name}.mapValues {editText(Math.round(it.value*1000)/1000.0)}
+        if(serving.isBlank()) read.servingSize()?.let {serving=editText(it)}
+        labelNote=if(result.confident) "Read ${per100.size} values from the label · they add up" else
+            "Read ${per100.size} values from the label${if(result.uncertain.isNotEmpty()) "; check ${result.uncertain.joinToString {it.label.lowercase()}}" else ""}. Compare them with the pack."
+    }) {labelNote=it}
     NutritionPage(title ?: if(food==null) "Custom food" else "Edit food",padding,onBack) {
         val c=LocalDeltaColors.current
-        if((food==null && barcode!=null) || food?.missingNutrition==true) ContentSection(tone=ModuleTone.SAGE) {
-            Text(if(food==null) "This barcode isn’t in the food database yet." else "The database has no nutrition for this product.",style=LocalDeltaType.current.bodyStrong)
-            Text("Copy the values from the pack’s nutrition label. It’s saved to My foods, so the next scan finds it instantly.",style=LocalDeltaType.current.bodySmall)
-            onReadLabel?.let {SecondaryButton("Read the label with the camera instead",it,Modifier.fillMaxWidth(),icon=io.github.ebziboi.delta.R.drawable.ic_auto_awesome)}
+        val missing=(food==null && barcode!=null) || food?.missingNutrition==true
+        ContentSection(tone=ModuleTone.SAGE) {
+            if(missing) Text(if(food==null) "This barcode isn’t in the food database yet." else "The database has no nutrition for this product.",style=LocalDeltaType.current.bodyStrong)
+            Text(if(scanner.reading) "Finding and reading the nutrition table…" else "Scan the pack’s nutrition table and the values fill in below${if(missing) ". It’s saved to My foods, so the next scan finds it instantly" else ""}.",style=LocalDeltaType.current.bodySmall)
+            Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+                PrimaryButton("Scan label",scanner.camera,Modifier.weight(1f),enabled=!busy && !scanner.reading)
+                SecondaryButton("From photo",scanner.gallery,Modifier.weight(1f),enabled=!busy && !scanner.reading)
+            }
+            labelNote?.let {Text(it,style=LocalDeltaType.current.bodySmall,color=Color(if(it.contains("add up")) c.good else c.warn))}
+            onReadLabel?.let {TextAction("Find it online instead",it)}
         }
         GlassTextField(name,{name=it},"Food name",Modifier.fillMaxWidth());GlassTextField(brand,{brand=it},"Brand (optional)",Modifier.fillMaxWidth())
         if(food?.barcode!=null || barcode!=null) GlassTextField(code,{code=it.filter(Char::isDigit).take(14)},"Barcode",Modifier.fillMaxWidth())

@@ -11,11 +11,13 @@ class DeltaApp : Application() {
     /** One repository for the screens, the widgets and the background refresh. */
     val repo: WeightRepository by lazy { WeightRepository(this) }
     val nutrition by lazy { io.github.ebziboi.delta.nutrition.NutritionRepository(this) }
+    val energy by lazy { io.github.ebziboi.delta.data.EnergyService(this, repo, nutrition) }
 
     override fun onCreate() {
         super.onCreate()
         CrashRecorder.install(this)
         SyncWorker.schedule(this)
+        energy
         CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
             runCatching { io.github.ebziboi.delta.icons.LauncherIcons.apply(this@DeltaApp, repo.settings.first().appIcon) }
         }

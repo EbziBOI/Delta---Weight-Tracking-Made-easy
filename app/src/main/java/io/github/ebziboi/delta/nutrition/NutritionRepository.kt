@@ -25,6 +25,8 @@ class NutritionRepository(context: Context, name: String = "nutrition.db") {
     private val mutex = Mutex()
     private val mutable = MutableStateFlow(NutritionState())
     val state = mutable.asStateFlow()
+    /** Called after every saved change, so the diary can be mirrored to Health Connect. */
+    @Volatile var onChanged: (() -> Unit)? = null
     init { CoroutineScope(SupervisorJob()+Dispatchers.IO).launch { reload() } }
 
     suspend fun reload() = withContext(Dispatchers.IO) { mutex.withLock {
@@ -36,7 +38,7 @@ class NutritionRepository(context: Context, name: String = "nutrition.db") {
         db.beginTransaction()
         try { block(db); db.setTransactionSuccessful() } finally { db.endTransaction() }
         mutable.value=read(db)
-    };io.github.ebziboi.delta.widget.FoodWidgetUpdater.updateAll(appContext) }
+    };io.github.ebziboi.delta.widget.FoodWidgetUpdater.updateAll(appContext);onChanged?.invoke() }
     /** Replace only the completed Health Connect read, atomically; local meals are untouched. */
     suspend fun replaceHealthEntries(entries:List<DiaryEntry>,sinceMs:Long?=null) = change {db->
         require(entries.all {it.fromHealthConnect && it.food.source==FoodSource.HEALTH_CONNECT})

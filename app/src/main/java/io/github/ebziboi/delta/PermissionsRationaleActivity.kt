@@ -51,13 +51,17 @@ class PermissionsRationaleActivity : ComponentActivity() {
                         )
                         Text(
                             "Delta reads your weight and measured body-fat percentages so it can show your progress from your start " +
-                                "date to your target, in the app and on your home-screen widgets. It also reads food, energy, macros and available micronutrients into your diary and nutrition charts. Food records are never written to Health Connect."
+                                "date to your target, in the app and on your home-screen widgets. It also reads food, energy, macros and available micronutrients into your diary and nutrition charts."
+                        )
+                        Text(
+                            "If you turn on the energy budget, Delta can read your height, resting energy, active calories, steps and " +
+                                "workouts to estimate the calories you burn. These are optional and used only on your phone."
                         )
                         Text(
                             "Access to past data lets it include weigh-ins from before you installed " +
                                 "it. Background access lets widgets stay up to date while the app is closed."
                         )
-                        Text(if(io.github.ebziboi.delta.BuildConfig.IS_BETA) "Delta Beta only reads Health Connect. Test additions and deletions stay in the beta app." else "Delta writes weight and body fat only when you log measurements or import a scale export. Each measurement stays independent; missing body fat is never estimated.")
+                        Text(if(io.github.ebziboi.delta.BuildConfig.IS_BETA) "Delta Beta only reads Health Connect. Test additions and deletions stay in the beta app." else "Delta writes weight and body fat only when you log measurements or import a scale export. Each measurement stays independent; missing body fat is never estimated. Your food diary is written only if you turn that on in Body & energy.")
                         Text(
                             "Your measurements stay on your phone. Delta has no account, no server and " +
                                 "no analytics."

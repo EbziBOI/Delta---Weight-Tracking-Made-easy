@@ -87,6 +87,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 try {nutritionRepo.syncHealth(repo.health)}
                 catch(cancelled:kotlinx.coroutines.CancellationException) {throw cancelled}
                 catch(_:Exception) {if(announce) _messages.tryEmit("Food sync failed. Your saved meals are unchanged.")}
+                runCatching {(getApplication<android.app.Application>() as io.github.ebziboi.delta.DeltaApp).energy.refresh()}
                 weights
             } catch (cancelled: kotlinx.coroutines.CancellationException) {
                 throw cancelled

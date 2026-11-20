@@ -31,7 +31,23 @@ data class HealthState(
     val hasHistory: Boolean = false,
     /** Reading while the app is closed, which keeps widgets current. */
     val hasBackground: Boolean = false,
+    val canWriteNutrition: Boolean = false,
+    val canReadHeight: Boolean = false,
+    val canReadResting: Boolean = false,
+    val canReadActive: Boolean = false,
+    val canReadSteps: Boolean = false,
+    val canReadExercise: Boolean = false,
 ) {
+    /** Optional energy-balance reads, asked for only from the Body & energy page. */
+    val missingEnergy: Set<String>
+        get() = buildSet {
+            if (!canReadHeight) add(HealthConnectManager.READ_HEIGHT)
+            if (!canReadResting) add(HealthConnectManager.READ_RESTING)
+            if (!canReadActive) add(HealthConnectManager.READ_ACTIVE)
+            if (!canReadSteps) add(HealthConnectManager.READ_STEPS)
+            if (!canReadExercise) add(HealthConnectManager.READ_EXERCISE)
+        }
+    val canReadActivity: Boolean get() = canReadActive || canReadSteps
     val connected: Boolean get() = availability == HealthAvailability.AVAILABLE && canRead
 
     /** The permissions still worth asking for. */
@@ -57,6 +73,14 @@ class HealthConnectManager(context: Context) {
         val WRITE_BODY_FAT: String = HealthPermission.getWritePermission(BodyFatRecord::class)
         val READ_WEIGHT: String = HealthPermission.getReadPermission(WeightRecord::class)
         val WRITE_WEIGHT: String = HealthPermission.getWritePermission(WeightRecord::class)
+        val WRITE_NUTRITION: String = HealthPermission.getWritePermission(NutritionRecord::class)
+        val READ_HEIGHT: String = HealthPermission.getReadPermission(androidx.health.connect.client.records.HeightRecord::class)
+        val READ_RESTING: String = HealthPermission.getReadPermission(androidx.health.connect.client.records.BasalMetabolicRateRecord::class)
+        val READ_ACTIVE: String = HealthPermission.getReadPermission(androidx.health.connect.client.records.ActiveCaloriesBurnedRecord::class)
+        val READ_STEPS: String = HealthPermission.getReadPermission(androidx.health.connect.client.records.StepsRecord::class)
+        val READ_EXERCISE: String = HealthPermission.getReadPermission(androidx.health.connect.client.records.ExerciseSessionRecord::class)
+        /** Client record IDs of diary lines Delta writes, so edits replace and deletions remove the same record. */
+        fun diaryRecordId(entryId: String) = "delta-diary-$entryId"
 
         // Platform permission names, as declared in the manifest.
         const val HISTORY = "android.permission.health.READ_HEALTH_DATA_HISTORY"
@@ -91,6 +115,12 @@ class HealthConnectManager(context: Context) {
             canWrite = WRITE_WEIGHT in granted,
             hasHistory = HISTORY in granted,
             hasBackground = BACKGROUND in granted,
+            canWriteNutrition = WRITE_NUTRITION in granted,
+            canReadHeight = READ_HEIGHT in granted,
+            canReadResting = READ_RESTING in granted,
+            canReadActive = READ_ACTIVE in granted,
+            canReadSteps = READ_STEPS in granted,
+            canReadExercise = READ_EXERCISE in granted,
         )
     }
 
@@ -129,13 +159,88 @@ class HealthConnectManager(context: Context) {
         do {
             val page=client.readRecords(ReadRecordsRequest(NutritionRecord::class,
                 timeRangeFilter=TimeRangeFilter.between(since,end),ascendingOrder=true,pageSize=1000,pageToken=token))
-            result+=page.records.map {r->
+            // Delta's own diary, written out, must not come back as imported food.
+            result+=page.records.filter {it.metadata.dataOrigin.packageName!=appContext.packageName}.map {r->
                 val label=runCatching {appContext.packageManager.getApplicationInfo(r.metadata.dataOrigin.packageName,0)
                     .let {appContext.packageManager.getApplicationLabel(it).toString()}}.getOrDefault("Connected app")
                 r.toDiaryEntry(sourceLabel=label)
             };token=page.pageToken?.takeIf {it.isNotBlank()}
         } while(token!=null)
         return result.distinctBy {it.id}
+    }
+
+    /** The most recent height anyone recorded, in centimetres. */
+    suspend fun readLatestHeight(): Double? {
+        val client = client() ?: return null
+        val page = client.readRecords(ReadRecordsRequest(androidx.health.connect.client.records.HeightRecord::class,
+            TimeRangeFilter.after(Instant.EPOCH), ascendingOrder = false, pageSize = 1))
+        return page.records.firstOrNull()?.height?.inMeters?.times(100)?.takeIf { it in 50.0..260.0 }
+    }
+
+    /** Resting energy a scale or watch reported in the last month, kcal per day. */
+    suspend fun readLatestResting(): Double? {
+        val client = client() ?: return null
+        val page = client.readRecords(ReadRecordsRequest(androidx.health.connect.client.records.BasalMetabolicRateRecord::class,
+            TimeRangeFilter.after(Instant.now().minus(java.time.Duration.ofDays(30))), ascendingOrder = false, pageSize = 20))
+        return page.records.map { it.basalMetabolicRate.inKilocaloriesPerDay }.filter { it in 800.0..4500.0 }.takeIf { it.isNotEmpty() }?.average()
+    }
+
+    /**
+     * Active calories and steps per day. Health Connect merges every app's records by the user's
+     * data-source priority, so a phone and a watch counting the same walk are not added twice.
+     */
+    suspend fun readDailyActivity(days: Int, active: Boolean, steps: Boolean): List<io.github.ebziboi.delta.data.DailyActivity> {
+        val client = client() ?: return emptyList()
+        if (!active && !steps) return emptyList()
+        val metrics = buildSet<androidx.health.connect.client.aggregate.AggregateMetric<*>> {
+            if (active) add(androidx.health.connect.client.records.ActiveCaloriesBurnedRecord.ACTIVE_CALORIES_TOTAL)
+            if (steps) add(androidx.health.connect.client.records.StepsRecord.COUNT_TOTAL)
+        }
+        val end = java.time.LocalDate.now().plusDays(1).atStartOfDay()
+        val groups = client.aggregateGroupByPeriod(androidx.health.connect.client.request.AggregateGroupByPeriodRequest(
+            metrics, TimeRangeFilter.between(end.minusDays(days.toLong()), end), java.time.Period.ofDays(1)))
+        return groups.map { g ->
+            io.github.ebziboi.delta.data.DailyActivity(g.startTime.toLocalDate(),
+                if (active) g.result[androidx.health.connect.client.records.ActiveCaloriesBurnedRecord.ACTIVE_CALORIES_TOTAL]?.inKilocalories else null,
+                if (steps) g.result[androidx.health.connect.client.records.StepsRecord.COUNT_TOTAL] else null)
+        }
+    }
+
+    suspend fun readWorkouts(since: Instant): List<io.github.ebziboi.delta.data.Workout> {
+        val client = client() ?: return emptyList()
+        val page = client.readRecords(ReadRecordsRequest(androidx.health.connect.client.records.ExerciseSessionRecord::class,
+            TimeRangeFilter.after(since), ascendingOrder = true, pageSize = 500))
+        return page.records.map { r -> io.github.ebziboi.delta.data.Workout(r.startTime.toEpochMilli(), r.endTime.toEpochMilli(), r.title?.takeIf { it.isNotBlank() } ?: workoutName(r.exerciseType)) }
+    }
+
+    private fun workoutName(type: Int) = when (type) {
+        androidx.health.connect.client.records.ExerciseSessionRecord.EXERCISE_TYPE_RUNNING -> "Run"
+        androidx.health.connect.client.records.ExerciseSessionRecord.EXERCISE_TYPE_WALKING -> "Walk"
+        androidx.health.connect.client.records.ExerciseSessionRecord.EXERCISE_TYPE_BIKING -> "Ride"
+        androidx.health.connect.client.records.ExerciseSessionRecord.EXERCISE_TYPE_SWIMMING_POOL,
+        androidx.health.connect.client.records.ExerciseSessionRecord.EXERCISE_TYPE_SWIMMING_OPEN_WATER -> "Swim"
+        androidx.health.connect.client.records.ExerciseSessionRecord.EXERCISE_TYPE_STRENGTH_TRAINING,
+        androidx.health.connect.client.records.ExerciseSessionRecord.EXERCISE_TYPE_WEIGHTLIFTING -> "Strength"
+        androidx.health.connect.client.records.ExerciseSessionRecord.EXERCISE_TYPE_HIKING -> "Hike"
+        androidx.health.connect.client.records.ExerciseSessionRecord.EXERCISE_TYPE_YOGA -> "Yoga"
+        androidx.health.connect.client.records.ExerciseSessionRecord.EXERCISE_TYPE_HIGH_INTENSITY_INTERVAL_TRAINING -> "HIIT"
+        androidx.health.connect.client.records.ExerciseSessionRecord.EXERCISE_TYPE_ELLIPTICAL -> "Elliptical"
+        androidx.health.connect.client.records.ExerciseSessionRecord.EXERCISE_TYPE_ROWING_MACHINE -> "Rowing"
+        else -> "Workout"
+    }
+
+    /** Writes or replaces diary lines. A higher [version] replaces the record with the same client ID. */
+    suspend fun upsertNutrition(entries: List<DiaryEntry>, version: Long) {
+        check(!io.github.ebziboi.delta.BuildConfig.IS_BETA) { "Beta cannot write to Health Connect" }
+        val client = client() ?: error("Health Connect is not available")
+        val records = entries.mapNotNull { e -> runCatching { io.github.ebziboi.delta.nutrition.nutritionRecord(e, version) }.getOrNull() }
+        for (batch in records.chunked(200)) client.insertRecords(batch)
+    }
+
+    suspend fun deleteNutrition(entryIds: List<String>) {
+        check(!io.github.ebziboi.delta.BuildConfig.IS_BETA) { "Beta cannot write to Health Connect" }
+        val client = client() ?: error("Health Connect is not available")
+        for (batch in entryIds.chunked(200)) client.deleteRecords(NutritionRecord::class, emptyList(), batch.map(::diaryRecordId))
     }
 
     suspend fun writeWeight(kg: Double, at: Instant) {

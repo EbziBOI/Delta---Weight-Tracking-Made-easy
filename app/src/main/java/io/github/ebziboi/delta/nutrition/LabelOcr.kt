@@ -15,7 +15,14 @@ import kotlin.math.*
 
 internal data class LabelCrop(val left:Float=0f,val top:Float=0f,val right:Float=1f,val bottom:Float=1f,val rotation:Int=0)
 internal data class LabelWord(val text:String,val left:Float,val top:Float,val right:Float,val bottom:Float)
-internal data class LabelOcrResult(val read:LabelRead,val uncertain:Set<Nutrient>)
+internal data class LabelOcrResult(val read:LabelRead,val uncertain:Set<Nutrient>,val crop:LabelCrop=LabelCrop()) {
+    /** All of the chosen column's main values were read, agree between passes and add up. */
+    val confident:Boolean get() {
+        val column=read.columns.getOrNull(read.best) ?: return false
+        val values=column.observations.filterValues {!it.bounded}.mapValues {it.value.value}
+        return column.basis.amount!=null && uncertain.isEmpty() && Nutrient.primary.all {it in values} && LabelParser.violation(values,column.basis.amount)==0.0
+    }
+}
 internal object LabelOcr {
     suspend fun load(context:Context,uri:Uri,maxEdge:Int=2800):Bitmap=withContext(Dispatchers.IO) {
         ImageDecoder.decodeBitmap(ImageDecoder.createSource(context.contentResolver,uri)) {decoder,info,_->
@@ -34,18 +41,81 @@ internal object LabelOcr {
         if(rotated!==bitmap && rotated!==result) rotated.recycle()
         return result
     }
-    /** Reassemble physical rows, even when the recognizer splits a table into vertical text blocks. */
-    fun lines(words:List<LabelWord>):String {
+    /** Physical rows of words, left to right, even when the recognizer splits a table into vertical text blocks. */
+    fun rows(words:List<LabelWord>):List<List<LabelWord>> {
         val rows=mutableListOf<MutableList<LabelWord>>()
         words.sortedBy {(it.top+it.bottom)/2}.forEach {word->
             val y=(word.top+word.bottom)/2;val h=word.bottom-word.top
             val row=rows.lastOrNull {r->val first=r.first();abs(y-(first.top+first.bottom)/2)<minOf(h,first.bottom-first.top)*.55f}
             if(row==null) rows+=mutableListOf(word) else row+=word
         }
-        return rows.joinToString("\n") {row->row.sortedBy {it.left}.joinToString(" ") {it.text}}
+        return rows.map {it.sortedBy {w->w.left}}
     }
-    suspend fun scan(context:Context,uri:Uri,crop:LabelCrop):LabelOcrResult=withContext(Dispatchers.Default) {
-        val original=load(context,uri,5000);val clipped=try {crop(original,crop)} catch(e:Exception) {original.recycle();throw e}
+    private data class Cell(val text:String,val left:Float,val right:Float) {val centre get()=(left+right)/2}
+    /**
+     * Reassemble the table as text. Words far apart become tab-separated cells, and when the numbers line up in
+     * two or more columns each value is placed in its column, so a missing value doesn't shift the others.
+     */
+    fun lines(words:List<LabelWord>):String {
+        val rows=rows(words)
+        if(rows.isEmpty()) return ""
+        val heights=words.map {it.bottom-it.top}.filter {it>0}.sorted()
+        val h=heights.getOrNull(heights.size/2) ?: 10f
+        val cellRows=rows.map {row->
+            val cells=mutableListOf<Cell>()
+            row.forEach {w->
+                val last=cells.lastOrNull()
+                if(last!=null && w.left-last.right<h*1.1f) cells[cells.lastIndex]=Cell(last.text+" "+w.text,last.left,maxOf(last.right,w.right))
+                else cells+=Cell(w.text,w.left,w.right)
+            }
+            cells
+        }
+        val centres=cellRows.flatMap {r->r.drop(1).filter {c->c.text.any(Char::isDigit)}.map {it.centre}}.sorted()
+        val clusters=mutableListOf<MutableList<Float>>()
+        centres.forEach {x->if(clusters.isEmpty() || x-clusters.last().last()>h*2.5f) clusters+=mutableListOf(x) else clusters.last()+=x}
+        val columns=clusters.filter {it.size>=2}.map {it.average().toFloat()}
+        return cellRows.joinToString("\n") {cells->
+            if(cells.size==1) cells[0].text
+            else if(columns.size<2) cells.joinToString("\t") {it.text}
+            else {
+                val slots=Array(columns.size) {""}
+                cells.drop(1).forEach {c->
+                    val i=columns.indices.minBy {abs(columns[it]-c.centre)}
+                    slots[i]=if(slots[i].isEmpty()) c.text else slots[i]+" "+c.text
+                }
+                cells[0].text+"\t"+slots.joinToString("\t")
+            }
+        }
+    }
+    /** The part of an image holding the nutrition table, from the rows that start with a nutrient. */
+    fun tableRegion(words:List<LabelWord>,width:Int,height:Int):LabelCrop? {
+        if(width<=0 || height<=0) return null
+        val rows=rows(words)
+        val hits=rows.indices.filter {LabelParser.isNutrientRow(rows[it].joinToString(" ") {w->w.text})}
+        if(hits.size<3) return null
+        // Include up to three heading rows above the first nutrient ("Typical values  Per 100g  Per serving").
+        val used=(maxOf(0,hits.first()-3)..hits.last()).flatMap {rows[it]}
+        val left=used.minOf {it.left};val right=used.maxOf {it.right};val top=used.minOf {it.top};val bottom=used.maxOf {it.bottom}
+        val padX=(right-left)*.06f+8;val padY=(bottom-top)*.05f+8
+        val crop=LabelCrop(((left-padX)/width).coerceIn(0f,1f),((top-padY)/height).coerceIn(0f,1f),((right+padX)/width).coerceIn(0f,1f),((bottom+padY)/height).coerceIn(0f,1f))
+        return crop.takeIf {(it.right-it.left)*(it.bottom-it.top)<.8f}
+    }
+    /**
+     * Reads a label photo. With no manual crop ([auto]), the whole photo is read first and, when a nutrition table
+     * is found inside a larger picture, that table is read again on its own at full resolution.
+     */
+    suspend fun scan(context:Context,uri:Uri,crop:LabelCrop,auto:Boolean=false):LabelOcrResult=withContext(Dispatchers.Default) {
+        val original=load(context,uri,5000)
+        val region=if(auto && crop==LabelCrop()) runCatching {
+            val recognizer=TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
+            try {
+                val text=suspendCoroutine<Text> {c->recognizer.process(InputImage.fromBitmap(original,0)).addOnSuccessListener {c.resume(it)}.addOnFailureListener {c.resumeWithException(it)}}
+                val words=text.textBlocks.flatMap {it.lines}.flatMap {it.elements}.mapNotNull {e->e.boundingBox?.let {b->LabelWord(e.text,b.left.toFloat(),b.top.toFloat(),b.right.toFloat(),b.bottom.toFloat())}}
+                tableRegion(words,original.width,original.height)
+            } finally {recognizer.close()}
+        }.getOrNull() else null
+        val chosen=region ?: crop
+        val clipped=try {crop(original,chosen)} catch(e:Exception) {original.recycle();throw e}
         val recognizer=TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
         suspend fun read(bitmap:Bitmap,rotation:Int=0):LabelRead {
             val text=suspendCoroutine<Text> {c->recognizer.process(InputImage.fromBitmap(bitmap,rotation)).addOnSuccessListener {c.resume(it)}.addOnFailureListener {c.resumeWithException(it)}}
@@ -76,7 +146,7 @@ internal object LabelOcr {
             reads.filter {it!==best && score(it)>=score(best)*.7}.forEach {r->r.columns.firstOrNull {it.basis.amount==column.basis.amount && it.basis.unit==column.basis.unit}?.let {other->
                 column.observations.forEach {(n,v)->other.observations[n]?.let {if(LabelParser.differs(v.value,it.value) || v.bounded!=it.bounded) uncertain+=n}}
             }}
-            LabelOcrResult(best.copy(warnings=(best.warnings+if(uncertain.isEmpty()) emptyList() else listOf("Image passes disagree on ${uncertain.joinToString {it.label.lowercase()}}. Check these values.")).distinct()),uncertain)
+            LabelOcrResult(best.copy(warnings=(best.warnings+if(uncertain.isEmpty()) emptyList() else listOf("Image passes disagree on ${uncertain.joinToString {it.label.lowercase()}}. Check these values.")).distinct()),uncertain,chosen)
         } finally {recognizer.close();if(clipped!==original) clipped.recycle();original.recycle()}
     }
 }

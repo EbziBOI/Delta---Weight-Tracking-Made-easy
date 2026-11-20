@@ -39,6 +39,7 @@ import io.github.ebziboi.delta.data.Units
 import io.github.ebziboi.delta.data.WeightEntry
 import io.github.ebziboi.delta.data.WeightUnit
 import kotlin.math.abs
+import kotlinx.coroutines.launch
 
 /** Every weigh-in, newest first, with the change since the one before. */
 @Composable
@@ -55,55 +56,68 @@ fun HistoryScreen(vm: AppViewModel, settings: AppSettings, padding: PaddingValue
     val losing = snapshot?.losing ?: true
     var deleting by remember { mutableStateOf<WeightEntry?>(null) }
 
-    LazyColumn(
-        modifier = Modifier
-            .fillMaxSize(),
-        contentPadding = PaddingValues(
-            start = 16.dp,
-            end = 16.dp,
-            top = padding.calculateTopPadding() + 8.dp,
-            bottom = padding.calculateBottomPadding() + 8.dp,
-        ),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        item(key = "header") {
-            Column(modifier = Modifier.padding(bottom = 6.dp)) {
-                ScreenHeader(title = "History")
-                SegmentedControl(listOf("Weight", "Body fat"), metric, { it }, Modifier.fillMaxWidth()) { metric = it }
-                if (metric == "Weight") Text(
-                    text = when (newestFirst.size) {
-                        0 -> if(io.github.ebziboi.delta.BuildConfig.IS_BETA) "Your beta weigh-ins will appear here." else "Weigh-ins from Health Connect will appear here."
-                        1 -> if(io.github.ebziboi.delta.BuildConfig.IS_BETA) "1 beta weigh-in" else "1 weigh-in from Health Connect"
-                        else -> if(io.github.ebziboi.delta.BuildConfig.IS_BETA) "${newestFirst.size} beta weigh-ins" else "${newestFirst.size} weigh-ins from Health Connect"
-                    },
-                    color = Color(colors.textDim),
-                    fontSize = 14.sp,
-                )
+    // Weight and body fat are two pages: swipe anywhere on the list, or use the selector, to move between them.
+    val metrics = listOf("Weight", "Body fat")
+    val pager = androidx.compose.foundation.pager.rememberPagerState(initialPage = metrics.indexOf(metric).coerceAtLeast(0)) { metrics.size }
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
+    androidx.compose.runtime.LaunchedEffect(pager.settledPage) {
+        val settled = metrics[pager.settledPage]
+        if (settled != metric) { metric = settled; haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.TextHandleMove) }
+    }
+    Column(Modifier.fillMaxSize()) {
+        Column(modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = padding.calculateTopPadding() + 8.dp, bottom = 6.dp)) {
+            ScreenHeader(title = "History")
+            SegmentedControl(metrics, metrics[pager.targetPage], { it }, Modifier.fillMaxWidth()) { chosen ->
+                metric = chosen
+                scope.launch { pager.animateScrollToPage(metrics.indexOf(chosen)) }
             }
+            Text(
+                text = if (pager.targetPage == 0) when (newestFirst.size) {
+                    0 -> if(io.github.ebziboi.delta.BuildConfig.IS_BETA) "Your beta weigh-ins will appear here." else "Weigh-ins from Health Connect will appear here."
+                    1 -> if(io.github.ebziboi.delta.BuildConfig.IS_BETA) "1 beta weigh-in" else "1 weigh-in from Health Connect"
+                    else -> if(io.github.ebziboi.delta.BuildConfig.IS_BETA) "${newestFirst.size} beta weigh-ins" else "${newestFirst.size} weigh-ins from Health Connect"
+                } else when (fat.size) {
+                    0 -> "No body fat readings yet"
+                    1 -> "1 body fat reading"
+                    else -> "${fat.size} body fat readings"
+                },
+                color = Color(colors.textDim),
+                fontSize = 14.sp,
+                modifier = Modifier.padding(top = 6.dp),
+            )
         }
-        if (metric == "Body fat") {
-            if (fat.isEmpty()) item { Text("No body fat readings yet. Log a measurement from Progress or allow body fat access in Health Connect.", color = Color(colors.textDim)) }
-            itemsIndexed(fat.sortedByDescending { it.epochMs }, key = { _, r -> "fat:${r.id}:${r.epochMs}" }) { _, reading ->
-                ListRow {
-                    Column(Modifier.weight(1f)) {
-                        Text(io.github.ebziboi.delta.data.BodyFat.format(reading.percent), style = LocalDeltaType.current.number)
-                        Text(Format.moment(reading.epochMs), style = LocalDeltaType.current.bodySmall, color = Color(colors.textDim))
+        androidx.compose.foundation.pager.HorizontalPager(pager, Modifier.fillMaxWidth().weight(1f), beyondViewportPageCount = 1,
+            verticalAlignment = Alignment.Top, key = { metrics[it] }) { page ->
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = padding.calculateBottomPadding() + 96.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                if (page == 1) {
+                    if (fat.isEmpty()) item { Text("No body fat readings yet. Log a measurement from Progress or allow body fat access in Health Connect.", color = Color(colors.textDim)) }
+                    itemsIndexed(fat.sortedByDescending { it.epochMs }, key = { _, r -> "fat:${r.id}:${r.epochMs}" }) { _, reading ->
+                        ListRow {
+                            Column(Modifier.weight(1f)) {
+                                Text(io.github.ebziboi.delta.data.BodyFat.format(reading.percent), style = LocalDeltaType.current.number)
+                                Text(Format.moment(reading.epochMs), style = LocalDeltaType.current.bodySmall, color = Color(colors.textDim))
+                            }
+                            if (reading.own) HapticIconButton({ deletingFat = reading }) {
+                                Icon(Icons.Filled.Delete, "Delete body fat reading", tint = Color(colors.textDim))
+                            }
+                        }
                     }
-                    if (reading.own) HapticIconButton({ deletingFat = reading }) {
-                        Icon(Icons.Filled.Delete, "Delete body fat reading", tint = Color(colors.textDim))
-                    }
+                } else itemsIndexed(newestFirst, key = { _, entry -> "${entry.id}:${entry.epochMs}" }) { index, entry ->
+                    HistoryRow(
+                        entry = entry,
+                        previous = newestFirst.getOrNull(index + 1),
+                        unit = settings.unit,
+                        losing = losing,
+                        onDelete = { deleting = entry },
+                        bodyFat = io.github.ebziboi.delta.data.BodyFat.near(entry.epochMs, fat)?.percent,
+                    )
                 }
             }
-        }
-        if (metric == "Weight") itemsIndexed(newestFirst, key = { _, entry -> "${entry.id}:${entry.epochMs}" }) { index, entry ->
-            HistoryRow(
-                entry = entry,
-                previous = newestFirst.getOrNull(index + 1),
-                unit = settings.unit,
-                losing = losing,
-                onDelete = { deleting = entry },
-                bodyFat = io.github.ebziboi.delta.data.BodyFat.near(entry.epochMs, fat)?.percent,
-            )
         }
     }
 

@@ -114,7 +114,7 @@ fun NutritionScreen(padding: PaddingValues,addSignal: Int=0,onDetailChanged: (Bo
     val day=LocalDate.ofEpochDay(dayEpoch)
     val back: ()->Unit = {
         if(vm.busy) vm.cancel()
-        route=when(route) { "food-import" -> importParent;"portion" -> parent;"food-edit" -> if(parent=="ingredient-search") "ingredient-search" else "search";"recipe" -> "search";"search" -> "diary";"ingredient-search" -> "recipe";"photo-settings" -> "photo";else -> "diary" }
+        route=when(route) { "food-import" -> importParent;"portion" -> parent;"food-edit" -> if(parent=="ingredient-search") "ingredient-search" else "search";"recipe" -> "search";"search" -> "diary";"ingredient-search" -> "recipe";"photo-settings" -> "photo";"energy-setup" -> if(parent=="energy") "energy" else "diary";else -> "diary" }
         vm.message=null
     }
     fun openImport(code:String,from:String) {importCode=code;importParent=from;importId=newId();route="food-import"}
@@ -123,12 +123,12 @@ fun NutritionScreen(padding: PaddingValues,addSignal: Int=0,onDetailChanged: (Bo
         vm.selectedFood=draft?.copy(id=newId(),source=FoodSource.CUSTOM,labelChecked=emptySet(),stores=emptyList());vm.foodDraftId=newId()
         editorBarcode=code ?: draft?.barcode;editorTitle=title;parent=from;route="food-edit"
     }
-    fun quickAdd(food:Food) {
-        val entry=DiaryEntry(day=day,meal=meal,food=food,amount=food.serving ?: 100.0)
+    fun quickAdd(food:Food,amount:Double?=null) {
+        val entry=DiaryEntry(day=day,meal=meal,food=food,amount=amount ?: food.serving ?: 100.0)
         vm.run {vm.repo.log(listOf(entry));vm.offerUndo("Added ${food.name} to ${meal.label}") {vm.repo.deleteEntry(entry.id)}}
     }
     val openFood: (Food,String)->Unit={f,p -> vm.selectedFood=f;vm.selectedEntry=null;parent=p;route="portion"}
-    LaunchedEffect(route) { onDetailChanged(route!="diary") }
+    LaunchedEffect(route) { onDetailChanged(route!="diary");if(route!="portion") vm.pendingPortion=null }
     DisposableEffect(Unit) { onDispose { onDetailChanged(false) } }
     var handledOpenSignal by rememberSaveable {mutableLongStateOf(0)}
     LaunchedEffect(openSignal) {if(openSignal!=0L && openSignal!=handledOpenSignal) {handledOpenSignal=openSignal;route=openRoute;parent="diary"}}
@@ -160,7 +160,7 @@ fun NutritionScreen(padding: PaddingValues,addSignal: Int=0,onDetailChanged: (Bo
         }) { when(route) {
             "diary" -> DiaryPage(state,day,meal,padding,{dayEpoch=it.toEpochDay()},{meal=it},
                 onAdd={meal=it;route="search";parent="diary"},onEntry={vm.selectedEntry=it;vm.selectedFood=it.food;parent="diary";route=if(it.fromHealthConnect) "health-entry" else "portion"},
-                onRoute={route=it},onDate={datePicker=true},onRepeat={e->
+                onRoute={parent="diary";route=it},onDate={datePicker=true},onRepeat={e->
                     val copy=e.copy(id=newId(),day=day,meal=meal,created=System.currentTimeMillis())
                     vm.run {vm.repo.log(listOf(copy));vm.offerUndo("Added ${e.food.name} to ${meal.label}") {vm.repo.deleteEntry(copy.id)}}
                 },onDelete={e->vm.run {vm.repo.deleteEntry(e.id);vm.offerUndo("Deleted ${e.food.name}") {vm.repo.log(listOf(e))}}})
@@ -168,9 +168,9 @@ fun NutritionScreen(padding: PaddingValues,addSignal: Int=0,onDetailChanged: (Bo
                 onCustom={editorBarcode=null;editorTitle=null;vm.selectedFood=null;vm.foodDraftId=newId();parent="search";route="food-edit"},
                 onRecipe={vm.recipeIngredients=emptyList();vm.editingRecipe=null;vm.recipeDraftId=newId();route="recipe"},onPhoto={route="photo"},onImport={openImport(it,"search")},
                 onMissing={code->openManual(null,code,"search","New product")},onIncomplete={f->openManual(f,null,"search","Add nutrition")},
-                onQuickAdd={quickAdd(it)},mealLabel="${meal.label} · ${dayTitle(day)}",meal=meal,onMeal={meal=it})
+                onQuickAdd={f,a->quickAdd(f,a)},mealLabel="${meal.label} · ${dayTitle(day)}",meal=meal,onMeal={meal=it},day=day)
             "food-import" -> FoodImportPage(vm,importCode,padding,back) {food->vm.run {vm.repo.saveFood(food);openFood(food,if(importParent=="ingredient-search") "recipe" else "search")}}
-            "portion" -> vm.selectedFood?.let { food -> PortionPage(food,vm.selectedEntry,day,meal,padding,vm.busy,back,
+            "portion" -> vm.selectedFood?.let { food -> PortionPage(food,vm.selectedEntry,day,meal,padding,vm.busy,back,suggested=vm.pendingPortion?.takeIf {vm.selectedEntry==null},
                 isIngredient=parent=="recipe",onSave={amount,m -> vm.run {
                     val e=vm.selectedEntry
                     if(parent=="recipe") { vm.recipeIngredients=vm.recipeIngredients+Ingredient(food,amount);route="recipe" }
@@ -179,7 +179,7 @@ fun NutritionScreen(padding: PaddingValues,addSignal: Int=0,onDetailChanged: (Bo
                 } },onDelete=vm.selectedEntry?.let {e -> {vm.run {vm.repo.deleteEntry(e.id);route="diary"}} },
                 onFavourite={vm.run {val current=state.foods.find {it.id==food.id} ?: food;vm.repo.saveFood(current.copy(favourite=!food.favourite));vm.selectedFood=food.copy(favourite=!food.favourite)}},
                 onFillNutrition=if(food.missingNutrition && parent!="recipe") ({openManual(food,null,"search","Add nutrition")}) else null,
-                onEditCopy=if(parent!="recipe" && food.source in listOf(FoodSource.RESTAURANT,FoodSource.OPEN_FOOD_FACTS) && !food.missingNutrition) ({openManual(food,null,"search","Edit a copy")}) else null,
+                onEditCopy=if(parent!="recipe" && food.source in listOf(FoodSource.RESTAURANT,FoodSource.OPEN_FOOD_FACTS,FoodSource.GENERIC) && !food.missingNutrition) ({openManual(food,null,"search","Edit a copy")}) else null,
                 onEdit=if(parent!="recipe" && food.source==FoodSource.CUSTOM) ({editorBarcode=null;editorTitle=null;vm.selectedFood=state.foods.find {it.id==food.id} ?: food;parent="search";route="food-edit"}) else if(parent!="recipe" && food.source==FoodSource.RECIPE) ({val current=state.foods.find {it.id==food.id} ?: food;vm.editingRecipe=current;vm.recipeIngredients=current.ingredients;route="recipe"}) else null,
                 onDeleteFood=if(parent!="recipe" && vm.selectedEntry==null && food.source in listOf(FoodSource.CUSTOM,FoodSource.RECIPE)) ({vm.run {vm.repo.deleteFood(food.id);route="search"}}) else null) } ?: LaunchedEffect(Unit) {route="search"}
             "food-edit" -> FoodEditor(vm.selectedFood?.takeIf { it.source==FoodSource.CUSTOM },padding,vm.busy,back,barcode=editorBarcode,
@@ -197,10 +197,12 @@ fun NutritionScreen(padding: PaddingValues,addSignal: Int=0,onDetailChanged: (Bo
                 vm.repo.log(vm.photoReview.map { DiaryEntry(day=day,meal=m,food=it.food,amount=it.amount) });vm.clearPhoto();route="diary"
             }},meal=meal)
             "photo-settings" -> PhotoSettingsPage(vm,padding,{route=if(initialRoute=="photo-settings") "diary" else "photo"})
+            "energy" -> {val balance by rememberEnergyBalance();EnergyDetailPage(balance,padding,back) {parent="energy";route="energy-setup"}}
+            "energy-setup" -> NutritionPage("Body & energy",padding,back) {EnergySettings()}
         }
     }
     }
-    UndoPill(vm,if(route=="diary") 84.dp else if(route=="search" || route=="ingredient-search") 132.dp else 16.dp)
+    UndoPill(vm,if(route=="diary") 84.dp else if(route=="search" || route=="ingredient-search") 116.dp else 16.dp)
     }
     if(datePicker) NutritionDatePicker(day,{datePicker=false},{dayEpoch=it.toEpochDay().coerceAtMost(LocalDate.now().toEpochDay())})
 }
@@ -333,11 +335,16 @@ private fun DiaryPage(state: NutritionState,day: LocalDate,meal: Meal,padding: P
                     if(entries.isEmpty()) Text("Log food on this day to see its breakdown.",style=type.bodySmall,color=Color(c.textDim))
                     else {
                         val slices=macroEnergySlices(entries)
-                        BreakdownDonut(slices,entries,amountText(Math.round(slices.sumOf {it.weight}).toDouble()),"kcal from macros",description="Day macro breakdown pie chart",height=180.dp)
+                        BreakdownDonut(slices,entries,amountText(Math.round(slices.sumOf {it.weight}).toDouble()),"kcal",description="Day macro breakdown pie chart",height=180.dp)
                         Text("Protein and carbohydrate count 4 kcal/g, fat 9 kcal/g.",style=type.label,color=Color(c.textDim))
                     }
                 }
             }
+        }
+        if(day==today) {
+            val energyOn by (LocalContext.current.applicationContext as io.github.ebziboi.delta.DeltaApp).repo.settings.collectAsStateWithLifecycle(initialValue=null)
+            val balance by rememberEnergyBalance()
+            energyOn?.let {settings->EnergyCard(balance,settings.energy.enabled,energy.amount.takeIf {energy.known},{onRoute("energy")},{onRoute("energy-setup")})}
         }
         Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(8.dp)) {
             listOf(Triple("Charts","charts",io.github.ebziboi.delta.R.drawable.ic_bar_chart),Triple("Fasting","fasting",io.github.ebziboi.delta.R.drawable.ic_schedule),

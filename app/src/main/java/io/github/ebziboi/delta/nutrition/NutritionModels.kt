@@ -42,7 +42,7 @@ fun Nutrients.scaled(factor: Double): Nutrients {
 }
 fun newId(): String = UUID.randomUUID().toString()
 enum class Meal(val label: String) { BREAKFAST("Breakfast"), LUNCH("Lunch"), DINNER("Dinner"), SNACKS("Snacks"), OTHER("Other") }
-enum class FoodSource { OPEN_FOOD_FACTS, CUSTOM, RECIPE, PHOTO, HEALTH_CONNECT, RESTAURANT }
+enum class FoodSource { OPEN_FOOD_FACTS, CUSTOM, RECIPE, PHOTO, HEALTH_CONNECT, RESTAURANT, GENERIC }
 enum class FoodUnit(val symbol: String) { GRAMS("g"), MILLILITRES("ml") }
 
 data class Ingredient(val food: Food, val amount: Double) {
@@ -73,6 +73,7 @@ data class Food(
         FoodSource.OPEN_FOOD_FACTS -> "Open Food Facts"; FoodSource.CUSTOM -> when {sourceUrl!=null->"Product page";labelChecked.isNotEmpty()->"Package label";else->"Custom food"}
         FoodSource.RECIPE -> "Recipe"; FoodSource.PHOTO -> "Photo estimate"; FoodSource.HEALTH_CONNECT -> "Health Connect"
         FoodSource.RESTAURANT -> "Menu guide · approx."
+        FoodSource.GENERIC -> "Typical values"
     }).filterNotNull().joinToString(" · ")
     /** A product record that lacks the label values needed to log it meaningfully. */
     val missingNutrition: Boolean get() = Nutrient.ENERGY !in per100 && Nutrient.macros.none { it in per100 }

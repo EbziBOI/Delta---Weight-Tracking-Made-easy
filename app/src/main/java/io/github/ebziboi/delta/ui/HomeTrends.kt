@@ -19,6 +19,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.ebziboi.delta.data.*
 import io.github.ebziboi.delta.nutrition.*
 import java.time.Instant
@@ -71,8 +72,13 @@ internal fun HomeTrends(weights:List<WeightEntry>,fat:List<BodyFatEntry>,nutriti
             when {
                 series.isEmpty()->Text("Choose measurements above",style=LocalDeltaType.current.bodySmall)
                 series.all {s->s.values.none {it.day<=today}}->Text("No recordings in this period",style=LocalDeltaType.current.bodySmall)
-                else->RecordedChart(series,oldest,today,"Combined trends graph",controller=profile,controls=false,historyStart=oldest,journeyStart=settings.startEpochDay?.let(LocalDate::ofEpochDay),weekStartsOn=settings.weekStartsOn)
+                else->{
+                    val workouts by (context.applicationContext as io.github.ebziboi.delta.DeltaApp).energy.workoutDays.collectAsStateWithLifecycle()
+                    RecordedChart(series,oldest,today,"Combined trends graph",controller=profile,controls=false,historyStart=oldest,journeyStart=settings.startEpochDay?.let(LocalDate::ofEpochDay),weekStartsOn=settings.weekStartsOn,
+                        markers=if(profile.period==ChartPeriod.DAILY) workouts else emptySet())
+                }
             }
+            if(series.isNotEmpty()) Text("Tap a dot to inspect it · hold and slide to scrub · double-tap for style",style=LocalDeltaType.current.label,color=Color(c.textDim))
             if(series.size>1) Text("Each series uses its own scale",style=LocalDeltaType.current.bodySmall,color=Color(c.textDim))
         }
         Column(Modifier.fillMaxWidth(),verticalArrangement=Arrangement.spacedBy(8.dp)) {

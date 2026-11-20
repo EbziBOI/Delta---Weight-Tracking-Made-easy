@@ -72,22 +72,17 @@ internal fun FoodImportPage(vm:NutritionViewModel,initialBarcode:String,padding:
         runCatching {browser.launch(Intent(context,ProductBrowserActivity::class.java).putExtra("query",query).putExtra("barcode",barcode).apply {url?.let {putExtra("url",it)}})}
             .onFailure {vm.message="Web lookup is unavailable on this device. You can still scan its label."}
     }
-    val capture=rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) {ok->
-        if(ok) cropUri=pendingPhoto else pendingPhoto?.let {runCatching {context.contentResolver.delete(Uri.parse(it),null,null)}}
-        pendingPhoto=null
+    fun useLabel(result:LabelOcrResult,uri:Uri) {
+        lastPhoto=uri.toString()
+        labelJson=result.read.json();checked=emptyList();uncertain=result.uncertain.map {it.name}
+        val column=result.read.columns[result.read.best];val values=column.per100()
+        labelUnit=column.basis.unit;labelValuesJson=values.toJson().toString()
+        val empty=fields.values.all {it.isBlank()}
+        if(empty && values.isNotEmpty()) apply(values.filterKeys {it !in result.uncertain},true,column.basis.unit)
+        // A clean, consistent read needs no extra confirmation step; anything doubtful still asks for review.
+        reviewed=empty && result.confident
     }
-    fun camera() {
-        runCatching {
-            val dir=File(context.cacheDir,"meal_photos").apply {mkdirs()}
-            dir.listFiles()?.filter {it.name.startsWith("label-") && System.currentTimeMillis()-it.lastModified()>86400000}?.forEach {it.delete()}
-            val file=File.createTempFile("label-",".jpg",dir);val uri=FileProvider.getUriForFile(context,"${context.packageName}.files",file)
-            pendingPhoto=uri.toString();capture.launch(uri)
-        }.onFailure {vm.message="Camera unavailable. Choose a label photo instead."}
-    }
-    val permission=rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {if(it) camera() else vm.message="Choose a photo to read the label without camera access."}
-    val picker=rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) {uri->if(uri!=null) {
-        runCatching {context.contentResolver.takePersistableUriPermission(uri,Intent.FLAG_GRANT_READ_URI_PERMISSION)};cropUri=uri.toString()
-    }}
+    val scanner=rememberLabelScanner(::useLabel) {vm.message=it}
     val values=fields.mapNotNull {(n,v)->v.takeIf {it.isNotBlank()}?.number()?.let {Nutrient.valueOf(n) to it}}.toMap()
     val warnings=LabelParser.warnings(values)
     val valid=name.isNotBlank() && name.length<=250 && brand.length<=250 && fields.values.all {it.isBlank() || it.number()!=null} && values.isNotEmpty() &&
@@ -113,11 +108,12 @@ internal fun FoodImportPage(vm:NutritionViewModel,initialBarcode:String,padding:
         }}
         ContentSection(tone=ModuleTone.SAGE) {
             Caption("Nutrition label")
-            Text("Read on this phone · no AI account",style=LocalDeltaType.current.bodySmall)
+            Text(if(scanner.reading) "Finding and reading the table…" else "Point the camera at the table; it's captured, cropped and read on this phone automatically",style=LocalDeltaType.current.bodySmall)
             Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
-                SecondaryButton("Take label photo",{if(ContextCompat.checkSelfPermission(context,Manifest.permission.CAMERA)==PackageManager.PERMISSION_GRANTED) camera() else permission.launch(Manifest.permission.CAMERA)},Modifier.weight(1f),enabled=!vm.busy)
-                SecondaryButton("Choose photo",{picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))},Modifier.weight(1f),enabled=!vm.busy)
+                PrimaryButton("Scan label",scanner.camera,Modifier.weight(1f),enabled=!vm.busy && !scanner.reading)
+                SecondaryButton("Choose photo",scanner.gallery,Modifier.weight(1f),enabled=!vm.busy && !scanner.reading)
             }
+            if(reviewed && labelRead!=null && checked.isNotEmpty()) StatusPill("Values add up · ready to save",Color(LocalDeltaColors.current.good))
             labelRead?.let {read->
                 read.warnings.forEach {Text(it,style=LocalDeltaType.current.bodySmall,color=Color(LocalDeltaColors.current.warn))}
                 LabelReadControls(read,"Label",{v,u->labelUnit=u;labelValuesJson=v.toJson().toString();apply(v,true,u)})
@@ -155,12 +151,7 @@ internal fun FoodImportPage(vm:NutritionViewModel,initialBarcode:String,padding:
     cropUri?.let {text->LabelCropper(Uri.parse(text),{cropUri=null},onScan={crop->
         cropUri=null;lastPhoto=text
         vm.run {
-            val result=LabelOcr.scan(context,Uri.parse(text),crop)
-            labelJson=result.read.json();checked=emptyList();uncertain=result.uncertain.map {it.name}
-            val column=result.read.columns[result.read.best];val values=column.per100()
-            labelUnit=column.basis.unit;labelValuesJson=values.toJson().toString()
-            if(fields.values.all {it.isBlank()} && values.isNotEmpty()) apply(values.filterKeys {it !in result.uncertain},true,column.basis.unit)
-            reviewed=false
+            useLabel(LabelOcr.scan(context,Uri.parse(text),crop),Uri.parse(text))
         }
     })}
     if(textEditor) AlertDialog(onDismissRequest={textEditor=false},title={Text("Recognised label text")},text={

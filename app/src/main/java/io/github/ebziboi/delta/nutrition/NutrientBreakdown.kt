@@ -29,6 +29,7 @@ import androidx.compose.ui.semantics.*
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import io.github.ebziboi.delta.ui.*
 import kotlin.math.atan2
 import kotlin.math.hypot
@@ -68,8 +69,14 @@ internal data class BreakdownSlice(val nutrient:Nutrient,val weight:Double,val t
         return
     }
     Column(verticalArrangement=Arrangement.spacedBy(14.dp)) {
-        Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(16.dp)) {
-            Box(Modifier.size(height*.82f),contentAlignment=Alignment.Center) {
+    // The donut and its legend share the row only while both stay readable; otherwise the legend moves underneath.
+    BoxWithConstraints(Modifier.fillMaxWidth()) {
+        val fontScale=androidx.compose.ui.platform.LocalDensity.current.fontScale.coerceAtLeast(1f)
+        val legendMin=(150*fontScale).dp
+        val sideBySide=maxWidth>=height*.62f+16.dp+legendMin
+        val donut=if(sideBySide) minOf(height*.82f,maxWidth-16.dp-legendMin) else minOf(height*.92f,maxWidth*.72f)
+        val ring:@Composable ()->Unit={
+            Box(Modifier.size(donut),contentAlignment=Alignment.Center) {
                 Canvas(Modifier.fillMaxSize().semantics {
                     contentDescription=description
                     stateDescription=slices.joinToString {s->"${s.nutrient.label} ${amountText(s.weight/total*100)}%"}+(selected?.let {"; Selected ${it.label}"} ?: "")
@@ -103,16 +110,25 @@ internal data class BreakdownSlice(val nutrient:Nutrient,val weight:Double,val t
                     }
                 }
                 val focus=slices.firstOrNull {it.nutrient==selected}
-                Column(horizontalAlignment=Alignment.CenterHorizontally,modifier=Modifier.padding(horizontal=8.dp)) {
+                // The hole is 58% of the diameter; text is sized to fit inside it rather than overflow the ring.
+                val hole=donut*.58f
+                Column(Modifier.width(hole*.86f),horizontalAlignment=Alignment.CenterHorizontally) {
                     AnimatedContent(focus,transitionSpec={fadeIn(tween(160)) togetherWith fadeOut(tween(120))},label="donut-centre") {f->
-                        Column(horizontalAlignment=Alignment.CenterHorizontally) {
-                            Text(if(f==null) centreValue else "${amountText(f.weight/total*100)}%",style=LocalDeltaType.current.number,textAlign=TextAlign.Center,maxLines=1)
-                            Text(if(f==null) centreCaption else f.nutrient.label.substringBefore(" ·").lowercase(),style=LocalDeltaType.current.label,color=Color(c.textDim),textAlign=TextAlign.Center,maxLines=1,overflow=TextOverflow.Ellipsis)
+                        Column(Modifier.fillMaxWidth(),horizontalAlignment=Alignment.CenterHorizontally) {
+                            val number=LocalDeltaType.current.number;val caption=LocalDeltaType.current.label
+                            androidx.compose.foundation.text.BasicText(if(f==null) centreValue else "${amountText(Math.round(f.weight/total*1000)/10.0)}%",
+                                style=number.copy(color=Color(c.text),textAlign=TextAlign.Center),maxLines=1,
+                                autoSize=androidx.compose.foundation.text.TextAutoSize.StepBased(minFontSize=10.sp,maxFontSize=number.fontSize,stepSize=.5.sp))
+                            androidx.compose.foundation.text.BasicText(if(f==null) centreCaption else f.nutrient.label.substringBefore(" ·").lowercase(),
+                                style=caption.copy(color=Color(c.textDim),textAlign=TextAlign.Center),maxLines=1,
+                                autoSize=androidx.compose.foundation.text.TextAutoSize.StepBased(minFontSize=8.sp,maxFontSize=caption.fontSize,stepSize=.5.sp))
                         }
                     }
                 }
             }
-            Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(6.dp)) {
+        }
+        val legend:@Composable (Modifier)->Unit={modifier->
+            Column(modifier,verticalArrangement=Arrangement.spacedBy(6.dp)) {
                 slices.forEach {s->
                     val active=selected==s.nutrient
                     Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(Radii.control-4.dp)).background(if(active) s.colour.copy(alpha=.14f) else Color.Transparent)
@@ -120,15 +136,21 @@ internal data class BreakdownSlice(val nutrient:Nutrient,val weight:Double,val t
                         .padding(horizontal=8.dp,vertical=7.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(8.dp)) {
                         Box(Modifier.size(9.dp).clip(CircleShape).background(s.colour.copy(alpha=emphasis[s.nutrient] ?: 1f)))
                         Column(Modifier.weight(1f)) {
-                            Text(s.nutrient.label,style=LocalDeltaType.current.bodySmall,maxLines=1,overflow=TextOverflow.Ellipsis)
-                            Text(if(s.total.reported==0) "Unknown" else (if(s.total.partial) "≥ " else "")+nutrientText(s.total.amount,s.nutrient),style=LocalDeltaType.current.label,color=Color(c.textDim))
+                            Text(s.nutrient.label,style=LocalDeltaType.current.bodySmall,maxLines=2,overflow=TextOverflow.Ellipsis)
+                            Text(if(s.total.reported==0) "Unknown" else (if(s.total.partial) "≥ " else "")+nutrientText(s.total.amount,s.nutrient),style=LocalDeltaType.current.label,color=Color(c.textDim),maxLines=1)
                         }
-                        Text(if(s.weight>0) "${amountText(Math.round(s.weight/total*1000)/10.0)}%" else "—",style=LocalDeltaType.current.bodySmall,color=s.colour)
+                        Text(if(s.weight>0) "${amountText(Math.round(s.weight/total*1000)/10.0)}%" else "—",style=LocalDeltaType.current.bodySmall,color=s.colour,maxLines=1,softWrap=false)
                     }
                 }
                 if(selected==null) Text("Tap a segment for its foods",style=LocalDeltaType.current.label,color=Color(c.textDim),modifier=Modifier.padding(start=8.dp,top=2.dp))
             }
         }
+        if(sideBySide) Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(16.dp)) {
+            ring();legend(Modifier.weight(1f))
+        } else Column(Modifier.fillMaxWidth(),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.spacedBy(12.dp)) {
+            ring();legend(Modifier.fillMaxWidth())
+        }
+    }
         val focus=slices.firstOrNull {it.nutrient==selected}
         androidx.compose.animation.AnimatedVisibility(focus!=null) {
             var shown by remember {mutableStateOf(focus)}

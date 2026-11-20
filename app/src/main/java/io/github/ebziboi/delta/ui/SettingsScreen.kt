@@ -137,6 +137,7 @@ fun SettingsScreen(
 
         ContentSection {
             Caption("Nutrition")
+            SettingRow("Body & energy", if (settings.energy.enabled) "On" else "Set up", note = "Calorie budget, BMI, activity and food in Health Connect", onClick={section="Body & energy"})
             SettingRow("Daily targets", "Edit", onClick={section="Nutrition targets"})
             SettingRow("Photo logging", "API keys", onClick={section="Photo logging"})
             SettingRow("Backup and transfer", "Open", onClick={section="Backup and transfer"})
@@ -300,6 +301,7 @@ private fun SettingsDetail(
         ScreenHeader(title = title)
         when (title) {
             "Backup and transfer" -> io.github.ebziboi.delta.transfer.FullTransferCard()
+            "Body & energy" -> io.github.ebziboi.delta.nutrition.EnergySettings()
             "Health Connect" -> HealthConnectDetails(vm, settings, health, onConnect)
             "Appearance" -> AppearanceControls(vm, settings)
             "Complications" -> ComplicationControls(vm,settings)
@@ -401,7 +403,9 @@ private fun HealthConnectDetails(vm: AppViewModel, settings: AppSettings, health
                     if(!io.github.ebziboi.delta.BuildConfig.IS_BETA) AccessRow("Write weight", health.canWrite)
                     AccessRow("Read body fat", health.canReadBodyFat)
                     AccessRow("Read food and nutrients", health.canReadNutrition)
-                    Text("Food records are read-only. Local diary entries stay in Delta.",style=LocalDeltaType.current.bodySmall)
+                    if(!io.github.ebziboi.delta.BuildConfig.IS_BETA) AccessRow("Write food diary · optional", health.canWriteNutrition)
+                    AccessRow("Height, activity and workouts · optional", health.canReadActivity || health.canReadHeight)
+                    Text(if(settings.energy.writeNutrition) "Your diary is written to Health Connect. Food from other apps is read separately." else "Local diary entries stay in Delta unless you turn on writing in Body & energy.",style=LocalDeltaType.current.bodySmall)
                     if(!io.github.ebziboi.delta.BuildConfig.IS_BETA) AccessRow("Write body fat", health.canWriteBodyFat)
                     if (health.missing.isNotEmpty()) {
                         PrimaryButton("Allow access",onConnect)

@@ -27,6 +27,8 @@ class NutritionViewModel(app: Application): AndroidViewModel(app) {
     var searched by mutableStateOf(false);private set
     var selectedFood by mutableStateOf<Food?>(null)
     var selectedEntry by mutableStateOf<DiaryEntry?>(null)
+    /** A portion typed with the search ("200g", "2 eggs"), applied to the next portion page. */
+    internal var pendingPortion by mutableStateOf<QueryPortion?>(null)
     var recipeIngredients by mutableStateOf<List<Ingredient>>(emptyList())
     var foodDraftId by mutableStateOf(newId())
     var recipeDraftId by mutableStateOf(newId())
@@ -51,7 +53,12 @@ class NutritionViewModel(app: Application): AndroidViewModel(app) {
         }
     }
     fun cancel() { generation++;job?.cancel();busy=false }
-    fun search(query: String) = run { results=off.search(query,selectedStore);if(results.isNotEmpty()) selectedStore?.let {stores.recordChoice(it)};searched=true;storeOrder=stores.ranked() }
+    /** A [quiet] search (started by a pause in typing) never shows an error; pressing search does. */
+    fun search(query: String,quiet:Boolean=false) = run {
+        try { results=off.search(query,selectedStore);if(results.isNotEmpty()) selectedStore?.let {stores.recordChoice(it)};searched=true;storeOrder=stores.ranked() }
+        catch(e: CancellationException) { throw e }
+        catch(e: Exception) { searched=false;results=emptyList();if(!quiet) throw e }
+    }
     /** A short-lived "Undo" offer for the last diary change. */
     class Undo(val label:String,val action:suspend ()->Unit)
     var undo by mutableStateOf<Undo?>(null)
