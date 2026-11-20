@@ -184,7 +184,7 @@ class SettingsStore(context: Context) {
             haptics = prefs[Keys.HAPTICS] ?: defaults.haptics,
             bodyFatChart = named(prefs[Keys.BODY_FAT_CHART], defaults.bodyFatChart),
             weekStartsOn = (prefs[Keys.WEEK_START] ?: 0L).coerceIn(0L,6L).toInt(),
-            homeCardOrder = CardLayouts.normalized(prefs[Keys.HOME_CARDS]?.split(",").orEmpty(),CardLayouts.home),
+            homeCardOrder = CardLayouts.homeOrder(prefs[Keys.HOME_CARDS]?.split(",").orEmpty()),
             weightCardOrder = CardLayouts.normalized(prefs[Keys.WEIGHT_CARDS]?.split(",").orEmpty(),CardLayouts.measurement),
             bodyFatCardOrder = CardLayouts.normalized(prefs[Keys.BODY_FAT_CARDS]?.split(",").orEmpty(),CardLayouts.measurement),
             appChart = named(prefs[Keys.APP_CHART], defaults.appChart),

@@ -84,7 +84,10 @@ fun ProgressScreen(
             add(CardSlot("progress","Progress"))
             if(snap.targetKg==null) add(CardSlot("goal_setup","Set target"))
             addAll(listOf(CardSlot("rate","Weekly rate",true),CardSlot("goal","Goal by",true),CardSlot("average","7-day average",true),CardSlot("streak","Streak",true)))
-            addAll(listOf(CardSlot("trend","Trends"),CardSlot("insights","Insights")))
+            add(CardSlot("trend","Trends"))
+            if(settings.energy.enabled) add(CardSlot("energy","Energy balance"))
+            add(CardSlot("bmi","BMI"))
+            add(CardSlot("insights","Insights"))
             if(insights.recent.isNotEmpty()) add(CardSlot("recent","Recent weigh-ins"))
         }
     }
@@ -99,6 +102,8 @@ fun ProgressScreen(
                 "goal_setup" -> ContentSection {Text("Set a target weight",style=LocalDeltaType.current.title);PrimaryButton("Open settings",onOpenSettings)}
                 "rate","goal","average","streak" -> KeyFigure(id,snap,insights,unit,onMetric)
                 "trend" -> HomeTrends(entries,snap.bodyFat,nutrition,settings,onMetric,onNutrition)
+                "energy" -> io.github.ebziboi.delta.nutrition.HomeEnergyCard {vm.openFood("energy")}
+                "bmi" -> io.github.ebziboi.delta.nutrition.HomeBmiCard(snap.currentKg,{vm.openFood("energy")},{vm.openFood("energy-setup")})
                 "insights" -> InsightsCard(snap,entries,settings,Modifier,onMetric)
                 "recent" -> RecentCard(insights,snap.losing,unit,Modifier)
             }

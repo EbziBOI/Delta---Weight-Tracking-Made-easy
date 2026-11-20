@@ -194,7 +194,7 @@ object EnergyMath {
             underweight -> "Your BMI is under 18.5, so Delta plans to maintain your weight rather than lose more."
             target==null -> "Set a target weight for a deficit or surplus. This budget maintains your weight."
             abs(gap)<.3 -> "You're at your target, so this budget maintains it."
-            floored -> "Held at a minimum of ${Math.round(floor)} kcal; that paces ${fmt(abs(pace))} kg a week."
+            floored -> "Held at a minimum of ${java.text.DecimalFormat("#,##0").format(Math.round(floor))} kcal; that paces ${fmt(abs(pace))} kg a week."
             capped && input.targetDay!=null -> "Your goal date needs ${fmt(abs(wanted)*7/KCAL_PER_KG)} kg a week; held at a safer ${fmt(abs(pace))} kg."
             capped -> "Held at a safer ${fmt(abs(pace))} kg a week."
             else -> "${if(pace<0) "Losing" else "Gaining"} ${fmt(abs(pace))} kg a week${if(input.targetDay!=null) " reaches your target by your goal date" else

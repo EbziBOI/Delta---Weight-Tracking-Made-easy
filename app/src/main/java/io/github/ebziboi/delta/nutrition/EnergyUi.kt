@@ -119,6 +119,7 @@ internal fun EnergyDetailPage(balance:EnergyBalance?,padding:PaddingValues,onBac
             Caption("Today's budget")
             ValueWithUnit(kcal(today?.budgetKcal ?: balance.budgetKcal),"kcal",style=type.numberLarge.copy(fontSize=40.sp,lineHeight=44.sp))
             Text(balance.goalNote,style=type.bodySmall)
+            today?.let {DeficitMeter(it,Modifier.padding(top=4.dp))}
             if(today!=null && today.budgetKcal-balance.budgetKcal>=10) Text("Includes ${kcal(today.budgetKcal-balance.budgetKcal)} kcal of activity above your usual today.",style=type.label,color=Color(c.good))
             if(balance.capped || balance.floored) Text("Faster changes are hard to sustain and can cost muscle.",style=type.label,color=Color(c.textDim))
         }

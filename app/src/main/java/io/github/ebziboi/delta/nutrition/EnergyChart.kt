@@ -45,7 +45,7 @@ private enum class BalanceView(val label:String) {DAILY("Each day"),TOTAL("Runni
 /** A gridline step that gives three to five lines. */
 private fun niceStep(span:Double)=listOf(100.0,200.0,250.0,500.0,1000.0,2000.0,2500.0,5000.0,10000.0,20000.0).firstOrNull {span/it<=5} ?: 50000.0
 
-private fun DrawScope.label(text:String,x:Float,y:Float,color:Color,size:Float,alignRight:Boolean=false,center:Boolean=false) {
+internal fun DrawScope.label(text:String,x:Float,y:Float,color:Color,size:Float,alignRight:Boolean=false,center:Boolean=false) {
     val paint=android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
         this.color=color.toArgb();textSize=size
         textAlign=if(center) android.graphics.Paint.Align.CENTER else if(alignRight) android.graphics.Paint.Align.RIGHT else android.graphics.Paint.Align.LEFT
@@ -54,7 +54,7 @@ private fun DrawScope.label(text:String,x:Float,y:Float,color:Color,size:Float,a
 }
 
 /** Colour for a day: on budget, over budget but still under maintenance, or over both. */
-@Composable private fun dayColour(d:DayBudget):Color {
+@Composable internal fun dayColour(d:DayBudget):Color {
     val c=LocalDeltaColors.current
     val v=d.vsMaintenance ?: 0.0
     return Color(when {
@@ -278,32 +278,13 @@ internal fun BodyReport(b:EnergyBalance,profile:EnergyProfile,targetKg:Double?,b
             Row(verticalAlignment=Alignment.Bottom,horizontalArrangement=Arrangement.spacedBy(10.dp)) {
                 Text(String.format(java.util.Locale.UK,"%.1f",bmi),style=type.numberLarge)
                 Column(Modifier.padding(bottom=3.dp)) {
-                    Text(group.label,style=type.bodyStrong,color=tone)
+                    Text(listOfNotNull(group.label,group.alias).joinToString(" · "),style=type.bodyStrong,color=tone)
                     Text("${Units.weight(b.currentKg,unit)} at ${Math.round(height)} cm",style=type.label,color=Color(c.textDim))
                 }
             }
-            val targetBmi=targetKg?.let {EnergyMath.bmi(it,height)}
-            val faint=Color(c.textFaint);val text=Color(c.text)
-            val bands=listOf(15.0 to 18.5,18.5 to 25.0,25.0 to 30.0,30.0 to 35.0,35.0 to 40.0,40.0 to 45.0)
-            val bandColours=listOf(.45f,1f,.45f,.65f,.85f,1f).mapIndexed {i,a->if(i==1) Color(c.good) else Color(c.warn).copy(alpha=a)}
-            Canvas(Modifier.fillMaxWidth().height(46.dp).semantics {contentDescription="BMI scale";stateDescription="BMI ${String.format(java.util.Locale.UK,"%.1f",bmi)}, ${group.label}"+(targetBmi?.let {", target ${String.format(java.util.Locale.UK,"%.1f",it)}"} ?: "")}) {
-                val lo=15.0;val hi=45.0;val pad=6.dp.toPx();val w=size.width-2*pad
-                fun x(v:Double)=pad+((v.coerceIn(lo,hi)-lo)/(hi-lo)*w).toFloat()
-                val barTop=10.dp.toPx();val barH=8.dp.toPx();val gap=2.dp.toPx()
-                bands.forEachIndexed {i,(a,z)->
-                    drawRoundRect(bandColours[i],Offset(x(a)+(if(i>0) gap/2 else 0f),barTop),Size(x(z)-x(a)-(if(i>0) gap else gap/2),barH),CornerRadius(barH/2))
-                }
-                val textSize=with(density) {10.dp.toPx()}
-                listOf(18.5,25.0,30.0,35.0,40.0).forEach {v->
-                    val t=if(v==18.5) "18.5" else v.toInt().toString()
-                    label(t,x(v),barTop+barH+14.dp.toPx(),faint,textSize,center=true)
-                }
-                targetBmi?.let {tb->drawCircle(text.copy(alpha=.8f),5.dp.toPx(),Offset(x(tb),barTop+barH/2),style=Stroke(1.6.dp.toPx()))}
-                val mx=x(bmi)
-                drawLine(text,Offset(mx,barTop-6.dp.toPx()),Offset(mx,barTop+barH+4.dp.toPx()),2.dp.toPx(),cap=StrokeCap.Round)
-                drawCircle(text,4.dp.toPx(),Offset(mx,barTop-6.dp.toPx()))
-            }
+            BmiScale(bmi,targetKg?.let {EnergyMath.bmi(it,height)})
             Text(group.summary,style=type.bodySmall)
+            BmiLadder(height,b.currentKg,targetKg,unit)
             val healthy=BodyMetrics.healthyRange(height)
             NutritionRow("Healthy weight for your height","${Units.weightValue(healthy.start,unit)}–${Units.weight(healthy.endInclusive,unit)}","BMI 18.5 to 24.9")
             val kg=b.currentKg

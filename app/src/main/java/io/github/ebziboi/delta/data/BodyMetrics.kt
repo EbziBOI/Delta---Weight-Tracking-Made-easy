@@ -1,13 +1,13 @@
 package io.github.ebziboi.delta.data
 
 /** The WHO adult BMI groups, with a plain description of what each one generally means. */
-enum class BmiGroup(val label:String,val from:Double,val to:Double,val summary:String) {
+enum class BmiGroup(val label:String,val from:Double,val to:Double,val summary:String,val alias:String?=null) {
     UNDER("Underweight",0.0,18.5,"Below the range linked with the lowest health risk. A low weight can mean less energy, weaker bones and lower immunity."),
     HEALTHY("Healthy weight",18.5,25.0,"The range linked with the lowest risk of weight-related conditions for most adults."),
-    OVER("Overweight",25.0,30.0,"A somewhat raised risk of high blood pressure, type 2 diabetes and heart disease, less so if you carry a lot of muscle."),
-    OBESE_1("Obesity class I",30.0,35.0,"A clearly raised risk of type 2 diabetes, high blood pressure, sleep apnoea and joint pain."),
-    OBESE_2("Obesity class II",35.0,40.0,"A high risk of weight-related conditions. Support from a doctor, including treatment options, is worth asking about."),
-    OBESE_3("Obesity class III",40.0,99.0,"A very high risk of weight-related conditions. A doctor can help with a plan, including treatments beyond diet and exercise.");
+    OVER("Overweight",25.0,30.0,"A somewhat raised risk of high blood pressure, type 2 diabetes and heart disease, less so if you carry a lot of muscle.","Pre-obesity"),
+    OBESE_1("Obesity class I",30.0,35.0,"A clearly raised risk of type 2 diabetes, high blood pressure, sleep apnoea and joint pain.","Moderate obesity"),
+    OBESE_2("Obesity class II",35.0,40.0,"A high risk of weight-related conditions. Support from a doctor, including treatment options, is worth asking about.","Severe obesity"),
+    OBESE_3("Obesity class III",40.0,99.0,"A very high risk of weight-related conditions. A doctor can help with a plan, including treatments beyond diet and exercise.","Very severe obesity");
     companion object {fun of(bmi:Double)=entries.last {bmi>=it.from}}
 }
 

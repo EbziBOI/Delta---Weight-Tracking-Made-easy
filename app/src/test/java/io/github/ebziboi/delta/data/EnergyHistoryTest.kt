@@ -87,4 +87,14 @@ class EnergyHistoryTest {
         val gd=EnergyHistory.days(b,profile,emptyMap(),emptyList(),good,today.minusDays(13),today)
         assertTrue(EnergyHistory.advice(AdviceInputs(b,profile,gd,EnergyHistory.summary(gd,emptyList(),zone),85.0)).any {it.title=="On track"})
     }
+    @Test fun newHomeCardsFollowTrendsInSavedLayouts() {
+        val old=listOf("trend","progress","crash","connect","goal_setup","rate","goal","average","streak","body_fat","insights","recent")
+        val order=CardLayouts.homeOrder(old)
+        assertEquals(listOf("trend","energy","bmi","progress"),order.take(4))
+        assertEquals(CardLayouts.home.size,order.size)
+        assertEquals(CardLayouts.home,CardLayouts.homeOrder(emptyList()))
+        // A layout that already has them keeps the user's placement.
+        val moved=listOf("bmi")+CardLayouts.home.filterNot {it=="bmi"}
+        assertEquals(moved,CardLayouts.homeOrder(moved))
+    }
 }

@@ -67,6 +67,14 @@ class EnergyTourTest {
             assertTrue(days.count {it.counts}>=15)
 
             device.findObject(androidx.test.uiautomator.By.text("Wait"))?.click()
+            compose.waitUntil(10000) {compose.onAllNodes(hasScrollToNodeAction()).fetchSemanticsNodes().isNotEmpty()}
+            val home=compose.onAllNodes(hasScrollToNodeAction()).onFirst()
+            home.performScrollToNode(hasText("Energy balance",ignoreCase=true));shot("00a-home-energy")
+            home.performScrollToNode(hasText("BMI & weight group",ignoreCase=true));shot("00b-home-bmi")
+            home.performScrollToNode(hasText("Moderate obesity",substring=true));shot("00c-home-bmi-ladder")
+            home.performScrollToIndex(0);compose.waitForIdle()
+            device.swipe(device.displayWidth/2,(device.displayHeight*.4f).toInt(),device.displayWidth/2,(device.displayHeight*.7f).toInt(),20);compose.waitForIdle()
+            compose.waitUntil(5000) {compose.onAllNodesWithText("Diary").fetchSemanticsNodes().isNotEmpty()}
             compose.onNodeWithText("Diary").performClick();waitText("Daily nutrition")
             compose.onNodeWithText("Energy budget",ignoreCase=true).performScrollTo();shot("01-diary-today-card")
             // Past days have their own budget card.
@@ -83,7 +91,8 @@ class EnergyTourTest {
             compose.onNodeWithText("Running total").performClick();compose.waitForIdle();shot("06-balance-total")
             compose.onNodeWithText("Suggestions",ignoreCase=true).performScrollTo();shot("07-suggestions")
             compose.onNodeWithText("BMI & weight group",ignoreCase=true).performScrollTo();shot("08-bmi")
-            compose.onNodeWithText("Lean mass").performScrollTo();shot("09-bmi-more")
+            // Health Connect sync on a shared emulator can replace the seeded body-fat reading.
+            if(compose.onAllNodesWithText("Lean mass").fetchSemanticsNodes().isNotEmpty()) {compose.onNodeWithText("Lean mass").performScrollTo();shot("09-bmi-more")}
             compose.onNodeWithText("How it's worked out",ignoreCase=true).performScrollTo();shot("10-how")
         } catch(e:Throwable) {shot("failure");throw e} finally {
             seeded.forEach {e->runCatching {app.nutrition.deleteEntry(e.id)}}

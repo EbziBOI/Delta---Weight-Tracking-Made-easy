@@ -1,6 +1,6 @@
 # Delta
 
-**Stage 2 is now in the main Delta release.** Install the versioned APK as an update to Delta. Beta users can copy their diary and settings through **Settings → Backup and transfer**; see [release notes](docs/RELEASE-0.2.46.md).
+**Stage 2 is now in the main Delta release.** Install the versioned APK as an update to Delta. Beta users can copy their diary and settings through **Settings → Backup and transfer**; see [release notes](docs/RELEASE-0.2.47.md).
 
 An open-source weight and nutrition tracker for Android, built around home-screen
 widgets that show where you started, where you are now and where you are going.
@@ -43,6 +43,7 @@ background and blur when you switch back. The visual reference is
 - Health Connect food integration, including supported micronutrients; imported totals stay separate from local diary entries. Optionally, the local diary is written to Health Connect too (main app only): edits update and deletions remove the same records, and Delta never reads its own entries back
 - Optional energy budget (Settings → Body & energy): resting energy from lean mass when body fat is known, otherwise from height, age and sex; activity from Health Connect active calories and steps (discounted, 75% by default) or a chosen activity level; maintenance learned from complete logging days and the weight trend; and a deficit or surplus from your target and date, capped at 1% of body weight a week and never below resting energy. BMI and today's activity and workouts are shown alongside, and the budget can set the diary's energy target automatically
 - Every day gets its own budget from that day's Health Connect activity (read back up to 90 days), saved so later goal changes don't rewrite history. A balance chart shows each day's deficit or surplus against its own maintenance and budget, or the running total in kcal and kg beside the plan and scale trend
+- Home cards for energy balance (today's gauge with the deficit zone, and the last 7 days as deficit/surplus bars) and BMI (group scale and a ladder of every group with its weight range at your height)
 - BMI and weight-group report: WHO group on a scale, healthy range for your height, milestones, target BMI, body-fat group with lean and fat mass, and suggestions from your own logs (protein, fibre, steps, strength training, weekend eating, logging gaps, pace)
 - Four diet widgets: Energy budget, Macro balance, Food diary with quick add, and a live Fasting clock; all resize with per-widget settings and previews
 - Nutrition charts place the 30-day median of recorded daily totals at 75% height and mark larger values with an overflow triangle, retaining their full values
