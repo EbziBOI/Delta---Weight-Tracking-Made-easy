@@ -1,6 +1,6 @@
 # Delta
 
-**Stage 2 is now in the main Delta release.** Install the versioned APK as an update to Delta. Beta users can copy their diary and settings through **Settings → Backup and transfer**; see [release notes](docs/RELEASE-0.2.48.md).
+**Stage 2 is now in the main Delta release.** Install the versioned APK as an update to Delta. Beta users can copy their diary and settings through **Settings → Backup and transfer**; see [release notes](docs/RELEASE-0.2.49.md).
 
 An open-source weight and nutrition tracker for Android, built around home-screen
 widgets that show where you started, where you are now and where you are going.

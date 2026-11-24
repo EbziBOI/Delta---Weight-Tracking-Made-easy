@@ -34,9 +34,12 @@ class BetaFoodFeaturesTest {
         assertEquals("waitrose",FoodStores.ranked(mapOf("waitrose" to 8,"tesco" to 2)).first().id)
         assertEquals("sainsburys",FoodStores.canonical("en:sainsbury-s"))
         val url=OpenFoodFacts.searchUrl("bread & milk","sainsburys")
-        assertEquals("world.openfoodfacts.org",URI(url).host)
-        assertTrue(url.contains("tagtype_0=stores"));assertTrue(url.contains("tag_0=sainsbury-s"));assertTrue(url.contains("bread+%26+milk"))
-        assertFalse(OpenFoodFacts.searchUrl("oats",null).contains("tagtype_0"))
+        assertEquals("search.openfoodfacts.org",URI(url).host)
+        assertTrue(java.net.URLDecoder.decode(url,"UTF-8").contains("bread milk stores:\"sainsbury's\""))
+        assertFalse(OpenFoodFacts.searchUrl("oats",null).contains("stores"))
+        // Search hits list brands as an array and may carry an English name alongside the original.
+        val hit=OpenFoodFacts.parse(JSONObject("""{"code":"8000500003787","product_name":"Rocher","product_name_en":"Ferrero Rocher","brands":["Ferrero","Ferrero Rocher"],"nutriments":{"energy-kcal_100g":603}}"""))!!
+        assertEquals("Ferrero Rocher",hit.name);assertEquals("Ferrero, Ferrero Rocher",hit.brand)
     }
     @Test fun productStoresSurviveSnapshotsWithoutChangingPortionNutrition() {
         val product=JSONObject("""{"code":"5010255045301","product_name":"Oats","stores_tags":["tesco","sainsbury-s"],"nutriments":{"energy-kcal_100g":380}}""")

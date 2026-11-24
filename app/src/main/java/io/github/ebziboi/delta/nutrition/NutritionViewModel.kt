@@ -59,6 +59,10 @@ class NutritionViewModel(app: Application): AndroidViewModel(app) {
         catch(e: CancellationException) { throw e }
         catch(e: Exception) { searched=false;results=emptyList();if(!quiet) throw e }
     }
+    /** Fills in a search result's serving size, pack and stores from its full product record. */
+    internal suspend fun details(food:Food)=if(food.source==FoodSource.OPEN_FOOD_FACTS) off.details(food) else food
+    /** Opens a search result once its full record (with serving size) has loaded. */
+    fun openProduct(food:Food,onFound:(Food)->Unit)=run {onFound(details(food))}
     /** A short-lived "Undo" offer for the last diary change. */
     class Undo(val label:String,val action:suspend ()->Unit)
     var undo by mutableStateOf<Undo?>(null)

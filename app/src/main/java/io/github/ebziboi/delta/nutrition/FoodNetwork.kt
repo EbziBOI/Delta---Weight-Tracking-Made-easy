@@ -52,20 +52,30 @@ class OpenFoodFacts {
     private var lastSearch=0L
     private val lock=kotlinx.coroutines.sync.Mutex()
     private val fields="code,product_name,product_name_en,generic_name,brands,nutriments,serving_size,serving_quantity,serving_quantity_unit,product_quantity,product_quantity_unit,quantity,nutrition_data_per,no_nutrition_data,stores_tags"
+    private val searchFields="code,product_name,product_name_en,generic_name,brands,nutriments,quantity,no_nutrition_data,countries_tags"
     suspend fun search(query: String,store:String?=null): List<Food> {
         val q=query.trim().take(120);require(q.length>=2) { "Enter at least two characters" }
         require(store==null || FoodStores.uk.any {it.id==store})
+        if(searchTerms(q).length<2) return emptyList()
         val key=q.lowercase(Locale.ROOT)+"|"+(store ?: "all")
         lock.lock()
         try {
             cache[key]?.let { return it }
-            val elapsed=android.os.SystemClock.elapsedRealtime()
-            require(elapsed-lastSearch>=6500 || lastSearch==0L) { "Please wait a moment before searching again" }
-            lastSearch=elapsed
-            val response=NutritionHttp.request(searchUrl(q,store,fields))
-            val products=response.optJSONArray("products") ?: return emptyList()
-            return (0 until products.length()).mapNotNull { parse(products.getJSONObject(it)) }.also { cache[key]=it }
+            // Space requests out politely: a quick second search waits briefly instead of failing.
+            val wait=minSpacing-(android.os.SystemClock.elapsedRealtime()-lastSearch)
+            if(lastSearch!=0L && wait>0) kotlinx.coroutines.delay(wait)
+            lastSearch=android.os.SystemClock.elapsedRealtime()
+            val response=NutritionHttp.request(searchUrl(q,store,searchFields))
+            val hits=response.optJSONArray("hits") ?: return emptyList()
+            val all=(0 until hits.length()).mapNotNull { i -> hits.getJSONObject(i).let { h -> parse(h)?.let { it to h.ukProduct() } } }
+            // UK products first, keeping the service's relevance order within each group.
+            return all.sortedByDescending { it.second }.map { it.first }.distinctBy { it.id }.take(30).also { cache[key]=it }
         } finally { lock.unlock() }
+    }
+    /** The full product record (serving size, pack and stores), which search results leave out. */
+    suspend fun details(food: Food): Food {
+        val code=food.barcode?.takeIf { food.source==FoodSource.OPEN_FOOD_FACTS } ?: return food
+        return runCatching { barcode(code) }.getOrNull()?.takeUnless { it.missingNutrition && !food.missingNutrition } ?: food
     }
     suspend fun barcode(code: String): Food? {
         require(code.matches(Regex("[0-9]{8}|[0-9]{12,14}"))) { "Enter an 8, 12, 13 or 14 digit barcode" }
@@ -73,13 +83,19 @@ class OpenFoodFacts {
         return response.optJSONObject("product")?.let(::parse)
     }
     companion object {
-        internal fun searchUrl(query:String,store:String?,fields:String="code,product_name,nutriments,stores_tags"):String =
-            "https://world.openfoodfacts.org/cgi/search.pl?search_terms=${URLEncoder.encode(query,"UTF-8")}&search_simple=1&action=process&json=1&page_size=24&fields=$fields"+
-                (store?.let {"&tagtype_0=stores&tag_contains_0=contains&tag_0=${URLEncoder.encode(FoodStores.uk.firstOrNull {s->s.id==it}?.queryTag ?: it,"UTF-8")}&tagtype_1=countries&tag_contains_1=contains&tag_1=united-kingdom"} ?: "")
+        private const val minSpacing=1500L
+        /** Characters that the search service treats as query syntax; typed ones are read as spaces. */
+        internal fun searchTerms(query:String)=query.replace(Regex("[\\\\:\"()\\[\\]{}^~*?/+!&|<>=-]")," ").replace(Regex("\\s+")," ").trim()
+        internal fun searchUrl(query:String,store:String?,fields:String="code,product_name,nutriments"):String {
+            val terms=searchTerms(query)
+            val filter=store?.let { id -> FoodStores.uk.firstOrNull { it.id==id }?.let { " stores:\"${it.searchName}\" countries_tags:\"en:united-kingdom\"" } } ?: ""
+            return "https://search.openfoodfacts.org/search?q=${URLEncoder.encode(terms+filter,"UTF-8")}&page_size=40&langs=en&fields=${URLEncoder.encode(fields,"UTF-8")}"
+        }
+        private fun JSONObject.ukProduct()=optJSONArray("countries_tags")?.let { a -> (0 until a.length()).any { a.optString(it)=="en:united-kingdom" } } ?: false
 
         fun parse(p: JSONObject): Food? = runCatching { parseProduct(p) }.getOrNull()
         private fun parseProduct(p: JSONObject): Food? {
-            val name=sequenceOf("product_name","product_name_en","generic_name").map { p.optString(it).trim() }.firstOrNull { it.isNotBlank() } ?: return null
+            val name=sequenceOf("product_name_en","product_name","generic_name").map { p.optString(it).trim() }.firstOrNull { it.isNotBlank() } ?: return null
             val code=p.optString("code"); if(!code.matches(Regex("[0-9]{8}|[0-9]{12,14}"))) return null
             val n=if(p.optString("no_nutrition_data")=="on") JSONObject() else p.optJSONObject("nutriments") ?: JSONObject()
             val quantity=p.optString("quantity").lowercase(Locale.ROOT)
@@ -112,7 +128,9 @@ class OpenFoodFacts {
             val multiple=Regex("^\\s*([0-9]+)\\s*[x×]\\s*(.+)$").find(quantity)
             val textPack=if(multiple!=null) measure(multiple.groupValues[2])?.times(multiple.groupValues[1].toDouble()) else measure(quantity)
             val pack=canonicalPack ?: textPack?.takeIf {it>0 && it<=100000}
-            return Food("off:$code",name.take(250),p.optString("brands").take(250),nutrition,unit,
+            // Search results list brands as an array; product records as comma-separated text.
+            val brands=p.optJSONArray("brands")?.let { a -> (0 until a.length()).map { a.optString(it).trim() }.filter { it.isNotBlank() }.joinToString(", ") } ?: p.optString("brands")
+            return Food("off:$code",name.take(250),brands.take(250),nutrition,unit,
                 serving,servingText.ifBlank { "Serving" }.take(100),pack,FoodSource.OPEN_FOOD_FACTS,code,stores=p.optJSONArray("stores_tags")?.let {a->(0 until a.length()).map {a.getString(it).take(100)}.take(50)} ?: emptyList())
         }
     }

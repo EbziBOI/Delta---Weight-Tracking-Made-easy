@@ -80,7 +80,7 @@ internal fun parsePortion(query:String):QueryPortion {
 internal fun FoodSearchPage(vm: NutritionViewModel,state: NutritionState,padding: PaddingValues,onBack:()->Unit,onFood:(Food)->Unit,
                             onCustom:()->Unit,onRecipe:()->Unit,onPhoto:()->Unit,ingredientsOnly:Boolean=false,onImport:((String)->Unit)?=null,
                             onMissing:((String)->Unit)?=null,onIncomplete:((Food)->Unit)?=null,onQuickAdd:((Food,Double?)->Unit)?=null,
-                            mealLabel:String?=null,meal:Meal?=null,onMeal:((Meal)->Unit)?=null,day:LocalDate=LocalDate.now()) {
+                            mealLabel:String?=null,meal:Meal?=null,onMeal:((Meal)->Unit)?=null,day:LocalDate=LocalDate.now(),onCustomNamed:((String)->Unit)?=null) {
     androidx.activity.compose.BackHandler(onBack=onBack)
     var query by rememberSaveable { mutableStateOf("") }
     var searchedQuery by rememberSaveable { mutableStateOf<String?>(null) }
@@ -114,6 +114,11 @@ internal fun FoodSearchPage(vm: NutritionViewModel,state: NutritionState,padding
     val frequency=remember(state.entries) {state.entries.filterNot {it.fromHealthConnect}.groupingBy {it.food.id}.eachCount()}
     val quickAmount=if(ingredientsOnly) null else onQuickAdd
     val quick:((Food)->Unit)?=quickAmount?.let {add->{f:Food->add(f,portion.amountFor(f))}}
+    // What a row's quick add will log: the typed portion, else the amount last logged for that food.
+    val last=remember(state.entries) {lastAmounts(state.entries)}
+    val shown:(Food)->RowAmount?={f->portion.amountFor(f)?.let {RowAmount(it,false)} ?: last[f.id]?.let {RowAmount(it,true)}}
+    // Search results lack serving sizes, so picking one loads its full record first.
+    val pickProduct:(Food)->Unit={f->vm.openProduct(f,pick)}
     Column(Modifier.fillMaxSize().imePadding()) {
         Column(Modifier.padding(horizontal=20.dp).padding(top=padding.calculateTopPadding()),verticalArrangement=Arrangement.spacedBy(12.dp)) {
             ScreenHeader(if(ingredientsOnly) "Ingredient" else "Add food",eyebrow=mealLabel,leading={GlassIconButton(io.github.ebziboi.delta.R.drawable.ic_arrow_back,"Back",onBack,size=40.dp)}) {
@@ -129,15 +134,15 @@ internal fun FoodSearchPage(vm: NutritionViewModel,state: NutritionState,padding
         Box(Modifier.weight(1f).fillMaxWidth()) {
             if(query.isBlank()) androidx.compose.foundation.pager.HorizontalPager(pager,Modifier.fillMaxSize(),beyondViewportPageCount=1) {page->
                 when(searchTabs[page]) {
-                    "Fast food" -> FastFoodTab(chainId,{chainId=it},pick,quick,vm.busy)
-                    "Everyday" -> EverydayTab(groupId,{groupId=it},pick,quick,vm.busy)
+                    "Fast food" -> FastFoodTab(chainId,{chainId=it},pick,quick,vm.busy,shown)
+                    "Everyday" -> EverydayTab(groupId,{groupId=it},pick,quick,vm.busy,shown)
                     else -> {
                         val foods=when(searchTabs[page]) {
                             "My foods" -> state.foods.filter {it.source==FoodSource.CUSTOM || it.favourite}.sortedByDescending {it.favourite}
                             "Recipes" -> state.foods.filter {it.source==FoodSource.RECIPE}
                             else -> history.take(60)
                         }
-                        FoodList(foods,pick,quick,vm.busy,header={
+                        FoodList(foods,pick,quick,vm.busy,shown,header={
                             if(page<=1 && !ingredientsOnly) CreateActions(onCustom,onRecipe,onPhoto,onImport?.let {{it("")}},vm.busy)
                             if(page==0 && meal!=null && quick!=null) {
                                 val usual=remember(state.entries,meal,day) {repeatSuggestions(state.entries,meal,day,6)}
@@ -163,15 +168,15 @@ internal fun FoodSearchPage(vm: NutritionViewModel,state: NutritionState,padding
                     }
                     if(local.isNotEmpty()) {
                         item {SectionLabel("Your foods")}
-                        items(local,key={"l:"+it.id}) {FoodRow(it,{pick(it)},quick?.let {q->{q(it)}},vm.busy)}
+                        items(local,key={"l:"+it.id}) {FoodRow(it,{pick(it)},quick?.let {q->{q(it)}},vm.busy,shown(it))}
                     }
                     if(everyday.isNotEmpty()) {
                         item {SectionLabel("Everyday foods · typical values")}
-                        items(everyday,key={"c:"+it.id}) {FoodRow(it,{pick(it)},quick?.let {q->{q(it)}},vm.busy)}
+                        items(everyday,key={"c:"+it.id}) {FoodRow(it,{pick(it)},quick?.let {q->{q(it)}},vm.busy,shown(it))}
                     }
                     if(menu.isNotEmpty()) {
                         item {SectionLabel("Fast food · menu guide")}
-                        items(menu,key={"m:"+it.id}) {FoodRow(it,{pick(it)},quick?.let {q->{q(it)}},vm.busy)}
+                        items(menu,key={"m:"+it.id}) {FoodRow(it,{pick(it)},quick?.let {q->{q(it)}},vm.busy,shown(it))}
                     }
                     item {
                         Column(Modifier.padding(top=8.dp),verticalArrangement=Arrangement.spacedBy(8.dp)) {
@@ -190,7 +195,19 @@ internal fun FoodSearchPage(vm: NutritionViewModel,state: NutritionState,padding
                                 }
                             }
                         }
-                        items(vm.results,key={"o:"+it.id}) {f->FoodRow(f,{if(f.missingNutrition && onIncomplete!=null) onIncomplete(f) else pick(f)},if(f.missingNutrition) null else quick?.let {q->{q(f)}},vm.busy)}
+                        items(vm.results,key={"o:"+it.id}) {f->FoodRow(f,{if(f.missingNutrition && onIncomplete!=null) onIncomplete(f) else pickProduct(f)},if(f.missingNutrition) null else quick?.let {q->{q(f)}},vm.busy,shown(f))}
+                    }
+                    // Nothing right? Make it: the typed name carries into a new custom food.
+                    if(onCustomNamed!=null && terms.length>=2 && typedBarcode==null) item {
+                        Row(Modifier.fillMaxWidth().padding(top=8.dp).clip(RoundedCornerShape(Radii.tile)).background(Color(c.text).copy(alpha=.05f))
+                            .clickable(enabled=!vm.busy,role=androidx.compose.ui.semantics.Role.Button) {onCustomNamed(terms.trim().replaceFirstChar {it.uppercase()})}.padding(horizontal=12.dp,vertical=12.dp),
+                            verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(12.dp)) {
+                            DeltaIcon(io.github.ebziboi.delta.R.drawable.ic_edit,null,tint=Color(c.accent),size=20.dp)
+                            Column(Modifier.weight(1f)) {
+                                Text("Create “${terms.trim()}”",style=type.body,maxLines=1,overflow=androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                                Text("As a custom food: scan its label or type the values",style=type.label,color=Color(c.textDim))
+                            }
+                        }
                     }
                     item {
                         val uri=androidx.compose.ui.platform.LocalUriHandler.current
@@ -288,14 +305,14 @@ internal fun FoodSearchPage(vm: NutritionViewModel,state: NutritionState,padding
     }
 }
 
-@Composable private fun FoodList(foods:List<Food>,onFood:(Food)->Unit,onQuickAdd:((Food)->Unit)?,busy:Boolean,header:@Composable ()->Unit) {
+@Composable private fun FoodList(foods:List<Food>,onFood:(Food)->Unit,onQuickAdd:((Food)->Unit)?,busy:Boolean,shown:(Food)->RowAmount?,header:@Composable ()->Unit) {
     androidx.compose.foundation.lazy.LazyColumn(Modifier.fillMaxSize(),contentPadding=PaddingValues(start=12.dp,end=12.dp,top=8.dp,bottom=16.dp)) {
         item {header()}
-        items(foods,key={it.id}) {f->FoodRow(f,{onFood(f)},if(f.missingNutrition) null else onQuickAdd?.let {q->{q(f)}},busy)}
+        items(foods,key={it.id}) {f->FoodRow(f,{onFood(f)},if(f.missingNutrition) null else onQuickAdd?.let {q->{q(f)}},busy,shown(f))}
     }
 }
 
-@Composable private fun EverydayTab(groupId:String,onGroup:(String)->Unit,onFood:(Food)->Unit,onQuickAdd:((Food)->Unit)?,busy:Boolean) {
+@Composable private fun EverydayTab(groupId:String,onGroup:(String)->Unit,onFood:(Food)->Unit,onQuickAdd:((Food)->Unit)?,busy:Boolean,shown:(Food)->RowAmount?) {
     val group=CommonFoods.groups.firstOrNull {it.id==groupId} ?: CommonFoods.groups.first()
     val c=LocalDeltaColors.current
     androidx.compose.foundation.lazy.LazyColumn(Modifier.fillMaxSize(),contentPadding=PaddingValues(start=12.dp,end=12.dp,top=8.dp,bottom=16.dp)) {
@@ -304,7 +321,7 @@ internal fun FoodSearchPage(vm: NutritionViewModel,state: NutritionState,padding
                 items(CommonFoods.groups,key={it.id}) {g->Chip(g.label,g.id==group.id) {onGroup(g.id)}}
             }
         }
-        items(group.items,key={it.id}) {f->FoodRow(f,{onFood(f)},onQuickAdd?.let {q->{q(f)}},busy)}
+        items(group.items,key={it.id}) {f->FoodRow(f,{onFood(f)},onQuickAdd?.let {q->{q(f)}},busy,shown(f))}
         item {
             Text("Typical values for home-style portions. Recipes and portion sizes vary; adjust the amount, or open a food and correct its values to save your own version.",
                 style=LocalDeltaType.current.label,color=Color(c.textDim),modifier=Modifier.padding(horizontal=8.dp,vertical=12.dp))
@@ -312,7 +329,7 @@ internal fun FoodSearchPage(vm: NutritionViewModel,state: NutritionState,padding
     }
 }
 
-@Composable private fun FastFoodTab(chainId:String,onChain:(String)->Unit,onFood:(Food)->Unit,onQuickAdd:((Food)->Unit)?,busy:Boolean) {
+@Composable private fun FastFoodTab(chainId:String,onChain:(String)->Unit,onFood:(Food)->Unit,onQuickAdd:((Food)->Unit)?,busy:Boolean,shown:(Food)->RowAmount?) {
     val chain=FastFood.chains.firstOrNull {it.id==chainId} ?: FastFood.chains.first()
     val uri=androidx.compose.ui.platform.LocalUriHandler.current;val c=LocalDeltaColors.current
     androidx.compose.foundation.lazy.LazyColumn(Modifier.fillMaxSize(),contentPadding=PaddingValues(start=12.dp,end=12.dp,top=8.dp,bottom=16.dp)) {
@@ -321,7 +338,7 @@ internal fun FoodSearchPage(vm: NutritionViewModel,state: NutritionState,padding
                 items(FastFood.chains,key={it.id}) {ch->Chip(ch.label,ch.id==chain.id) {onChain(ch.id)}}
             }
         }
-        items(chain.items,key={it.id}) {f->FoodRow(f,{onFood(f)},onQuickAdd?.let {q->{q(f)}},busy)}
+        items(chain.items,key={it.id}) {f->FoodRow(f,{onFood(f)},onQuickAdd?.let {q->{q(f)}},busy,shown(f))}
         item {
             Column(Modifier.padding(horizontal=8.dp,vertical=12.dp),verticalArrangement=Arrangement.spacedBy(4.dp)) {
                 Text("Approximate values from ${chain.label}’s published UK nutrition information. Recipes and portions change, so check the official guide for exact figures; open an item to save an editable copy.",
@@ -332,12 +349,19 @@ internal fun FoodSearchPage(vm: NutritionViewModel,state: NutritionState,padding
     }
 }
 
+/** The amount a food row shows and quick-adds; [last] when it is the amount last logged. */
+internal data class RowAmount(val amount:Double,val last:Boolean)
+
 /** One food in a list: name, source and portion on the left; energy and a one-tap add on the right. */
-@Composable internal fun FoodRow(food:Food,onClick:()->Unit,onQuickAdd:(()->Unit)?,busy:Boolean) {
+@Composable internal fun FoodRow(food:Food,onClick:()->Unit,onQuickAdd:(()->Unit)?,busy:Boolean,shown:RowAmount?=null) {
     val c=LocalDeltaColors.current;val type=LocalDeltaType.current
-    val basis=food.serving
+    val basis=shown?.amount ?: food.serving
     fun at(n:Nutrient)=food.per100[n]?.let {it*(basis ?: 100.0)/100}
-    val portion=if(basis!=null) food.servingLabel.takeIf {it.isNotBlank() && it!="Serving"} ?: "${amountText(basis)} ${food.unit.symbol}" else "100 ${food.unit.symbol}"
+    val portion=when {
+        shown!=null -> (if(shown.last) "Last " else "")+"${amountText(shown.amount)} ${food.unit.symbol}"
+        basis!=null -> food.servingLabel.takeIf {it.isNotBlank() && it!="Serving"} ?: "${amountText(basis)} ${food.unit.symbol}"
+        else -> "100 ${food.unit.symbol}"
+    }
     Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(Radii.tile)).clickable(enabled=!busy,onClick=onClick).padding(horizontal=8.dp,vertical=10.dp),
         verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(12.dp)) {
         val icon=when(food.source) {
@@ -367,12 +391,14 @@ internal fun FoodSearchPage(vm: NutritionViewModel,state: NutritionState,padding
 @Composable
 internal fun PortionPage(food:Food,entry:DiaryEntry?,day:LocalDate,meal:Meal,padding:PaddingValues,busy:Boolean,onBack:()->Unit,
                          onSave:(Double,Meal)->Unit,onDelete:(()->Unit)?,onFavourite:()->Unit,onEdit:(()->Unit)?,onDeleteFood:(()->Unit)?,isIngredient:Boolean=false,
-                         onFillNutrition:(()->Unit)?=null,onEditCopy:(()->Unit)?=null,suggested:QueryPortion?=null) {
+                         onFillNutrition:(()->Unit)?=null,onEditCopy:(()->Unit)?=null,suggested:QueryPortion?=null,lastAmount:Double?=null) {
     val options=listOfNotNull(food.unit.symbol,"Serving".takeIf {food.serving!=null},"Pack".takeIf {food.pack!=null})
     val counted=suggested?.count?.takeIf {food.serving!=null && entry==null}
     val typed=suggested?.amount?.takeIf {entry==null}
-    var portion by rememberSaveable(food.id,entry?.id) { mutableStateOf(if(entry!=null || typed!=null) food.unit.symbol else if(food.serving!=null) "Serving" else food.unit.symbol) }
-    var quantity by rememberSaveable(food.id,entry?.id) { mutableStateOf(entry?.amount?.let(::editText) ?: typed?.let(::editText) ?: counted?.let(::editText) ?: if(food.serving!=null) "1" else "100") }
+    // With nothing typed, a new entry starts from the amount last logged for this food.
+    val previous=lastAmount?.takeIf {entry==null && typed==null && counted==null}?.let {startingPortion(food,it)}
+    var portion by rememberSaveable(food.id,entry?.id) { mutableStateOf(previous?.first ?: if(entry!=null || typed!=null) food.unit.symbol else if(food.serving!=null) "Serving" else food.unit.symbol) }
+    var quantity by rememberSaveable(food.id,entry?.id) { mutableStateOf(entry?.amount?.let(::editText) ?: typed?.let(::editText) ?: counted?.let(::editText) ?: previous?.second?.let(::editText) ?: if(food.serving!=null) "1" else "100") }
     var selectedMeal by rememberSaveable(entry?.id) {mutableStateOf(entry?.meal ?: meal)}
     var confirmDelete by remember { mutableStateOf(false) }
     val factor=when(portion) {"Serving" -> food.serving ?: 1.0;"Pack" -> food.pack ?: 1.0;else -> 1.0}
@@ -409,7 +435,7 @@ internal fun PortionPage(food:Food,entry:DiaryEntry?,day:LocalDate,meal:Meal,pad
             presets.forEach {v->Box(Modifier.weight(1f)) {Chip(if(portion==food.unit.symbol) "${amountText(v)} ${food.unit.symbol}" else "${amountText(v)}×",quantity.number()==v) {quantity=editText(v)}}}
         }
         if(portion!="${food.unit.symbol}") Text("1 ${portion.lowercase()} = ${amountText(factor)} ${food.unit.symbol}",style=LocalDeltaType.current.bodySmall)
-        if(amount!=null) Text("${amountText(amount)} ${food.unit.symbol} total",style=LocalDeltaType.current.bodySmall)
+        if(amount!=null) Text("${amountText(amount)} ${food.unit.symbol} total"+(if(previous!=null && Math.abs(amount-lastAmount!!)<.001) " · same as last time" else ""),style=LocalDeltaType.current.bodySmall)
         if(!isIngredient) SegmentedControl(Meal.entries,selectedMeal,{it.label}) {selectedMeal=it}
         PrimaryButton(if(isIngredient) "Add ingredient" else if(entry==null) "Add food" else "Save entry",{onSave(amount!!,selectedMeal)},Modifier.fillMaxWidth(),enabled=amount!=null && !busy)
         ContentSection {
@@ -473,7 +499,7 @@ internal fun FoodEditor(food:Food?,padding:PaddingValues,busy:Boolean,onBack:()-
     }) {labelNote=it}
     NutritionPage(title ?: if(food==null) "Custom food" else "Edit food",padding,onBack) {
         val c=LocalDeltaColors.current
-        val missing=(food==null && barcode!=null) || food?.missingNutrition==true
+        val missing=(food==null && barcode!=null) || (food?.missingNutrition==true && (food.barcode!=null || barcode!=null))
         ContentSection(tone=ModuleTone.SAGE) {
             if(missing) Text(if(food==null) "This barcode isn’t in the food database yet." else "The database has no nutrition for this product.",style=LocalDeltaType.current.bodyStrong)
             Text(if(scanner.reading) "Finding and reading the nutrition table…" else "Scan the pack’s nutrition table and the values fill in below${if(missing) ". It’s saved to My foods, so the next scan finds it instantly" else ""}.",style=LocalDeltaType.current.bodySmall)

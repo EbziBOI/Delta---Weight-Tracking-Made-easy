@@ -3,12 +3,12 @@ package io.github.ebziboi.delta.nutrition
 import android.content.Context
 import java.util.Locale
 
-internal data class FoodStore(val id:String,val label:String,val queryTag:String=id)
+internal data class FoodStore(val id:String,val label:String,val queryTag:String=id,val searchName:String=label)
 internal object FoodStores {
     // Starting order follows leading GB grocers; successful diary logs personalize it locally.
-    val uk=listOf(FoodStore("tesco","Tesco"),FoodStore("sainsburys","Sainsbury’s","sainsbury-s"),FoodStore("asda","Asda"),
+    val uk=listOf(FoodStore("tesco","Tesco"),FoodStore("sainsburys","Sainsbury’s","sainsbury-s","sainsbury's"),FoodStore("asda","Asda"),
         FoodStore("aldi","Aldi"),FoodStore("lidl","Lidl"),FoodStore("morrisons","Morrisons"),FoodStore("co-op","Co-op"),
-        FoodStore("waitrose","Waitrose"),FoodStore("iceland","Iceland"),FoodStore("ocado","Ocado"),FoodStore("marks-spencer","M&S"))
+        FoodStore("waitrose","Waitrose"),FoodStore("iceland","Iceland"),FoodStore("ocado","Ocado"),FoodStore("marks-spencer","M&S",searchName="marks & spencer"))
     fun canonical(raw:String):String? {
         val value=raw.lowercase(Locale.ROOT).removePrefix("en:").replace("’","").replace("'","").replace("&","-").replace(" ","-")
         return uk.firstOrNull {it.id==value || (it.id=="sainsburys" && value=="sainsbury-s") ||

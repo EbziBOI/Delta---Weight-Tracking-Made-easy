@@ -85,4 +85,35 @@ class DiaryLogicTest {
         val f=Food(name="Greek Yoghurt",brand="Fage",per100=mapOf(Nutrient.ENERGY to 90.0))
         assertTrue(f.matches("greek"));assertTrue(f.matches("fage yog"));assertFalse(f.matches("reek"))
     }
+
+    @Test fun quickAddStartsFromTheAmountLastLogged() {
+        val oats=food("Oats");val milk=food("Milk")
+        val entries=listOf(DiaryEntry(day=today,meal=Meal.BREAKFAST,food=oats,amount=40.0,created=1),
+            DiaryEntry(day=today,meal=Meal.BREAKFAST,food=oats,amount=55.0,created=3),
+            DiaryEntry(day=today,meal=Meal.BREAKFAST,food=oats,amount=70.0,created=2),
+            DiaryEntry(id="health:1",day=today,meal=Meal.BREAKFAST,food=milk,amount=500.0,created=9))
+        val last=lastAmounts(entries)
+        assertEquals(55.0,last.getValue("Oats"),0.0)
+        assertNull("Health Connect entries aren't typed amounts",last["Milk"])
+    }
+
+    @Test fun lastAmountsShowAsServingsOnlyWhenTheyAreWholeOrHalfServings() {
+        val bar=Food("bar","Bar",per100=mapOf(Nutrient.ENERGY to 500.0),serving=30.0)
+        assertEquals("Serving" to 2.0,startingPortion(bar,60.0))
+        assertEquals("Serving" to 1.5,startingPortion(bar,45.0))
+        assertEquals("g" to 42.0,startingPortion(bar,42.0))
+        assertEquals("g" to 42.0,startingPortion(food("Rice"),42.0))
+    }
+
+    @Test fun productSearchUsesTheWorkingServiceAndStoreFilters() {
+        val url=OpenFoodFacts.searchUrl("ferrero rocher",null)
+        assertEquals("search.openfoodfacts.org",java.net.URI(url).host)
+        assertTrue(url.contains("q=ferrero+rocher&"))
+        assertFalse(url.contains("stores"))
+        val tesco=java.net.URLDecoder.decode(OpenFoodFacts.searchUrl("oats","tesco"),"UTF-8")
+        assertTrue(tesco.contains("stores:\"Tesco\""));assertTrue(tesco.contains("countries_tags:\"en:united-kingdom\""))
+        assertTrue(java.net.URLDecoder.decode(OpenFoodFacts.searchUrl("oats","marks-spencer"),"UTF-8").contains("stores:\"marks & spencer\""))
+        assertEquals("ben jerry s cookie dough",OpenFoodFacts.searchTerms("ben & jerry's: (cookie) dough*").replace("'"," ").replace(Regex("\\s+")," "))
+        assertEquals("",OpenFoodFacts.searchTerms("\"*:*\""))
+    }
 }
