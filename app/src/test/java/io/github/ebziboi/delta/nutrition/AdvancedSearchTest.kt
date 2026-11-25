@@ -64,6 +64,17 @@ class AdvancedSearchTest {
         assertEquals(listOf(100.0, 40.0), gda.columns.map {it.basis.amount})
     }
 
+    @Test fun servingsAreTakenFromWhatTheSourceStates() {
+        assertEquals("Piece" to 12.5, AdvancedSearch.serving(LabelParser.parse("Typical values\tPer 100g\tPer piece (12.5g)\nEnergy\t569kcal\t71kcal\nFat\t36g\t4.5g")))
+        assertEquals("Serving" to 30.0, AdvancedSearch.serving(LabelParser.parse("Per 100g\tPer 30g\nEnergy\t400kcal\t120kcal\nFat\t10g\t3g")))
+        assertEquals("Biscuit" to 9.0, AdvancedSearch.serving(LabelParser.parse("Per 1 biscuit (9 g)\nEnergy 45 kcal\nFat 2 g")))
+        assertEquals("Serving" to 250.0, AdvancedSearch.serving(LabelParser.parse("Per serving (250 g)\nEnergy\t350 kcal\nFat\t12 g")))
+        // Per 100 only, or a serving without its weight, states no usable serving.
+        assertNull(AdvancedSearch.serving(LabelParser.parse("Per 100g\nEnergy 569kcal\nFat 36g")))
+        assertNull(AdvancedSearch.serving(LabelParser.parse("Per serving\nEnergy 350 kcal\nFat 12 g")))
+        assertEquals(listOf("pieces", "glasses", "servings", "slices"), listOf("Piece", "Glass", "Serving", "Slice").map(::plural))
+    }
+
     @Test fun basisIsDescribedPlainly() {
         assertEquals("per 100 g", basisText(LabelBasis(100.0, title = "100 g")))
         assertEquals("per serving (250 g)", basisText(LabelBasis(250.0, title = "serving (250 g)")))

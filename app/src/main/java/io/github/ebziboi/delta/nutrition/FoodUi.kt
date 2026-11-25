@@ -448,18 +448,20 @@ internal fun PortionPage(food:Food,entry:DiaryEntry?,day:LocalDate,meal:Meal,pad
             }
             Text(day.format(dayFormat),style=type.label,color=Color(c.textDim))
         }
-        if(options.size>1) SegmentedControl(options,portion,{it}) { next ->
+        val servingWord=food.servingLabel.trim().ifBlank {"Serving"}
+        fun shown(option:String)=if(option=="Serving") servingWord else option
+        if(options.size>1) SegmentedControl(options,portion,{shown(it)}) { next ->
             val oldAmount=amount
             portion=next
             val nextFactor=when(next) {"Serving" -> food.serving!!;"Pack" -> food.pack!!;else -> 1.0}
             quantity=oldAmount?.let { editText(it/nextFactor) } ?: "1"
         }
-        NumberField(quantity,{quantity=it},if(portion==food.unit.symbol) "Amount (${food.unit.symbol})" else "Number of ${portion.lowercase()}s",Modifier.fillMaxWidth())
+        NumberField(quantity,{quantity=it},if(portion==food.unit.symbol) "Amount (${food.unit.symbol})" else "Number of ${plural(shown(portion))}",Modifier.fillMaxWidth())
         Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(8.dp)) {
             val presets=if(portion==food.unit.symbol) listOf(50.0,100.0,150.0,200.0) else listOf(.5,1.0,1.5,2.0)
             presets.forEach {v->Box(Modifier.weight(1f),contentAlignment=Alignment.Center) {Chip(if(portion==food.unit.symbol) "${amountText(v)} ${food.unit.symbol}" else "${amountText(v)}×",quantity.number()==v) {quantity=editText(v)}}}
         }
-        if(portion!="${food.unit.symbol}") Text("1 ${portion.lowercase()} = ${amountText(factor)} ${food.unit.symbol}",style=LocalDeltaType.current.bodySmall)
+        if(portion!="${food.unit.symbol}") Text("1 ${shown(portion).lowercase()} = ${amountText(factor)} ${food.unit.symbol}",style=LocalDeltaType.current.bodySmall)
         if(amount!=null) Text("${amountText(amount)} ${food.unit.symbol} total"+(if(previous!=null && Math.abs(amount-lastAmount!!)<.001) " · same as last time" else ""),style=LocalDeltaType.current.bodySmall)
         if(!isIngredient) SegmentedControl(Meal.entries,selectedMeal,{it.label}) {selectedMeal=it}
         PrimaryButton(if(isIngredient) "Add ingredient" else if(entry==null) "Add food" else "Save entry",{onSave(amount!!,selectedMeal)},Modifier.fillMaxWidth(),enabled=amount!=null && !busy)
@@ -489,6 +491,34 @@ internal fun PortionPage(food:Food,entry:DiaryEntry?,day:LocalDate,meal:Meal,pad
     if(confirmDelete) AlertDialog(onDismissRequest={confirmDelete=false},title={Text(if(onDelete!=null) "Delete this entry?" else "Delete this saved food?")},text={if(onDeleteFood!=null) Text("Past diary entries will be kept.")},confirmButton={HapticTextButton({confirmDelete=false;(onDelete ?: onDeleteFood)?.invoke()}){Text("Delete")}},dismissButton={HapticTextButton({confirmDelete=false}){Text("Cancel")}})
 }
 
+/** "2 pieces", "2 glasses", "2 servings". */
+internal fun plural(word:String)=word.lowercase().let {w->if(Regex("(s|x|z|ch|sh)$").containsMatchIn(w)) w+"es" else w+"s"}
+
+/** Names offered for a serving; any other can be typed. */
+internal val servingNames=listOf("Serving","Piece","Bar","Slice","Biscuit","Bowl","Cup","Glass","Bottle","Can","Pot","Bag")
+
+/**
+ * What one serving is called and weighs, plus the pack size, shared by every way of creating a food (custom, web page,
+ * pasted text, label scan, recipe). The portion page then offers "2 pieces" instead of grams.
+ */
+@Composable
+internal fun ServingFields(name:String,onName:(String)->Unit,size:String,onSize:(String)->Unit,unit:FoodUnit,
+                           pack:String?=null,onPack:((String)->Unit)?=null,note:String?=null,sizeLabel:String?=null) {
+    val c=LocalDeltaColors.current;val type=LocalDeltaType.current
+    Caption("Serving")
+    androidx.compose.foundation.lazy.LazyRow(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+        items(servingNames) {n->Chip(n,name.equals(n,true)) {onName(n)}}
+    }
+    Row(horizontalArrangement=Arrangement.spacedBy(10.dp)) {
+        GlassTextField(name,{onName(it.take(40))},"Called",Modifier.weight(1f))
+        NumberField(size,onSize,sizeLabel ?: "One ${name.ifBlank {"serving"}.lowercase()} (${unit.symbol})",Modifier.weight(1f))
+    }
+    if(pack!=null && onPack!=null) NumberField(pack,onPack,"Whole pack (${unit.symbol}, optional)",Modifier.fillMaxWidth())
+    val weight=size.number()?.takeIf {it>0}
+    Text(note ?: if(weight!=null) "Log it as “2 ${plural(name.ifBlank {"serving"})}” as well as in ${unit.symbol}." else "Optional · lets you log it by the ${name.ifBlank {"serving"}.lowercase()} instead of weighing it.",
+        style=type.bodySmall,color=Color(c.textDim))
+}
+
 @Composable
 internal fun FoodEditor(food:Food?,padding:PaddingValues,busy:Boolean,onBack:()->Unit,barcode:String?=null,title:String?=null,onReadLabel:(()->Unit)?=null,onSave:(Food)->Unit) {
     var name by rememberSaveable(food?.id) {mutableStateOf(food?.name ?: "")}
@@ -496,6 +526,7 @@ internal fun FoodEditor(food:Food?,padding:PaddingValues,busy:Boolean,onBack:()-
     var unit by rememberSaveable(food?.id) {mutableStateOf(food?.unit ?: FoodUnit.GRAMS)}
     var serving by rememberSaveable(food?.id) {mutableStateOf(food?.serving?.let(::editText) ?: "")}
     var pack by rememberSaveable(food?.id) {mutableStateOf(food?.pack?.let(::editText) ?: "")}
+    var servingName by rememberSaveable(food?.id) {mutableStateOf(food?.servingLabel ?: "Serving")}
     var fields by rememberSaveable(food?.id) {mutableStateOf(Nutrient.entries.associate {it.name to (food?.per100?.get(it)?.let(::editText) ?: "")})}
     var expanded by rememberSaveable {mutableStateOf(false)}
     var code by rememberSaveable(food?.id) {mutableStateOf(food?.barcode ?: barcode ?: "")}
@@ -518,7 +549,7 @@ internal fun FoodEditor(food:Food?,padding:PaddingValues,busy:Boolean,onBack:()-
         unit=column.basis.unit
         if(perServing) perServing=false
         fields=fields+per100.mapKeys {it.key.name}.mapValues {editText(Math.round(it.value*1000)/1000.0)}
-        if(serving.isBlank()) read.servingSize()?.let {serving=editText(it)}
+        if(serving.isBlank()) AdvancedSearch.serving(read)?.let {(n,size)->serving=editText(size);servingName=n}
         labelNote=if(result.confident) "Read ${per100.size} values from the label · they add up" else
             "Read ${per100.size} values from the label${if(result.uncertain.isNotEmpty()) "; check ${result.uncertain.joinToString {it.label.lowercase()}}" else ""}. Compare them with the pack."
     }) {labelNote=it}
@@ -538,13 +569,10 @@ internal fun FoodEditor(food:Food?,padding:PaddingValues,busy:Boolean,onBack:()-
         GlassTextField(name,{name=it},"Food name",Modifier.fillMaxWidth());GlassTextField(brand,{brand=it},"Brand (optional)",Modifier.fillMaxWidth())
         if(food?.barcode!=null || barcode!=null) GlassTextField(code,{code=it.filter(Char::isDigit).take(14)},"Barcode",Modifier.fillMaxWidth())
         SegmentedControl(FoodUnit.entries,unit,{if(it==FoodUnit.GRAMS) "Solid (g)" else "Liquid (ml)"}) {unit=it}
-        Row(horizontalArrangement=Arrangement.spacedBy(10.dp)) {
-            NumberField(serving,{serving=it},"Serving (${unit.symbol})",Modifier.weight(1f))
-            NumberField(pack,{pack=it},"Pack (${unit.symbol})",Modifier.weight(1f))
-        }
+        ContentSection {ServingFields(servingName,{servingName=it},serving,{serving=it},unit,pack,{pack=it})}
         ContentSection {
             Caption("Nutrition label")
-            SegmentedControl(listOf(false,true),perServing,{if(it) "Per serving" else "Per 100 ${unit.symbol}"}) {switchBasis(it)}
+            SegmentedControl(listOf(false,true),perServing,{if(it) "Per ${servingName.ifBlank {"serving"}.lowercase()}" else "Per 100 ${unit.symbol}"}) {switchBasis(it)}
             if(perServing && servingSize==null) Text("Enter the serving size above to use per-serving values.",style=LocalDeltaType.current.bodySmall,color=Color(c.warn))
             else Text("Type the label’s column as printed. Leave values blank when the label doesn’t list them.",style=LocalDeltaType.current.bodySmall,color=Color(c.textDim))
             Nutrient.entries.filter {expanded || it in Nutrient.primary + listOf(Nutrient.SATURATED,Nutrient.SUGAR,Nutrient.FIBRE,Nutrient.SALT)}.forEach {n ->
@@ -562,7 +590,7 @@ internal fun FoodEditor(food:Food?,padding:PaddingValues,busy:Boolean,onBack:()-
         PrimaryButton("Save food",{
             val scale=factor ?: 1.0
             onSave(Food(food?.id ?: newId(),name.trim(),brand.trim().take(250),fields.mapNotNull {(k,v)->v.takeIf {it.isNotBlank()}?.number()?.let {Nutrient.valueOf(k) to it*scale}}.toMap(),unit,
-                servingSize,pack=pack.number()?.takeIf {it>0},favourite=food?.favourite ?: false,servingLabel=food?.servingLabel ?: "Serving",
+                servingSize,pack=pack.number()?.takeIf {it>0},favourite=food?.favourite ?: false,servingLabel=servingName.trim().ifBlank {"Serving"}.take(40),
                 barcode=code.ifBlank {null},sourceUrl=food?.sourceUrl,labelChecked=if(perServing) emptySet() else food?.labelChecked?.filter {fields[it.name]?.number()==food.per100[it] && unit==food.unit}?.toSet() ?: emptySet()))
         },Modifier.fillMaxWidth(),enabled=valid && !busy)
     }
@@ -574,6 +602,7 @@ internal fun RecipeEditor(vm:NutritionViewModel,state:NutritionState,padding:Pad
     var name by rememberSaveable(existing?.id ?: vm.recipeDraftId) {mutableStateOf(existing?.name ?: "")}
     var servings by rememberSaveable(existing?.id ?: vm.recipeDraftId) {mutableStateOf(existing?.recipeServings?.let(::editText) ?: "")}
     var yield by rememberSaveable(existing?.id ?: vm.recipeDraftId) {mutableStateOf(existing?.yieldGrams?.let(::editText) ?: "")}
+    var servingName by rememberSaveable(existing?.id ?: vm.recipeDraftId) {mutableStateOf(existing?.servingLabel ?: "Serving")}
     val ingredients=vm.recipeIngredients
     var editingIngredient by remember {mutableIntStateOf(-1)}
     var ingredientAmount by remember {mutableStateOf("")}
@@ -590,17 +619,20 @@ internal fun RecipeEditor(vm:NutritionViewModel,state:NutritionState,padding:Pad
             if(ingredients.isEmpty()) Text("Add each ingredient with the amount that goes into the whole recipe.",style=LocalDeltaType.current.bodySmall,color=Color(LocalDeltaColors.current.textDim))
             SecondaryButton("Add ingredient",onPick,Modifier.fillMaxWidth(),enabled=!vm.busy,icon=io.github.ebziboi.delta.R.drawable.ic_add)
         }
-        NumberField(servings,{servings=it},"Number of servings",Modifier.fillMaxWidth())
+        androidx.compose.foundation.lazy.LazyRow(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+            items(listOf("Serving","Portion","Slice","Bowl","Piece","Cup")) {n->Chip(n,servingName.equals(n,true)) {servingName=n}}
+        }
+        NumberField(servings,{servings=it},"Number of ${plural(servingName.ifBlank {"serving"})} it makes",Modifier.fillMaxWidth())
         NumberField(yield,{yield=it},"Finished recipe weight (g)",Modifier.fillMaxWidth())
         if(yield.isBlank() && ingredients.isNotEmpty() && ingredients.all {it.food.unit==FoodUnit.GRAMS})
             TextAction("Use ingredient weight (${amountText(ingredients.sumOf {it.amount})} g)",{yield=editText(ingredients.sumOf {it.amount})})
         Text("Use the cooked weight so portions scale correctly.",style=LocalDeltaType.current.bodySmall)
         val recipe=runCatching {makeRecipe(name,ingredients,servings.number() ?: 0.0,yield.number() ?: 0.0,existing?.id ?: "preview")}.getOrNull()
         if(recipe!=null) ContentSection(tone=ModuleTone.SAGE) {
-            Caption("Per serving · ${amountText(recipe.serving!!)} g")
+            Caption("Per ${servingName.ifBlank {"serving"}.lowercase()} · ${amountText(recipe.serving!!)} g")
             Nutrient.primary.forEach {NutritionRow(it.label,nutrientText(recipe.per100[it]?.times(recipe.serving/100),it))}
         }
-        PrimaryButton("Save recipe",{onSave(recipe!!.copy(id=existing?.id ?: newId(),favourite=existing?.favourite ?: false))},Modifier.fillMaxWidth(),enabled=recipe!=null && !vm.busy)
+        PrimaryButton("Save recipe",{onSave(recipe!!.copy(id=existing?.id ?: newId(),favourite=existing?.favourite ?: false,servingLabel=servingName.trim().ifBlank {"Serving"}.take(40)))},Modifier.fillMaxWidth(),enabled=recipe!=null && !vm.busy)
     }
     ingredients.getOrNull(editingIngredient)?.let {item->
         AlertDialog(onDismissRequest={editingIngredient=-1},title={Text(item.food.name)},text={NumberField(ingredientAmount,{ingredientAmount=it},"Amount (${item.food.unit.symbol})",Modifier.fillMaxWidth())},

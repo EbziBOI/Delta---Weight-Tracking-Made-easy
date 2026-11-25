@@ -43,6 +43,19 @@ internal object AdvancedSearch {
         return if(text.length<=120 && text.lines().size<=2) PastedInput.Name(text.replace(Regex("\\s+")," ")) else PastedInput.Text(read ?: LabelParser.parse(""))
     }
 
+    /**
+     * The serving a read states, as a name and weight: "Per piece (12.5g)" gives Piece · 12.5, "Per 30g" gives Serving · 30.
+     * Null when every column is per 100 or the serving's weight isn't given.
+     */
+    fun serving(read:LabelRead):Pair<String,Double>? {
+        val column=read.columns.firstOrNull {it.basis.amount!=null && it.basis.amount!=100.0} ?: return null
+        return servingName(column.basis.title) to column.basis.amount!!
+    }
+    fun servingName(title:String):String {
+        val word=Regex("^\\s*(?:1\\s+|one\\s+|an?\\s+)?([a-z]{3,20})",RegexOption.IGNORE_CASE).find(title)?.groupValues?.get(1)?.lowercase()
+        return if(word==null || word in setOf("per","typical","column","choose")) "Serving" else word.replaceFirstChar {it.uppercase()}
+    }
+
     /** Enough of a table to trust without scrolling the page: energy plus at least two macros. */
     fun complete(read:LabelRead)=read.columns.any {c->Nutrient.ENERGY in c.observations && Nutrient.macros.count {it in c.observations}>=2}
 

@@ -39,6 +39,13 @@ internal fun FoodImportPage(vm:NutritionViewModel,initialBarcode:String,padding:
     var started by rememberSaveable {mutableStateOf(false)}
     var autoFilled by rememberSaveable {mutableStateOf(false)}
     var barcodeFromPage by rememberSaveable {mutableStateOf(false)}
+    var servingName by rememberSaveable {mutableStateOf("Serving")};var servingSize by rememberSaveable {mutableStateOf("")}
+    var pack by rememberSaveable {mutableStateOf("")};var servingFrom by rememberSaveable {mutableStateOf<String?>(null)}
+    /** Takes the serving a source states, unless one was already set (by hand or by an earlier source). */
+    fun offerServing(read:LabelRead,from:String) {
+        if(servingSize.isNotBlank()) return
+        AdvancedSearch.serving(read)?.let {(n,size)->servingName=n;servingSize=editText(size);servingFrom=from}
+    }
     var name by rememberSaveable {mutableStateOf("")};var brand by rememberSaveable {mutableStateOf("")}
     var barcode by rememberSaveable {mutableStateOf(initialBarcode)}
     var unit by rememberSaveable {mutableStateOf(FoodUnit.GRAMS)}
@@ -68,6 +75,7 @@ internal fun FoodImportPage(vm:NutritionViewModel,initialBarcode:String,padding:
     /** Takes a read from a page or pasted text. It fills the review only when that is empty or was filled by an earlier read. */
     fun adopt(read:LabelRead,meta:JSONObject) {
         pageJson=meta.put("read",read.json()).toString();failedLink=null
+        offerServing(read,if(meta.optString("url").isBlank()) "the pasted text" else AdvancedSearch.host(meta.optString("url")))
         val column=read.columns[read.best];val values=column.per100()
         pageUnit=column.basis.unit;pageValuesJson=values.toJson().toString()
         if(values.isNotEmpty() && (fields.values.all {it.isBlank()} || autoFilled)) {
@@ -98,6 +106,7 @@ internal fun FoodImportPage(vm:NutritionViewModel,initialBarcode:String,padding:
     fun useLabel(result:LabelOcrResult,uri:Uri) {
         lastPhoto=uri.toString()
         labelJson=result.read.json();checked=emptyList();uncertain=result.uncertain.map {it.name}
+        offerServing(result.read,"the label")
         val column=result.read.columns[result.read.best];val values=column.per100()
         labelUnit=column.basis.unit;labelValuesJson=values.toJson().toString()
         val empty=fields.values.all {it.isBlank()}
@@ -213,7 +222,8 @@ internal fun FoodImportPage(vm:NutritionViewModel,initialBarcode:String,padding:
                 }
             }
             if(autoFilled && reviewed) StatusPill("Values add up · ready to save",Color(c.good))
-            pageRead?.let {read->LabelReadControls(read,if(url==null) "Text" else "Page",{v,u->pageUnit=u;pageValuesJson=v.toJson().toString();apply(v,false,u)})}
+            pageRead?.let {read->LabelReadControls(read,if(url==null) "Text" else "Page",{v,u->pageUnit=u;pageValuesJson=v.toJson().toString();apply(v,false,u)},
+                onServing={n,size->servingName=n;servingSize=editText(size);servingFrom=null})}
             if(url!=null) {
                 val uri=androidx.compose.ui.platform.LocalUriHandler.current
                 TextAction("View on ${AdvancedSearch.host(url)}",{uri.openUri(url)})
@@ -232,17 +242,22 @@ internal fun FoodImportPage(vm:NutritionViewModel,initialBarcode:String,padding:
             Text(if(scanner.reading) "Finding and reading the table…" else "Point the camera at the table; it's captured, cropped and read on this phone automatically",style=LocalDeltaType.current.bodySmall)
             Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
                 PrimaryButton("Scan label",scanner.camera,Modifier.weight(1f),enabled=!vm.busy && !scanner.reading)
-                SecondaryButton("Choose photo",scanner.gallery,Modifier.weight(1f),enabled=!vm.busy && !scanner.reading)
+                SecondaryButton("From photo",scanner.gallery,Modifier.weight(1f),enabled=!vm.busy && !scanner.reading)
             }
             if(reviewed && labelRead!=null && checked.isNotEmpty()) StatusPill("Values add up · ready to save",Color(LocalDeltaColors.current.good))
             labelRead?.let {read->
                 read.warnings.forEach {Text(it,style=LocalDeltaType.current.bodySmall,color=Color(LocalDeltaColors.current.warn))}
-                LabelReadControls(read,"Label",{v,u->labelUnit=u;labelValuesJson=v.toJson().toString();apply(v,true,u)})
+                LabelReadControls(read,"Label",{v,u->labelUnit=u;labelValuesJson=v.toJson().toString();apply(v,true,u)},
+                    onServing={n,size->servingName=n;servingSize=editText(size);servingFrom=null})
                 TextAction("Edit recognised text",{transcript=read.raw;textEditor=true})
             }
             if(labelRead==null) TextAction("Paste label text",{transcript="";textEditor=true})
             lastPhoto?.let {photo->TextAction("Adjust crop",{cropUri=photo})}
             if(vm.busy) TextAction("Cancel reading",{vm.cancel()})
+        }
+        ContentSection {
+            ServingFields(servingName,{servingName=it;servingFrom=null},servingSize,{servingSize=it;servingFrom=null},unit,pack,{pack=it},
+                note=servingFrom?.let {"Taken from $it. Change it if you eat a different amount."})
         }
         ContentSection {
             Caption("Review per 100 ${unit.symbol}")
@@ -266,6 +281,7 @@ internal fun FoodImportPage(vm:NutritionViewModel,initialBarcode:String,padding:
         }
         PrimaryButton("Save food",{
             onSave(Food(name=name.trim(),brand=brand.trim(),per100=values,unit=unit,barcode=barcode.ifBlank {null},
+                serving=servingSize.number()?.takeIf {it>0 && it<=100000},servingLabel=servingName.trim().ifBlank {"Serving"}.take(40),pack=pack.number()?.takeIf {it>0 && it<=100000},
                 sourceUrl=page?.optString("url")?.takeIf {ProductPages.publicUrl(it)},labelChecked=checked.mapNotNull {key->Nutrient.entries.find {it.name==key}}.filter {it in values}.toSet()))
         },Modifier.fillMaxWidth(),enabled=valid && reviewed && !vm.busy)
     }
@@ -299,7 +315,7 @@ internal fun basisText(b:LabelBasis)=when {
 }
 
 @Composable
-private fun LabelReadControls(read:LabelRead,title:String,onUse:(Nutrients,FoodUnit)->Unit) {
+private fun LabelReadControls(read:LabelRead,title:String,onUse:(Nutrients,FoodUnit)->Unit,onServing:((String,Double)->Unit)?=null) {
     var selected by rememberSaveable(read.json()) {mutableIntStateOf(read.best)}
     val column=read.columns.getOrNull(selected) ?: return
     var amount by rememberSaveable(read.json(),selected) {mutableStateOf(column.basis.amount?.let(::editText) ?: "")}
@@ -318,5 +334,9 @@ private fun LabelReadControls(read:LabelRead,title:String,onUse:(Nutrients,FoodU
     if(column.basis.amount==null) Text(if(column.basis.title.lowercase() in listOf("serving","portion","pack")) "These values are per ${column.basis.title.lowercase()}. Enter what one weighs to convert them to per 100."
         else "Choose the quantity represented by this column.",style=LocalDeltaType.current.bodySmall)
     val values=column.per100(amount.number()?.takeIf {it>0 && it<=100000})
-    SecondaryButton("Use ${title.lowercase()} values",{onUse(values,unit)},Modifier.fillMaxWidth(),enabled=values.isNotEmpty())
+    SecondaryButton("Use ${title.lowercase()} values",{
+        onUse(values,unit)
+        // A per-serving column whose weight was given (or typed here) also becomes the food's serving.
+        amount.number()?.takeIf {it>0 && it<=100000 && it!=100.0}?.let {onServing?.invoke(AdvancedSearch.servingName(column.basis.title),it)}
+    },Modifier.fillMaxWidth(),enabled=values.isNotEmpty())
 }

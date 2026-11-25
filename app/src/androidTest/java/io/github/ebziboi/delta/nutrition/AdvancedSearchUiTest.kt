@@ -99,6 +99,35 @@ class AdvancedSearchUiTest {
         compose.onNodeWithText("Read text").performClick();shot("tubik-light-text-read")
     }
 
+    @Test fun servingFromThePageIsSavedAndOfferedWhenLogging() {
+        val vm=NutritionViewModel(context.applicationContext as DeltaApp);var saved by mutableStateOf<Food?>(null)
+        compose.setContent {DeltaTheme(tubikDark) {Surface(color=Color(LocalDeltaColors.current.bg),contentColor=Color(LocalDeltaColors.current.text)) {
+            Box(Modifier.fillMaxSize().systemBarsPadding()) {
+                val food=saved
+                if(food==null) FoodImportPage(vm,"",PaddingValues(0.dp),{},{saved=it})
+                else PortionPage(food,null,java.time.LocalDate.now(),Meal.SNACKS,PaddingValues(0.dp),false,{},{_,_->},null,{},null,null)
+            }
+        }}}
+        compose.onNodeWithText("Link, nutrition text or name").performTextReplacement(
+            "Typical values\tPer 100g\tPer piece (12.5g)\nEnergy\t2381kJ / 569kcal\t298kJ / 71kcal\nFat\t36g\t4.5g\nCarbohydrate\t47g\t5.9g\nProtein\t8.2g\t1g")
+        compose.onNodeWithText("Read text").performClick();compose.waitForIdle()
+        // The serving the table states is filled in and attributed.
+        compose.onNodeWithText("Taken from the pasted text",substring=true).performScrollTo().assertExists()
+        compose.onNodeWithText("One piece (g)").assertExists()
+        shot("tubik-serving-from-text")
+        // It can be changed: a bigger piece, and a pack size.
+        compose.onNodeWithText("One piece (g)").performTextReplacement("13")
+        compose.onNodeWithText("Whole pack (g, optional)").performTextReplacement("200")
+        compose.onNodeWithText("Product name").performScrollTo().performTextReplacement("Ferrero Rocher")
+        compose.onNodeWithText("Save food").performScrollTo().performClick()
+        compose.waitUntil(5000) {saved!=null}
+        compose.runOnIdle {assertEquals("Piece",saved!!.servingLabel);assertEquals(13.0,saved!!.serving!!,.001);assertEquals(200.0,saved!!.pack!!,.001)}
+        // Logging offers it by name.
+        compose.onNodeWithText("Piece").assertExists();compose.onNodeWithText("Number of pieces").assertExists()
+        compose.onNodeWithText("1 piece = 13 g").assertExists()
+        shot("tubik-portion-by-piece")
+    }
+
     @Test fun aLinkTypedIntoFoodSearchOffersToReadThePage() {
         val vm=NutritionViewModel(context.applicationContext as DeltaApp);var opened:String?=null
         compose.setContent {DeltaTheme(tubikDark) {Surface(color=Color(LocalDeltaColors.current.bg),contentColor=Color(LocalDeltaColors.current.text)) {
