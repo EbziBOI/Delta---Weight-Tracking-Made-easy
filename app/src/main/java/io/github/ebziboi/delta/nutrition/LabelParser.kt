@@ -147,7 +147,8 @@ internal object LabelParser {
         val header=lines.take(first).joinToString(" ")
         val serving=Regex("(?:serving size|portion size|per serving|per portion|portion|par portion|pro portion|por porcion|per porzione)[^\\n]{0,40}?(\\d+(?:[.,]\\d+)?)\\s*(g|ml)\\b").find(header)
         val servingBasis=serving?.let {LabelBasis(it.groupValues[1].replace(',','.').toDoubleOrNull()?.takeIf {n->n.isFinite() && n>0 && n<=100000},if(it.groupValues[2]=="ml") FoodUnit.MILLILITRES else FoodUnit.GRAMS,"Serving")}
-        val basisHits=Regex("(?:per\\s*|pour\\s*|pro\\s*|por\\s*|je\\s*|/\\s*)(\\d+(?:[.,]\\d+)?)\\s*(g|ml)\\b|per\\s+(serving|portion|pack)(?:\\s*\\(?\\s*(\\d+(?:[.,]\\d+)?)\\s*(g|ml)\\)?)?").findAll(header).toList()
+        // "Per 100g", "per serving (30 g)", and any "per piece (12.5g)" / "per 1 biscuit (9 g)" heading.
+        val basisHits=Regex("(?:per\\s*|pour\\s*|pro\\s*|por\\s*|je\\s*|/\\s*)(\\d+(?:[.,]\\d+)?)\\s*(g|ml)\\b|per\\s+(?:1\\s+|one\\s+|an?\\s+)?(serving|portion|pack|[a-z]{3,12}(?=\\s*\\(\\s*\\d))(?:\\s*\\(?\\s*(\\d+(?:[.,]\\d+)?)\\s*(g|ml)\\)?)?").findAll(header).toList()
         val bases=basisHits.map {m->
             if(m.groupValues[1].isNotBlank()) LabelBasis(m.groupValues[1].replace(',','.').toDoubleOrNull()?.takeIf {n->n.isFinite() && n>0 && n<=100000},if(m.groupValues[2]=="ml") FoodUnit.MILLILITRES else FoodUnit.GRAMS,"${m.groupValues[1]} ${m.groupValues[2]}")
             else if(m.groupValues[4].isNotBlank()) LabelBasis(m.groupValues[4].replace(',','.').toDoubleOrNull()?.takeIf {n->n.isFinite() && n>0 && n<=100000},if(m.groupValues[5]=="ml") FoodUnit.MILLILITRES else FoodUnit.GRAMS,"${m.groupValues[3]} (${m.groupValues[4]} ${m.groupValues[5]})")
@@ -188,6 +189,14 @@ internal object LabelParser {
                 if(result.containsKey(n) && result[n]?.map {it?.value to it?.bounded}!=v.map {it?.value to it?.bounded}) {warnings+="Repeated ${n.label.lowercase()} rows disagree";result.remove(n);conflicts+=n}
                 else result[n]=v
             }
+        }
+        // A tabbed header names each value column. Reference intake columns ("RI*", "GDA", "Adult RI": 2000 kcal, 70 g fat)
+        // are not the food's values; they would otherwise read as one more column and hide the real quantities.
+        val headerCells=lines.take(first).lastOrNull {it.contains('\t')}?.split('\t')?.map {it.trim()}
+        if(headerCells!=null) {
+            val cells=if(headerCells.firstOrNull()?.let {Regex("^(?:per|pour|pro|por|je)\\b").containsMatchIn(it)}==true) headerCells else headerCells.drop(1)
+            val reference=cells.indices.filter {i->Regex("^%|^(?:adult\\s+)?(?:ri|gda|reference intakes?|daily values?)\\b").containsMatchIn(cells[i])}.toSet()
+            if(reference.isNotEmpty() && reference.size<cells.size) result.keys.toList().forEach {n->result[n]=result.getValue(n).filterIndexed {i,_->i !in reference}}
         }
         // Drop positions no nutrient uses, such as a %RI column.
         val width=result.values.maxOfOrNull {it.size} ?: 0

@@ -37,7 +37,7 @@ class NutritionUiTest {
                 names+=fixture.name;repo.saveFood(fixture)
                 repo.log((1L..20L).map {DiaryEntry(day=LocalDate.now().minusDays(it),meal=Meal.BREAKFAST,food=fixture,amount=30.0+it)})
                 click("Diary");shot("$style-diary")
-                addFood();click("Custom food")
+                addFood();click("Custom")
                 val foodName="UI custom ${style.name}";names+=foodName
                 field("Food name",foodName);field("Energy (kcal)","100");field("Protein (g)","10");field("Carbohydrate (g)","10");field("Fat (g)","3")
                 field("Serving (g)","50");field("Pack (g)","200");click("Save food")
@@ -124,7 +124,7 @@ class NutritionUiTest {
                 compose.onNodeWithContentDescription("Daily intake graph").assertExists()
                 compose.onNodeWithText("Weight: right axis (lb)",substring=true).assertDoesNotExist()
                 shot("$style-large-chart");back()
-                addFood();click("Custom food")
+                addFood();click("Custom")
                 compose.onNodeWithText("Pack (g)").performScrollTo().performClick()
                 compose.waitUntil(10000) {compose.activity.window.decorView.rootWindowInsets?.isVisible(android.view.WindowInsets.Type.ime())==true}
                 compose.waitUntil(10000) {

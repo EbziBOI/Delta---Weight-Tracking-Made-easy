@@ -105,6 +105,7 @@ fun NutritionScreen(padding: PaddingValues,addSignal: Int=0,onDetailChanged: (Bo
     var parent by rememberSaveable { mutableStateOf("diary") }
     var importParent by rememberSaveable {mutableStateOf("search")}
     var importCode by rememberSaveable {mutableStateOf("")}
+    var importInput by rememberSaveable {mutableStateOf("")}
     var importId by rememberSaveable {mutableStateOf(newId())}
     var dayEpoch by rememberSaveable { mutableLongStateOf(LocalDate.now().toEpochDay()) }
     var meal by rememberSaveable { mutableStateOf(mealForNow()) }
@@ -118,7 +119,11 @@ fun NutritionScreen(padding: PaddingValues,addSignal: Int=0,onDetailChanged: (Bo
         route=when(route) { "food-import" -> importParent;"portion" -> parent;"food-edit" -> if(parent=="ingredient-search") "ingredient-search" else "search";"recipe" -> "search";"search" -> "diary";"ingredient-search" -> "recipe";"photo-settings" -> "photo";"energy-setup" -> if(parent=="energy") "energy" else "diary";else -> "diary" }
         vm.message=null
     }
-    fun openImport(code:String,from:String) {importCode=code;importParent=from;importId=newId();route="food-import"}
+    /** Advanced search, from a barcode the database lacks or from whatever was typed or pasted into search. */
+    fun openImport(text:String,from:String) {
+        val code=text.trim().takeIf {it.isNotEmpty() && it.all(Char::isDigit)}
+        importCode=code.orEmpty();importInput=if(code==null) text.trim() else "";importParent=from;importId=newId();route="food-import"
+    }
     /** Manual label entry: for a product missing from the database, or one it lists without nutrition. */
     fun openManual(draft:Food?,code:String?,from:String,title:String) {
         vm.selectedFood=draft?.copy(id=newId(),source=FoodSource.CUSTOM,labelChecked=emptySet(),stores=emptyList());vm.foodDraftId=newId()
@@ -130,7 +135,7 @@ fun NutritionScreen(padding: PaddingValues,addSignal: Int=0,onDetailChanged: (Bo
         vm.run {
             val full=if(amount==null && last==null && food.serving==null) vm.details(food) else food
             val entry=DiaryEntry(day=target,meal=into,food=full,amount=amount ?: last ?: full.serving ?: 100.0)
-            vm.repo.log(listOf(entry));vm.offerUndo("Added ${amountText(entry.amount)} ${full.unit.symbol} ${full.name} to ${into.label}") {vm.repo.deleteEntry(entry.id)}
+            vm.repo.log(listOf(entry));vm.offerUndo("Added ${full.name} · ${amountText(entry.amount)} ${full.unit.symbol}") {vm.repo.deleteEntry(entry.id)}
         }
     }
     val openFood: (Food,String)->Unit={f,p -> vm.selectedFood=f;vm.selectedEntry=null;parent=p;route="portion"}
@@ -167,8 +172,8 @@ fun NutritionScreen(padding: PaddingValues,addSignal: Int=0,onDetailChanged: (Bo
             "diary" -> DiaryPage(state,day,meal,padding,{dayEpoch=it.toEpochDay()},{meal=it},
                 onAdd={meal=it;route="search";parent="diary"},onEntry={vm.selectedEntry=it;vm.selectedFood=it.food;parent="diary";route=if(it.fromHealthConnect) "health-entry" else "portion"},
                 onRoute={parent="diary";route=it},onDate={datePicker=true},onRepeat={e->
-                    val copy=e.copy(id=newId(),day=day,meal=meal,created=System.currentTimeMillis())
-                    vm.run {vm.repo.log(listOf(copy));vm.offerUndo("Added ${e.food.name} to ${meal.label}") {vm.repo.deleteEntry(copy.id)}}
+                    val copy=e.copy(id=newId(),day=day,created=System.currentTimeMillis())
+                    vm.run {vm.repo.log(listOf(copy));vm.offerUndo("Added ${e.food.name} to ${e.meal.label.lowercase()}") {vm.repo.deleteEntry(copy.id)}}
                 },onDelete={e->vm.run {vm.repo.deleteEntry(e.id);vm.offerUndo("Deleted ${e.food.name}") {vm.repo.log(listOf(e))}}},
                 onAction={e,action->when(action) {
                     EntryAction.Duplicate,EntryAction.AddToToday -> {
@@ -185,7 +190,9 @@ fun NutritionScreen(padding: PaddingValues,addSignal: Int=0,onDetailChanged: (Bo
                 onMissing={code->openManual(null,code,"search","New product")},onIncomplete={f->openManual(f,null,"search","Add nutrition")},
                 onQuickAdd={f,a->quickAdd(f,a)},mealLabel="${meal.label} · ${dayTitle(day)}",meal=meal,onMeal={meal=it},day=day,
                 onCustomNamed={name->openManual(Food(name=name,per100=emptyMap()),null,"search","Custom food")})
-            "food-import" -> FoodImportPage(vm,importCode,padding,back) {food->vm.run {vm.repo.saveFood(food);openFood(food,if(importParent=="ingredient-search") "recipe" else "search")}}
+            "food-import" -> FoodImportPage(vm,importCode,padding,back,
+                onSave={food->vm.run {vm.repo.saveFood(food);openFood(food,if(importParent=="ingredient-search") "recipe" else "search")}},
+                initialInput=importInput,onFood={food->openFood(food,if(importParent=="ingredient-search") "recipe" else "search")})
             "portion" -> vm.selectedFood?.let { food -> PortionPage(food,vm.selectedEntry,day,meal,padding,vm.busy,back,suggested=vm.pendingPortion?.takeIf {vm.selectedEntry==null},
                 lastAmount=if(parent=="recipe") null else lastAmounts(state.entries)[food.id],
                 isIngredient=parent=="recipe",onSave={amount,m -> vm.run {
@@ -206,7 +213,7 @@ fun NutritionScreen(padding: PaddingValues,addSignal: Int=0,onDetailChanged: (Bo
             "ingredient-search" -> FoodSearchPage(vm,state,padding,{route="recipe"},{openFood(it,"recipe")},onCustom={editorBarcode=null;editorTitle=null;vm.selectedFood=null;vm.foodDraftId=newId();parent="ingredient-search";route="food-edit"},onRecipe={route="recipe"},onPhoto={route="photo"},ingredientsOnly=true,onImport={openImport(it,"ingredient-search")},
                 onMissing={code->openManual(null,code,"ingredient-search","New product")},onIncomplete={f->openManual(f,null,"ingredient-search","Add nutrition")},
                 onCustomNamed={name->openManual(Food(name=name,per100=emptyMap()),null,"ingredient-search","Custom food")})
-            "targets" -> TargetsPage(state.targets,padding,vm.busy,back) { targets -> vm.run {vm.repo.saveTargets(targets);route="diary"} }
+            "targets" -> TargetsPage(state.targets,padding,vm.busy,back,autoEnergy=chartSettings.energy.let {it.enabled && it.autoBudget},onEnergySettings={parent="diary";route="energy-setup"}) { targets -> vm.run {vm.repo.saveTargets(targets);route="diary"} }
             "copy" -> CopyDiaryPage(state,day,padding,vm.busy,back) { from,m -> vm.run {vm.repo.copy(from,day,m);route="diary"} }
             "health-entry" -> vm.selectedEntry?.let {HealthFoodPage(it,padding,back)}
             "charts" -> NutritionChartsPage(state,weights,padding,back,weightUnit,chartSettings.startEpochDay?.let(LocalDate::ofEpochDay),chartSettings.weekStartsOn)
@@ -375,6 +382,25 @@ private fun DiaryPage(state: NutritionState,day: LocalDate,meal: Meal,padding: P
                 }
             }
         }
+        // Meals come straight after the summary: logging is what this page is for.
+        Meal.entries.filter {m->m!=Meal.OTHER || entries.any {it.meal==m}}.forEach { m ->
+            val items=entries.filter {it.meal==m};val total=items.total(Nutrient.ENERGY)
+            // An empty meal offers what is usually eaten in it, one tap to add at the usual amount.
+            val usual=if(items.isEmpty()) remember(state.entries,m,day) {repeatSuggestions(state.entries,m,day,2)} else emptyList()
+            ContentSection(spacing=if(items.isEmpty() && usual.isEmpty()) 0.dp else 8.dp) {
+                Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(10.dp)) {
+                    Column(Modifier.weight(1f)) {
+                        Text(m.label,style=type.title)
+                        if(items.isNotEmpty()) Text(macroLine(items),style=type.label,color=Color(c.textDim))
+                    }
+                    if(items.isNotEmpty()) Text((if(total.known) "${amountText(Math.round(total.amount).toDouble())} kcal" else "Unknown")+if(total.partial) "*" else "",style=type.number,color=Color(c.accent))
+                    GlassIconButton(io.github.ebziboi.delta.R.drawable.ic_add,"Add to ${m.label}",{onMeal(m);onAdd(m)},size=40.dp,tint=Color(c.accent))
+                }
+                items.forEach {e->DiaryEntryRow(e,{onEntry(e)},if(e.fromHealthConnect) null else ({onDelete(e)}),
+                    if(e.fromHealthConnect) null else ({a->onAction(e,a)}),favourite=(state.foods.find {it.id==e.food.id} ?: e.food).favourite,onToday=day==today)}
+                usual.forEach {e->UsualRow(e,m) {onRepeat(e)}}
+            }
+        }
         energySettings?.let {settings->
             val balance by rememberEnergyBalance()
             if(day==today || (settings.energy.enabled && dayBudget!=null))
@@ -391,53 +417,7 @@ private fun DiaryPage(state: NutritionState,day: LocalDate,meal: Meal,padding: P
                 }
             }
         }
-        val suggestions=remember(state.entries,meal,day) {repeatSuggestions(state.entries,meal,day)}
-        if(state.entries.any {!it.fromHealthConnect}) ContentSection(Modifier.horizontalSwipe {dir->
-            val next=Meal.entries.getOrNull(Meal.entries.indexOf(meal)+dir);if(next!=null) onMeal(next)
-        }) {
-            Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically) {
-                Caption("Repeat",Modifier.weight(1f))
-                Text("Swipe for other meals",style=type.label,color=Color(c.textDim))
-            }
-            SegmentedControl(Meal.entries,meal,{it.label},onSelect=onMeal)
-            AnimatedContent(meal,transitionSpec={
-                val forward=targetState.ordinal>initialState.ordinal
-                (slideInHorizontally {w->if(forward) w/3 else -w/3}+fadeIn()) togetherWith (slideOutHorizontally {w->if(forward) -w/3 else w/3}+fadeOut())
-            },label="repeat-meal") {m->
-                val list=if(m==meal) suggestions else repeatSuggestions(state.entries,m,day)
-                Column(verticalArrangement=Arrangement.spacedBy(2.dp)) {
-                    if(list.isEmpty()) Text("Foods you log for ${m.label.lowercase()} will be suggested here.",style=type.bodySmall,color=Color(c.textDim),modifier=Modifier.padding(vertical=8.dp))
-                    list.forEach {e->
-                        val kcal=e.nutrients[Nutrient.ENERGY]
-                        Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(Radii.control)).clickable(role=androidx.compose.ui.semantics.Role.Button,onClickLabel="Add ${e.food.name} to ${m.label}") {onRepeat(e)}
-                            .padding(vertical=8.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(10.dp)) {
-                            Column(Modifier.weight(1f)) {
-                                Text(e.food.name,style=type.body,maxLines=1,overflow=androidx.compose.ui.text.style.TextOverflow.Ellipsis)
-                                Text("${amountText(e.amount)} ${e.food.unit.symbol}"+(kcal?.let {" · ${amountText(Math.round(it).toDouble())} kcal"} ?: ""),style=type.label,color=Color(c.textDim))
-                            }
-                            Box(Modifier.size(34.dp).clip(CircleShape).background(Color(c.accent).copy(alpha=.16f)),contentAlignment=Alignment.Center) {
-                                DeltaIcon(io.github.ebziboi.delta.R.drawable.ic_add,null,tint=Color(c.accent),size=18.dp)
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        Meal.entries.forEach { m ->
-            val items=entries.filter {it.meal==m};val total=items.total(Nutrient.ENERGY)
-            ContentSection(spacing=if(items.isEmpty()) 0.dp else 8.dp) {
-                Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(10.dp)) {
-                    Column(Modifier.weight(1f)) {
-                        Text(m.label,style=type.title)
-                        if(items.isNotEmpty()) Text(macroLine(items),style=type.label,color=Color(c.textDim))
-                    }
-                    if(items.isNotEmpty()) Text((if(total.known) "${amountText(Math.round(total.amount).toDouble())} kcal" else "Unknown")+if(total.partial) "*" else "",style=type.number,color=Color(c.accent))
-                    GlassIconButton(io.github.ebziboi.delta.R.drawable.ic_add,"Add to ${m.label}",{onMeal(m);onAdd(m)},size=40.dp,tint=Color(c.accent))
-                }
-                items.forEach {e->DiaryEntryRow(e,{onEntry(e)},if(e.fromHealthConnect) null else ({onDelete(e)}),
-                    if(e.fromHealthConnect) null else ({a->onAction(e,a)}),favourite=(state.foods.find {it.id==e.food.id} ?: e.food).favourite,onToday=day==today)}
-            }
-        }
+
         val others=Nutrient.entries.filter {it !in Nutrient.primary && (state.targets.target(it)!=null || entries.any {e -> it in e.food.per100})}
         if(others.isNotEmpty()) ContentSection {
             Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(Radii.control)).clickable {nutrientsOpen=!nutrientsOpen}.padding(vertical=4.dp),verticalAlignment=Alignment.CenterVertically) {
@@ -446,6 +426,23 @@ private fun DiaryPage(state: NutritionState,day: LocalDate,meal: Meal,padding: P
             }
             (if(nutrientsOpen) others else others.filter {state.targets.target(it)!=null || it in listOf(Nutrient.FIBRE,Nutrient.SUGAR,Nutrient.SATURATED,Nutrient.SALT)}.take(4))
                 .forEach {NutrientProgress(it,entries.total(it),state.targets.target(it),it in state.targets.limits)}
+        }
+    }
+}
+
+/** A food usually eaten in [meal], shown in that meal while it's empty: "Usual · 13 g · 78 kcal" with a one-tap add. */
+@Composable
+private fun UsualRow(e:DiaryEntry,meal:Meal,onAdd:()->Unit) {
+    val c=LocalDeltaColors.current;val type=LocalDeltaType.current
+    val kcal=e.nutrients[Nutrient.ENERGY]
+    Row(Modifier.fillMaxWidth().clickable(role=androidx.compose.ui.semantics.Role.Button,onClickLabel="Add ${e.food.name} to ${meal.label}",onClick=onAdd)
+        .padding(vertical=6.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(10.dp)) {
+        Column(Modifier.weight(1f)) {
+            Text(e.food.name,style=type.body,color=Color(c.textDim),maxLines=1,overflow=androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+            Text("Usual · ${amountText(e.amount)} ${e.food.unit.symbol}"+(kcal?.let {" · ${amountText(Math.round(it).toDouble())} kcal"} ?: ""),style=type.label,color=Color(c.textFaint))
+        }
+        Box(Modifier.size(34.dp).clip(CircleShape).background(Color(c.accent).copy(alpha=.12f)),contentAlignment=Alignment.Center) {
+            DeltaIcon(io.github.ebziboi.delta.R.drawable.ic_add,null,tint=Color(c.accent),size=16.dp)
         }
     }
 }
@@ -463,7 +460,7 @@ internal sealed interface EntryAction {
 private fun DiaryEntryRow(e:DiaryEntry,onClick:()->Unit,onDelete:(()->Unit)?,onAction:((EntryAction)->Unit)?=null,favourite:Boolean=false,onToday:Boolean=true) {
     val c=LocalDeltaColors.current;val type=LocalDeltaType.current
     val haptic=androidx.compose.ui.platform.LocalHapticFeedback.current
-    var menu by remember {mutableStateOf(false)}
+    var menu by remember {mutableStateOf(false)};var moving by remember {mutableStateOf(false)}
     val content:@Composable ()->Unit={Box {
         Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(Radii.control))
             .combinedClickable(onClickLabel="Edit entry",onLongClickLabel=if(onAction!=null) "More options" else null,
@@ -476,12 +473,26 @@ private fun DiaryEntryRow(e:DiaryEntry,onClick:()->Unit,onDelete:(()->Unit)?,onA
             }
             Text(e.nutrients[Nutrient.ENERGY]?.let {"${amountText(Math.round(it).toDouble())}"} ?: "—",style=type.number)
         }
-        if(onAction!=null) DropdownMenu(menu,{menu=false}) {
-            val items=listOfNotNull("Edit amount" to onClick,"Duplicate" to {onAction(EntryAction.Duplicate)},
-                if(onToday) null else "Add to today" to {onAction(EntryAction.AddToToday)})+
-                Meal.entries.filter {it!=e.meal}.map {m->"Move to ${m.label.lowercase()}" to {onAction(EntryAction.Move(m))}}+
-                listOfNotNull((if(favourite) "Remove favourite" else "Save favourite") to {onAction(EntryAction.Favourite)},onDelete?.let {"Delete" to it})
-            items.forEach {(label,action)->HapticDropdownMenuItem({Text(label,color=if(label=="Delete") Color(c.warn) else Color.Unspecified)},{menu=false;action()})}
+        if(onAction!=null) DropdownMenu(menu,{menu=false;moving=false},Modifier.widthIn(min=216.dp),containerColor=Color(c.surfaceHigh),shape=RoundedCornerShape(Radii.control)) {
+            @Composable fun option(label:String,icon:Int,tint:Color=Color(c.text),close:Boolean=true,trailing:Int?=null,action:()->Unit) =
+                HapticDropdownMenuItem({Text(label,style=type.body,color=tint)},{if(close) {menu=false;moving=false};action()},
+                    // Neutral icons, so only Delete carries colour (Tubik's accent is itself a red).
+                    leadingIcon={DeltaIcon(icon,null,tint=if(tint==Color(c.text)) Color(c.textDim) else tint,size=20.dp)},
+                    trailingIcon=trailing?.let {{DeltaIcon(it,null,tint=Color(c.textDim),size=18.dp)}})
+            if(moving) {
+                option("Move to",io.github.ebziboi.delta.R.drawable.ic_arrow_back,Color(c.textDim),close=false) {moving=false}
+                Meal.entries.filter {it!=e.meal}.forEach {m->option(m.label,io.github.ebziboi.delta.R.drawable.ic_restaurant) {onAction(EntryAction.Move(m))}}
+            } else {
+                option("Edit amount",io.github.ebziboi.delta.R.drawable.ic_edit,action=onClick)
+                option("Duplicate",io.github.ebziboi.delta.R.drawable.ic_layers) {onAction(EntryAction.Duplicate)}
+                if(!onToday) option("Add to today",io.github.ebziboi.delta.R.drawable.ic_today) {onAction(EntryAction.AddToToday)}
+                option("Move to…",io.github.ebziboi.delta.R.drawable.ic_restaurant,close=false,trailing=io.github.ebziboi.delta.R.drawable.ic_chevron_right) {moving=true}
+                option(if(favourite) "Remove favourite" else "Save favourite",if(favourite) io.github.ebziboi.delta.R.drawable.ic_favorite_fill else io.github.ebziboi.delta.R.drawable.ic_favorite) {onAction(EntryAction.Favourite)}
+                onDelete?.let {del->
+                    HorizontalDivider(Modifier.padding(vertical=4.dp),color=Color(c.text).copy(alpha=.08f))
+                    option("Delete",io.github.ebziboi.delta.R.drawable.ic_delete,Color(0xFFE5534B),action=del)
+                }
+            }
         }
     }}
     if(onDelete==null) {content();return}

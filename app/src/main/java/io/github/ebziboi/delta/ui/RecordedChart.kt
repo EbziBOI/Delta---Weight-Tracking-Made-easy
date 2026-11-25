@@ -12,6 +12,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.*
 import androidx.compose.ui.graphics.drawscope.clipRect
+import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.PointerEventPass
@@ -25,7 +26,31 @@ import java.time.format.DateTimeFormatter
 import kotlin.math.*
 
 internal data class RecordedSeries(val id:String,val label:String,val color:Color,val values:List<RecordedValue>,
-    val format:(Double)->String,val bars:Boolean=false,val ceiling:Double?=null,val typical:Double?=null,val derived:Boolean=false)
+    val format:(Double)->String,val bars:Boolean=false,val derived:Boolean=false)
+
+/**
+ * How an intake series is drawn for the visible window: bars run from zero to just above the window's
+ * largest value, so every day fits, and [rule] is the window's average. Days above it are flagged.
+ */
+internal data class IntakeScale(val high:Double,val rule:Double?)
+/** [ruleValues] are the finished periods the average is taken over; by default all [values]. */
+internal fun intakeScale(values:List<Double>,ruleValues:List<Double> = values):IntakeScale {
+    val finite=values.filter {it.isFinite() && it>=0}
+    val rule=ruleValues.filter {it.isFinite() && it>=0}.takeIf {it.size>=2}?.average()
+    // Headroom so a flagged day's triangle sits inside the plot, not on its edge.
+    return IntakeScale(((finite.maxOrNull() ?: 0.0)*1.1).coerceAtLeast(.001),rule)
+}
+/** An average rounded to what a reader can use: whole units from 100 up, one decimal below that. */
+internal fun readableAverage(value:Double)=if(abs(value)>=100) round(value) else round(value*10)/10
+/**
+ * The intake scale for the visible readings. The period still in progress (today, or this week or month
+ * when averaged) is plotted but left out of the average and never flagged: it is not finished yet.
+ */
+internal fun intakeScale(points:List<RecordedValue>,today:LocalDate=LocalDate.now()):IntakeScale =
+    intakeScale(points.map {it.value},points.filter {it.last<today}.map {it.value})
+internal fun IntakeScale.flags(p:RecordedValue,today:LocalDate=LocalDate.now())=p.last<today && above(p.value)
+/** Whether [value] is drawn as an above-average day. */
+internal fun IntakeScale.above(value:Double)=rule!=null && value>rule+1e-9
 internal fun latestRecordedDay(series:List<RecordedSeries>,first:Long,last:Long):LocalDate?=series.flatMap {it.values}.filter {it.day.toEpochDay() in first..last}.maxOfOrNull {it.day}
 
 @Composable internal fun ChartHeading(title:String,controller:ChartController,periodPicker:Boolean=true) {
@@ -112,6 +137,9 @@ internal fun latestRecordedDay(series:List<RecordedSeries>,first:Long,last:Long)
     val lineOpacity by animateFloatAsState(if(mode==ChartStyle.DOTS) 0f else 1f,tween(if(motion) 220 else 0),label="chart-line")
     val smoothing by animateFloatAsState(if(mode==ChartStyle.TREND) 1f else 0f,tween(if(motion) 280 else 0),label="chart-smoothing")
     val firstShown=LocalDate.ofEpochDay(ceil(left).toLong());val lastShown=LocalDate.ofEpochDay(floor(right).toLong())
+    // Coral in Tubik, the theme's own warning red elsewhere.
+    val overColor=if(LocalAppearance.current.designStyle==io.github.ebziboi.delta.data.DesignStyle.TUBIK) Color(io.github.ebziboi.delta.render.TubikTokens.CORAL) else Color(0xFFF16F68)
+    val ruleFace=LocalCanvasType.current.number
     Column(verticalArrangement=Arrangement.spacedBy(10.dp)) {
         if(controls) {
             if(header!=null) ChartHeading(header,profile,periodPicker)
@@ -121,12 +149,22 @@ internal fun latestRecordedDay(series:List<RecordedSeries>,first:Long,last:Long)
         FlowRow(horizontalArrangement=Arrangement.spacedBy(14.dp),verticalArrangement=Arrangement.spacedBy(5.dp)) {
             styled.forEach {s->
                 val points=s.values.filter {it.day.toEpochDay().toDouble() in left..right}
-                Text(s.label+if(points.isEmpty()) " · No data" else " · ${s.format(if(s.bars) 0.0 else points.minOf {it.value})} – ${s.format(s.ceiling ?: points.maxOf {it.value})}",style=LocalDeltaType.current.bodySmall,color=s.color)
+                val legend=when {
+                    points.isEmpty() -> " · No data"
+                    s.bars -> intakeScale(points).let {scale->
+                        scale.rule?.let {r->" · average ${s.format(readableAverage(r))} · ${points.count {scale.flags(it)}} above"} ?: " · ${s.format(points.maxOf {it.value})}"}
+                    else -> " · ${s.format(points.minOf {it.value})} – ${s.format(points.maxOf {it.value})}"
+                }
+                Text(s.label+legend,style=LocalDeltaType.current.bodySmall,color=s.color)
             }
         }
         Canvas(Modifier.fillMaxWidth().height(210.dp).semantics {
             contentDescription=description
-            stateDescription="${profile.period.label}; ${mode.label}; $firstShown to $lastShown; "+styled.joinToString {s->"${s.label}: ${s.values.count {it.day.toEpochDay().toDouble() in left..right}} ${if(s.derived) "computed" else "recorded"} periods"}+
+            stateDescription="${profile.period.label}; ${mode.label}; $firstShown to $lastShown; "+styled.joinToString {s->
+                val shown=s.values.filter {it.day.toEpochDay().toDouble() in left..right}
+                "${s.label}: ${shown.size} ${if(s.derived) "computed" else "recorded"} periods"+
+                    // Spoken summary of what the triangles show.
+                    (if(s.bars && shown.isNotEmpty()) intakeScale(shown).let {scale->scale.rule?.let {r->", average ${s.format(readableAverage(r))}, ${shown.count {scale.flags(it)}} above average"}.orEmpty()+", highest ${s.format(shown.maxOf {it.value})}"} else "")}+
                 (selectedEpoch?.let {"; Selected ${LocalDate.ofEpochDay(it)}"} ?: "")
             onClick(label="Change chart style") {profile.cycle();true}
         }.scrollable(scroll,Orientation.Horizontal).pointerInput(description) {
@@ -203,6 +241,8 @@ internal fun latestRecordedDay(series:List<RecordedSeries>,first:Long,last:Long)
             markers.filter {it.toEpochDay().toDouble() in left..right}.forEach {d->
                 val mx=x(d);drawCircle(Color(colors.good).copy(alpha=.8f),2.4.dp.toPx(),Offset(mx,bottom-3.dp.toPx()))
             }
+            // Average labels are drawn after every line and mark, so nothing crosses them.
+            val ruleLabels=mutableListOf<()->Unit>()
             clipRect(0f,0f,size.width,size.height) {
                 if(fade>0) drawLine(Color(colors.textDim).copy(alpha=.65f*fade),Offset(inset+marker*w,top),Offset(inset+marker*w,bottom),1.dp.toPx(),pathEffect=PathEffect.dashPathEffect(floatArrayOf(2.dp.toPx(),4.dp.toPx())))
                 styled.forEachIndexed {seriesIndex,s->
@@ -210,6 +250,24 @@ internal fun latestRecordedDay(series:List<RecordedSeries>,first:Long,last:Long)
                     val neighbours=s.values.filter {it.day.toEpochDay().toDouble() in (left-35)..(right+35)}
                     val (low,high)=seriesScale(s,left,right,minimumYSpan)
                     fun y(value:Double)=bottom-((value.coerceIn(low,high)-low)/(high-low).coerceAtLeast(.001)*(bottom-top)).toFloat()
+                    val intake=if(s.bars) intakeScale(visible) else null
+                    // The average for this window, dashed, labelled at the right edge.
+                    intake?.rule?.let {r->
+                        val ry=y(r)
+                        drawLine(s.color.copy(alpha=.55f),Offset(inset,ry),Offset(size.width-inset,ry),1.dp.toPx(),pathEffect=PathEffect.dashPathEffect(floatArrayOf(5.dp.toPx(),4.dp.toPx())))
+                        ruleLabels+={drawIntoCanvas {canvas->
+                            val paint=android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+                                color=s.color.toArgb();textSize=11.dp.toPx();textAlign=android.graphics.Paint.Align.RIGHT;typeface=ruleFace}
+                            val label="avg ${s.format(readableAverage(r))}"
+                            val above=ry-6.dp.toPx()>top+paint.textSize
+                            val baseline=if(above) ry-6.dp.toPx() else ry+paint.textSize+4.dp.toPx()
+                            // On a small pill of the chart's own background so lines and dots never run through it.
+                            val padX=5.dp.toPx();val textW=paint.measureText(label);val fm=paint.fontMetrics
+                            val back=android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {color=Color(colors.bg).copy(alpha=.88f).toArgb()}
+                            canvas.nativeCanvas.drawRoundRect(size.width-inset-textW-padX*2,baseline+fm.ascent-2.dp.toPx(),size.width-inset,baseline+fm.descent+2.dp.toPx(),99f,99f,back)
+                            canvas.nativeCanvas.drawText(label,size.width-inset-padX,baseline,paint)
+                        }}
+                    }
                     if(target!=null && styled.size==1 && target in low..high) drawLine(s.color.copy(alpha=.3f),Offset(inset,y(target)),Offset(size.width-inset,y(target)),1.dp.toPx(),pathEffect=PathEffect.dashPathEffect(floatArrayOf(4.dp.toPx(),4.dp.toPx())))
                     if(lineOpacity>0 && neighbours.size>1) {
                         val fitted=trends.getOrNull(seriesIndex).orEmpty()
@@ -226,9 +284,11 @@ internal fun latestRecordedDay(series:List<RecordedSeries>,first:Long,last:Long)
                     val radius=minOf(2.8.dp.toPx(),(w/visible.size.coerceAtLeast(1)*.3f).coerceAtLeast(1.2.dp.toPx()))
                     visible.forEach {p->
                         val at=Offset(x(p.day),y(p.value))
-                        if(p.value>high && s.bars) {
-                            val triangle=Path().apply {moveTo(at.x,0f);lineTo(at.x-4.dp.toPx(),7.dp.toPx());lineTo(at.x+4.dp.toPx(),7.dp.toPx());close()}
-                            drawPath(triangle,Color(0xFFF16F68))
+                        if(intake!=null && intake.flags(p)) {
+                            // Above this window's average: an upward triangle, centred on the value, in the warning colour.
+                            val half=(radius*1.9f).coerceIn(4.dp.toPx(),5.5.dp.toPx());val tall=half*1.6f
+                            val triangle=Path().apply {moveTo(at.x,at.y-tall*.6f);lineTo(at.x-half,at.y+tall*.4f);lineTo(at.x+half,at.y+tall*.4f);close()}
+                            drawPath(triangle,overColor.copy(alpha=if(mode==ChartStyle.TREND) .7f else 1f))
                         } else drawCircle(s.color.copy(alpha=if(mode==ChartStyle.TREND) .45f else 1f),radius,at)
                     }
                     visible.firstOrNull {it.day.toEpochDay()==selectedEpoch}?.let {p->
@@ -239,6 +299,7 @@ internal fun latestRecordedDay(series:List<RecordedSeries>,first:Long,last:Long)
                     }
                 }
             }
+            ruleLabels.forEach {it()}
         }
         Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween) {
             Text(firstShown.format(DateTimeFormatter.ofPattern("d MMM")),style=LocalDeltaType.current.bodySmall)
@@ -281,7 +342,7 @@ internal fun seriesScale(s:RecordedSeries,left:Double,right:Double,minimumYSpan:
     val rawLow=visible.minOfOrNull {it.value} ?: 0.0;val rawHigh=visible.maxOfOrNull {it.value} ?: 1.0
     val extent=(rawHigh-rawLow).coerceAtLeast(minimumYSpan)
     val low=if(s.bars) 0.0 else (rawLow+rawHigh-extent)/2-extent*.12
-    val high=if(s.bars) (s.ceiling ?: rawHigh).coerceAtLeast(.001) else (rawLow+rawHigh+extent)/2+extent*.12
+    val high=if(s.bars) intakeScale(visible).high else (rawLow+rawHigh+extent)/2+extent*.12
     return low to high
 }
 

@@ -13,6 +13,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -24,11 +25,22 @@ import io.github.ebziboi.delta.ui.*
 import org.json.JSONObject
 import java.io.File
 
+/**
+ * Advanced search: paste a product or recipe link (read off-screen), nutrition text copied from any site, or a name to
+ * look up on the web; or scan the label. Every source fills the same per-100 review, and differences are shown.
+ */
 @Composable
-internal fun FoodImportPage(vm:NutritionViewModel,initialBarcode:String,padding:PaddingValues,onBack:()->Unit,onSave:(Food)->Unit) {
+internal fun FoodImportPage(vm:NutritionViewModel,initialBarcode:String,padding:PaddingValues,onBack:()->Unit,onSave:(Food)->Unit,
+                            initialInput:String="",onFood:((Food)->Unit)?=null) {
     val context=LocalContext.current
+    var input by rememberSaveable {mutableStateOf(initialInput)}
+    var readingHost by remember {mutableStateOf<String?>(null)}
+    var failedLink by rememberSaveable {mutableStateOf<String?>(null)}
+    var started by rememberSaveable {mutableStateOf(false)}
+    var autoFilled by rememberSaveable {mutableStateOf(false)}
+    var barcodeFromPage by rememberSaveable {mutableStateOf(false)}
     var name by rememberSaveable {mutableStateOf("")};var brand by rememberSaveable {mutableStateOf("")}
-    var barcode by rememberSaveable {mutableStateOf(initialBarcode)};var link by rememberSaveable {mutableStateOf("")}
+    var barcode by rememberSaveable {mutableStateOf(initialBarcode)}
     var unit by rememberSaveable {mutableStateOf(FoodUnit.GRAMS)}
     var pageUnit by rememberSaveable {mutableStateOf(FoodUnit.GRAMS)};var labelUnit by rememberSaveable {mutableStateOf(FoodUnit.GRAMS)}
     var lastPhoto by rememberSaveable {mutableStateOf<String?>(null)}
@@ -45,7 +57,7 @@ internal fun FoodImportPage(vm:NutritionViewModel,initialBarcode:String,padding:
     val labelValues=remember(labelValuesJson) {JSONObject(labelValuesJson).nutrients()}
     val page=remember(pageJson) {pageJson?.let(::JSONObject)}
     fun setField(n:Nutrient,text:String,label:Boolean=false) {
-        fields=fields+(n.name to text);checked=checked.filterNot {it==n.name}+(if(label) listOf(n.name) else emptyList());reviewed=false
+        fields=fields+(n.name to text);checked=checked.filterNot {it==n.name}+(if(label) listOf(n.name) else emptyList());reviewed=false;autoFilled=false
     }
     fun apply(values:Nutrients,isLabel:Boolean,sourceUnit:FoodUnit) {
         if(unit!=sourceUnit) {fields=emptyMap();checked=emptyList()}
@@ -53,21 +65,32 @@ internal fun FoodImportPage(vm:NutritionViewModel,initialBarcode:String,padding:
         fields=fields+values.mapKeys {it.key.name}.mapValues {editText(it.value)}
         checked=checked.filterNot {n->values.keys.any {it.name==n}}+(if(isLabel) values.keys.map {it.name} else emptyList());reviewed=false
     }
+    /** Takes a read from a page or pasted text. It fills the review only when that is empty or was filled by an earlier read. */
+    fun adopt(read:LabelRead,meta:JSONObject) {
+        pageJson=meta.put("read",read.json()).toString();failedLink=null
+        val column=read.columns[read.best];val values=column.per100()
+        pageUnit=column.basis.unit;pageValuesJson=values.toJson().toString()
+        if(values.isNotEmpty() && (fields.values.all {it.isBlank()} || autoFilled)) {
+            fields=emptyMap();checked=emptyList();apply(values,false,column.basis.unit);autoFilled=true
+            // A complete per-100 table whose numbers add up needs no extra confirmation; anything else asks for review.
+            reviewed=AdvancedSearch.complete(read) && column.basis.amount==100.0 && LabelParser.warnings(values).isEmpty() && read.warnings.isEmpty()
+        } else reviewed=false
+    }
+    fun usePage(raw:String) {
+        val p=ProductPages.parse(raw,barcode)
+        if(name.isBlank()) name=p.name;if(brand.isBlank()) brand=p.brand
+        if(barcode.isBlank() && p.barcode!=null && ProductPages.canonicalBarcode(p.barcode)!=null) {barcode=p.barcode;barcodeFromPage=true}
+        adopt(p.read,JSONObject().put("name",p.name).put("brand",p.brand).put("url",p.url).put("barcode",p.barcode).put("matched",p.barcodeMatch).put("conflict",p.barcodeConflict))
+    }
     val browser=rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) {result->
         if(result.resultCode==android.app.Activity.RESULT_OK) result.data?.getStringExtra("page")?.let {raw->
-            runCatching {ProductPages.parse(raw,barcode)}.onSuccess {p->
-                pageJson=JSONObject().put("name",p.name).put("brand",p.brand).put("url",p.url).put("barcode",p.barcode).put("matched",p.barcodeMatch).put("conflict",p.barcodeConflict).put("read",p.read.json()).toString()
-                if(name.isBlank()) name=p.name;if(brand.isBlank()) brand=p.brand
-                val column=p.read.columns[p.read.best];val values=column.per100()
-                pageUnit=column.basis.unit;pageValuesJson=values.toJson().toString()
-                if(fields.values.all {it.isBlank()} && values.isNotEmpty()) apply(values,false,column.basis.unit)
-                reviewed=false
-            }.onFailure {vm.message=it.message}
+            runCatching {usePage(raw)}.onFailure {vm.message=it.message}
         }
     }
-    fun openWeb(url:String?=null,byName:Boolean=false) {
-        val named=listOf(name,brand,vm.selectedStore?.let {id->FoodStores.uk.find {it.id==id}?.label}).filterNotNull().filter {it.isNotBlank()}.joinToString(" ")
-        val query=if(byName) named else barcode.ifBlank {named}
+    fun openWeb(url:String?=null,byName:Boolean=false,query:String?=null) {
+        val store=vm.selectedStore?.let {id->FoodStores.uk.find {it.id==id}?.label}
+        val named=listOf(name,brand,store).filterNotNull().filter {it.isNotBlank()}.joinToString(" ")
+        val query=query?.let {q->listOfNotNull(q,store).joinToString(" ")} ?: if(byName) named else barcode.ifBlank {named}
         if(url==null && query.isBlank()) {vm.message="Enter a barcode or product name first";return}
         runCatching {browser.launch(Intent(context,ProductBrowserActivity::class.java).putExtra("query",query).putExtra("barcode",barcode).apply {url?.let {putExtra("url",it)}})}
             .onFailure {vm.message="Web lookup is unavailable on this device. You can still scan its label."}
@@ -83,29 +106,127 @@ internal fun FoodImportPage(vm:NutritionViewModel,initialBarcode:String,padding:
         reviewed=empty && result.confident
     }
     val scanner=rememberLabelScanner(::useLabel) {vm.message=it}
+    val pasted=remember(input) {AdvancedSearch.classify(input)}
+    fun readLink(url:String) {
+        // vm.run ignores calls while busy, which would leave "Reading…" showing with nothing running.
+        if(vm.busy) return
+        val host=AdvancedSearch.host(url)
+        // Open Food Facts links resolve through its database record, which carries serving sizes and stores.
+        val code=AdvancedSearch.openFoodFactsCode(url)
+        if(code!=null && onFood!=null) {vm.barcode(code,onFood,{failedLink=url;vm.message="Open Food Facts has no nutrition for $code yet. Open the page or scan its label."});return}
+        failedLink=null;readingHost=host
+        vm.run {
+            try {usePage(PageReader.read(context,url,barcode.ifBlank {null}))}
+            catch(e:kotlinx.coroutines.CancellationException) {throw e}
+            catch(e:PageReadException) {failedLink=url;throw e}
+            catch(e:Exception) {failedLink=url;throw PageReadException("Couldn't read $host. Open the page to import it yourself.")}
+            finally {readingHost=null}
+        }
+    }
+    val focus=androidx.compose.ui.platform.LocalFocusManager.current
+    fun go(what:PastedInput=pasted) {
+        // Put the keyboard away so the result below is visible.
+        focus.clearFocus()
+        when(what) {
+            is PastedInput.Link -> readLink(what.url)
+            is PastedInput.Text -> {
+                failedLink=null
+                if(what.count==0) vm.message="No nutrition values found in that text. Paste the table with its numbers."
+                else adopt(what.read,JSONObject().put("name","").put("brand","").put("url","").put("pasted",true))
+            }
+            is PastedInput.Name -> {if(name.isBlank()) name=what.text;openWeb(query=what.text)}
+            PastedInput.Empty -> Unit
+        }
+    }
+    fun paste() {
+        val clip=(context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as? android.content.ClipboardManager)?.primaryClip
+            ?.takeIf {it.itemCount>0}?.getItemAt(0)?.coerceToText(context)?.toString()?.take(18000)
+        if(clip.isNullOrBlank()) {vm.message="Nothing to paste. Copy a link or the nutrition table first.";return}
+        input=clip
+        // A pasted link or table is read straight away; a name waits for the search tap.
+        AdvancedSearch.classify(clip).takeIf {it !is PastedInput.Name}?.let(::go)
+    }
+    // Opened from a link typed into food search: start reading it at once.
+    LaunchedEffect(Unit) {if(!started) {started=true;if(pasted is PastedInput.Link) go()}}
     val values=fields.mapNotNull {(n,v)->v.takeIf {it.isNotBlank()}?.number()?.let {Nutrient.valueOf(n) to it}}.toMap()
     val warnings=LabelParser.warnings(values)
     val valid=name.isNotBlank() && name.length<=250 && brand.length<=250 && fields.values.all {it.isBlank() || it.number()!=null} && values.isNotEmpty() &&
         (barcode.isBlank() || ProductPages.canonicalBarcode(barcode)!=null)
-    NutritionPage("Import food",padding,onBack) {
-        ContentSection {
-            GlassTextField(name,{name=it;reviewed=false},"Product name",Modifier.fillMaxWidth())
-            GlassTextField(brand,{brand=it;reviewed=false},"Brand",Modifier.fillMaxWidth())
-            GlassTextField(barcode,{barcode=it.filter(Char::isDigit).take(14);reviewed=false},"Barcode",Modifier.fillMaxWidth())
-            PrimaryButton("Find online",{openWeb()},Modifier.fillMaxWidth(),enabled=!vm.busy)
-            if(barcode.isNotBlank() && name.isNotBlank()) TextAction("Search by name instead",{openWeb(byName=true)})
-            GlassTextField(link,{link=it},"Product link (optional)",Modifier.fillMaxWidth())
-            if(link.isNotBlank()) SecondaryButton("Open product link",{openWeb(link.trim())},Modifier.fillMaxWidth(),enabled=!vm.busy && ProductPages.publicUrl(link.trim()))
+    NutritionPage("Advanced search",padding,onBack) {
+        val c=LocalDeltaColors.current;val type=LocalDeltaType.current
+        ContentSection(tone=ModuleTone.VIOLET) {
+            Caption("Paste from the web")
+            Text("A product or recipe link from any site, its nutrition table copied as text, or a product name to look up.",style=type.bodySmall,color=Color(c.textDim))
+            OutlinedTextField(input,{input=it.take(18000);failedLink=null},Modifier.fillMaxWidth().heightIn(min=56.dp),
+                label={Text("Link, nutrition text or name")},maxLines=6,shape=androidx.compose.foundation.shape.RoundedCornerShape(Radii.control),
+                trailingIcon=if(input.isNotEmpty()) ({HapticIconButton({input="";failedLink=null}) {DeltaIcon(io.github.ebziboi.delta.R.drawable.ic_close,"Clear",tint=Color(c.textDim),size=18.dp)}}) else null,
+                keyboardOptions=androidx.compose.foundation.text.KeyboardOptions(keyboardType=KeyboardType.Uri,imeAction=androidx.compose.ui.text.input.ImeAction.Go),
+                keyboardActions=androidx.compose.foundation.text.KeyboardActions(onGo={go()}),
+                colors=OutlinedTextFieldDefaults.colors(focusedContainerColor=Color(c.glass.fill),unfocusedContainerColor=Color(c.glass.fill),
+                    focusedBorderColor=Color(c.accent),unfocusedBorderColor=Color(c.glass.edge),cursorColor=Color(c.accent),
+                    focusedLabelColor=Color(c.text),unfocusedLabelColor=Color(c.textDim)))
+            // Says what the input was taken as, so a mistyped link is obvious before reading.
+            val kind:Pair<Int,String>?=when(val p=pasted) {
+                is PastedInput.Link -> io.github.ebziboi.delta.R.drawable.ic_open_in_new to "Link · ${p.host}"
+                is PastedInput.Text -> io.github.ebziboi.delta.R.drawable.ic_text_fields to if(p.count==0) "Text · no nutrition values recognised" else "Nutrition text · ${p.count} values"
+                is PastedInput.Name -> io.github.ebziboi.delta.R.drawable.ic_search to "Product name · searches the web"
+                PastedInput.Empty -> null
+            }
+            kind?.let {(icon,label)->Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(6.dp)) {
+                DeltaIcon(icon,null,tint=Color(c.textDim),size=16.dp);Text(label,style=type.label,color=Color(c.textDim),maxLines=1,overflow=androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+            }}
+            val host=readingHost
+            if(host!=null) Row(Modifier.fillMaxWidth().heightIn(min=48.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(12.dp)) {
+                CircularProgressIndicator(Modifier.size(20.dp),color=Color(c.accent),strokeWidth=2.dp)
+                Text("Reading $host…",Modifier.weight(1f),style=type.bodySmall,maxLines=1,overflow=androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                TextAction("Cancel",{vm.cancel();readingHost=null})
+            } else if(pasted==PastedInput.Empty) {
+                PrimaryButton("Paste",{paste()},Modifier.fillMaxWidth(),enabled=!vm.busy,icon=io.github.ebziboi.delta.R.drawable.ic_content_paste)
+            } else {
+                PrimaryButton(when(pasted) {is PastedInput.Link->"Read page";is PastedInput.Text->"Read text";else->"Search the web"},{go()},Modifier.fillMaxWidth(),enabled=!vm.busy,
+                    icon=when(pasted) {is PastedInput.Name->io.github.ebziboi.delta.R.drawable.ic_search;else->io.github.ebziboi.delta.R.drawable.ic_download})
+            }
+            // Reading on its own failed (a bot check, a cookie wall, a table behind a tab): load the page visibly instead.
+            failedLink?.takeIf {readingHost==null}?.let {url->
+                SecondaryButton("Open page and import",{openWeb(url)},Modifier.fillMaxWidth(),enabled=!vm.busy,icon=io.github.ebziboi.delta.R.drawable.ic_open_in_new)
+                Text("Or copy the nutrition table from the page and paste it here.",style=type.bodySmall,color=Color(c.textDim))
+            }
         }
         page?.let {p->ContentSection(tone=ModuleTone.VIOLET) {
-            Caption("Product page")
-            Text(p.optString("name"),style=LocalDeltaType.current.title)
-            val matched=ProductPages.canonicalBarcode(barcode)?.let {it==ProductPages.canonicalBarcode(p.optString("barcode"))}==true
-            StatusPill(when {matched->"Barcode matched";p.optString("barcode").let {it.isNotBlank() && it!="null"} && barcode.isNotBlank()->"Different barcode";else->"Barcode not detected on page"},Color(if(matched) LocalDeltaColors.current.good else LocalDeltaColors.current.warn))
-            val uri=androidx.compose.ui.platform.LocalUriHandler.current
-            TextAction(Uri.parse(p.getString("url")).host.orEmpty(),{uri.openUri(p.getString("url"))})
-            pageRead?.let {read->LabelReadControls(read,"Page",{v,u->pageUnit=u;pageValuesJson=v.toJson().toString();apply(v,false,u)})}
+            val url=p.optString("url").takeIf {it.isNotBlank()}
+            Caption(if(url==null) "Pasted text" else "From ${AdvancedSearch.host(url)}")
+            p.optString("name").takeIf {it.isNotBlank()}?.let {Text(it,style=type.title)}
+            pageRead?.let {read->
+                val column=read.columns[read.best]
+                Text(if(column.observations.isEmpty()) "No nutrition values found" else "${column.observations.size} values ${basisText(column.basis)}",style=type.bodySmall,color=Color(c.textDim))
+                // What was read, as stated on the page, so it can be checked before any conversion.
+                valuesLine(column).takeIf {it.isNotBlank()}?.let {Text(it,style=type.body)}
+            }
+            if(url!=null) {
+                val pageCode=p.optString("barcode").takeIf {it.isNotBlank() && it!="null"}
+                val matched=ProductPages.canonicalBarcode(barcode)?.let {it==ProductPages.canonicalBarcode(pageCode)}==true
+                when {
+                    barcodeFromPage && matched -> StatusPill("Barcode from page",Color(c.good))
+                    matched -> StatusPill("Barcode matched",Color(c.good))
+                    pageCode!=null && barcode.isNotBlank() -> StatusPill("Different barcode",Color(c.warn))
+                    barcode.isNotBlank() -> StatusPill("Barcode not detected on page",Color(c.warn))
+                }
+            }
+            if(autoFilled && reviewed) StatusPill("Values add up · ready to save",Color(c.good))
+            pageRead?.let {read->LabelReadControls(read,if(url==null) "Text" else "Page",{v,u->pageUnit=u;pageValuesJson=v.toJson().toString();apply(v,false,u)})}
+            if(url!=null) {
+                val uri=androidx.compose.ui.platform.LocalUriHandler.current
+                TextAction("View on ${AdvancedSearch.host(url)}",{uri.openUri(url)})
+            }
         }}
+        ContentSection {
+            Caption("Product")
+            GlassTextField(name,{name=it},"Product name",Modifier.fillMaxWidth())
+            GlassTextField(brand,{brand=it},"Brand",Modifier.fillMaxWidth())
+            GlassTextField(barcode,{barcode=it.filter(Char::isDigit).take(14);barcodeFromPage=false},"Barcode",Modifier.fillMaxWidth())
+            SecondaryButton("Find online",{openWeb()},Modifier.fillMaxWidth(),enabled=!vm.busy,icon=io.github.ebziboi.delta.R.drawable.ic_search)
+            if(barcode.isNotBlank() && name.isNotBlank()) TextAction("Search by name instead",{openWeb(byName=true)})
+        }
         ContentSection(tone=ModuleTone.SAGE) {
             Caption("Nutrition label")
             Text(if(scanner.reading) "Finding and reading the table…" else "Point the camera at the table; it's captured, cropped and read on this phone automatically",style=LocalDeltaType.current.bodySmall)
@@ -145,7 +266,7 @@ internal fun FoodImportPage(vm:NutritionViewModel,initialBarcode:String,padding:
         }
         PrimaryButton("Save food",{
             onSave(Food(name=name.trim(),brand=brand.trim(),per100=values,unit=unit,barcode=barcode.ifBlank {null},
-                sourceUrl=page?.optString("url"),labelChecked=checked.mapNotNull {key->Nutrient.entries.find {it.name==key}}.filter {it in values}.toSet()))
+                sourceUrl=page?.optString("url")?.takeIf {ProductPages.publicUrl(it)},labelChecked=checked.mapNotNull {key->Nutrient.entries.find {it.name==key}}.filter {it in values}.toSet()))
         },Modifier.fillMaxWidth(),enabled=valid && reviewed && !vm.busy)
     }
     cropUri?.let {text->LabelCropper(Uri.parse(text),{cropUri=null},onScan={crop->
@@ -157,6 +278,24 @@ internal fun FoodImportPage(vm:NutritionViewModel,initialBarcode:String,padding:
     if(textEditor) AlertDialog(onDismissRequest={textEditor=false},title={Text("Recognised label text")},text={
         OutlinedTextField(transcript,{transcript=it.take(18000)},Modifier.fillMaxWidth().heightIn(min=200.dp,max=420.dp),label={Text("Label transcription")})
     },confirmButton={HapticTextButton({val read=LabelParser.parse(transcript);labelJson=read.json();val column=read.columns[read.best];labelUnit=column.basis.unit;labelValuesJson=column.per100().toJson().toString();checked=emptyList();uncertain=emptyList();reviewed=false;textEditor=false}) {Text("Read text")}},dismissButton={HapticTextButton({textEditor=false}) {Text("Cancel")}})
+}
+
+/** The headline values a column states, in its own units: "548 kcal · Protein 39 g · Carbs 37 g · Fat 22 g". */
+internal fun valuesLine(column:LabelColumn):String {
+    val short=mapOf(Nutrient.CARBS to "Carbs",Nutrient.SATURATED to "Saturates")
+    return listOf(Nutrient.ENERGY,Nutrient.PROTEIN,Nutrient.CARBS,Nutrient.FAT,Nutrient.SUGAR,Nutrient.SATURATED,Nutrient.FIBRE,Nutrient.SALT).mapNotNull {n->
+        column.observations[n]?.takeIf {!it.bounded}?.let {o->
+            val v=java.math.BigDecimal.valueOf(if(n==Nutrient.ENERGY) Math.round(o.value).toDouble() else o.value).round(java.math.MathContext(3)).stripTrailingZeros().toPlainString()
+            if(n==Nutrient.ENERGY) "$v kcal" else "${short[n] ?: n.label} $v ${n.unit}"
+        }
+    }.take(6).joinToString(" · ")
+}
+
+/** "per 100 g", "per serving (250 g)", or what's still needed to convert the values. */
+internal fun basisText(b:LabelBasis)=when {
+    b.amount!=null -> "per "+(if(b.title.first().isDigit()) b.title else b.title.replaceFirstChar {it.lowercase()})
+    b.title.lowercase() in listOf("serving","portion","pack") -> "per ${b.title.lowercase()} · add its weight to convert"
+    else -> "· choose the quantity they're for"
 }
 
 @Composable
@@ -171,11 +310,13 @@ private fun LabelReadControls(read:LabelRead,title:String,onUse:(Nutrients,FoodU
         DropdownMenu(menu,{menu=false}) {read.columns.forEachIndexed {i,c->HapticDropdownMenuItem({Text(c.basis.title)},{selected=i;menu=false})}}
     }
     Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
-        NumberField(amount,{amount=it},"Values per",Modifier.weight(1f))
+        val serving=column.basis.amount==null && column.basis.title.lowercase() in listOf("serving","portion","pack")
+        NumberField(amount,{amount=it},if(serving) "One ${column.basis.title.lowercase()} weighs" else "Values per",Modifier.weight(1f))
         SegmentedControl(FoodUnit.entries,unit,{it.symbol},Modifier.weight(1f)) {unit=it}
     }
     column.observations.filterValues {it.bounded}.forEach {(n,v)->Text("${n.label}: ${v.raw} · enter a value manually if needed",style=LocalDeltaType.current.bodySmall,color=Color(LocalDeltaColors.current.warn))}
-    if(column.basis.amount==null) Text("Choose the quantity represented by this column.",style=LocalDeltaType.current.bodySmall)
+    if(column.basis.amount==null) Text(if(column.basis.title.lowercase() in listOf("serving","portion","pack")) "These values are per ${column.basis.title.lowercase()}. Enter what one weighs to convert them to per 100."
+        else "Choose the quantity represented by this column.",style=LocalDeltaType.current.bodySmall)
     val values=column.per100(amount.number()?.takeIf {it>0 && it<=100000})
     SecondaryButton("Use ${title.lowercase()} values",{onUse(values,unit)},Modifier.fillMaxWidth(),enabled=values.isNotEmpty())
 }

@@ -99,14 +99,16 @@ internal fun FoodSearchPage(vm: NutritionViewModel,state: NutritionState,padding
     val portion=remember(query) {parsePortion(query)}
     val terms=portion.text
     val typedBarcode=terms.takeIf {ProductPages.canonicalBarcode(it)!=null && it.all(Char::isDigit)}
+    // A pasted link is read as a page in advanced search rather than searched for as words.
+    val pastedLink=remember(query) {AdvancedSearch.linkIn(query)?.takeIf {query.trim().contains('/') || query.trim().startsWith("www.",true)}}
     fun searchOnline(hideKeyboard:Boolean=true) {
-        if(vm.busy) return
+        if(vm.busy || pastedLink!=null) return
         if(typedBarcode!=null) {focus.clearFocus();vm.barcode(typedBarcode,onFood,missing,onIncomplete);return}
         if(terms.length>=2) {if(hideKeyboard) focus.clearFocus();searchedQuery=query.trim();vm.search(terms,quiet=!hideKeyboard)}
     }
     // Searching online starts by itself once typing pauses, so the search key is optional.
     LaunchedEffect(query,vm.busy) {
-        if(typedBarcode==null && terms.length>=3 && searchedQuery!=query.trim() && !vm.busy) {kotlinx.coroutines.delay(900);searchOnline(hideKeyboard=false)}
+        if(typedBarcode==null && pastedLink==null && terms.length>=3 && searchedQuery!=query.trim() && !vm.busy) {kotlinx.coroutines.delay(900);searchOnline(hideKeyboard=false)}
     }
     // Picking a food carries the typed portion into the portion page.
     val pick:(Food)->Unit={f->vm.pendingPortion=portion.takeIf {it.amount!=null || it.count!=null};onFood(f)}
@@ -163,6 +165,15 @@ internal fun FoodSearchPage(vm: NutritionViewModel,state: NutritionState,padding
                 val everyday=remember(terms,local) {CommonFoods.search(terms,10).filter {c->local.none {it.id==c.id}}}
                 val fresh=searchedQuery==query.trim()
                 androidx.compose.foundation.lazy.LazyColumn(Modifier.fillMaxSize(),contentPadding=PaddingValues(start=12.dp,end=12.dp,top=4.dp,bottom=16.dp)) {
+                    if(pastedLink!=null) {
+                        if(onImport!=null) item {
+                            Column(Modifier.padding(top=8.dp)) {
+                                SectionLabel("Web page")
+                                ActionRow(io.github.ebziboi.delta.R.drawable.ic_download,"Read nutrition from ${AdvancedSearch.host(pastedLink)}","Advanced search · reads the page's nutrition table",!vm.busy) {onImport(pastedLink)}
+                            }
+                        }
+                        return@LazyColumn
+                    }
                     if(typedBarcode!=null) item {
                         SecondaryButton(if(vm.busy) "Looking up…" else "Look up barcode $typedBarcode",{searchOnline()},Modifier.fillMaxWidth().padding(4.dp),enabled=!vm.busy,icon=io.github.ebziboi.delta.R.drawable.ic_barcode)
                     }
@@ -182,10 +193,10 @@ internal fun FoodSearchPage(vm: NutritionViewModel,state: NutritionState,padding
                         Column(Modifier.padding(top=8.dp),verticalArrangement=Arrangement.spacedBy(8.dp)) {
                             SectionLabel("Supermarket products · Open Food Facts")
                             StoreChips(vm) {if(fresh) searchOnline()}
-                            if(!fresh || vm.busy || !vm.searched) SecondaryButton(if(vm.busy) "Searching…" else "Search products for “$terms”",{searchOnline()},Modifier.fillMaxWidth(),enabled=!vm.busy && terms.length>=2,icon=io.github.ebziboi.delta.R.drawable.ic_search)
+                            if(!fresh || vm.searching || !vm.searched) SecondaryButton(if(vm.searching) "Searching…" else "Search products for “$terms”",{searchOnline()},Modifier.fillMaxWidth(),enabled=!vm.busy && terms.length>=2,icon=io.github.ebziboi.delta.R.drawable.ic_search)
                         }
                     }
-                    if(fresh && !vm.busy) {
+                    if(fresh && !vm.searching) {
                         if(vm.searched && vm.results.isEmpty()) item {
                             Column(Modifier.padding(vertical=12.dp,horizontal=8.dp),verticalArrangement=Arrangement.spacedBy(8.dp)) {
                                 Text("No products found for “$terms”.",style=type.body)
@@ -195,23 +206,20 @@ internal fun FoodSearchPage(vm: NutritionViewModel,state: NutritionState,padding
                                 }
                             }
                         }
-                        items(vm.results,key={"o:"+it.id}) {f->FoodRow(f,{if(f.missingNutrition && onIncomplete!=null) onIncomplete(f) else pickProduct(f)},if(f.missingNutrition) null else quick?.let {q->{q(f)}},vm.busy,shown(f))}
+                        items(vm.results.filter {r->local.none {it.id==r.id}},key={"o:"+it.id}) {f->FoodRow(f,{if(f.missingNutrition && onIncomplete!=null) onIncomplete(f) else pickProduct(f)},if(f.missingNutrition) null else quick?.let {q->{q(f)}},vm.busy,shown(f))}
                     }
                     // Nothing right? Make it: the typed name carries into a new custom food.
-                    if(onCustomNamed!=null && terms.length>=2 && typedBarcode==null) item {
-                        Row(Modifier.fillMaxWidth().padding(top=8.dp).clip(RoundedCornerShape(Radii.tile)).background(Color(c.text).copy(alpha=.05f))
-                            .clickable(enabled=!vm.busy,role=androidx.compose.ui.semantics.Role.Button) {onCustomNamed(terms.trim().replaceFirstChar {it.uppercase()})}.padding(horizontal=12.dp,vertical=12.dp),
-                            verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(12.dp)) {
-                            DeltaIcon(io.github.ebziboi.delta.R.drawable.ic_edit,null,tint=Color(c.accent),size=20.dp)
-                            Column(Modifier.weight(1f)) {
-                                Text("Create “${terms.trim()}”",style=type.body,maxLines=1,overflow=androidx.compose.ui.text.style.TextOverflow.Ellipsis)
-                                Text("As a custom food: scan its label or type the values",style=type.label,color=Color(c.textDim))
-                            }
+                    if(onCustomNamed!=null && terms.length>=2 && typedBarcode==null && !vm.searching) item {
+                        val name=terms.trim().replaceFirstChar {it.uppercase()}
+                        Column(Modifier.padding(top=8.dp)) {
+                            SectionLabel("Not listed?")
+                            onImport?.let {open->ActionRow(io.github.ebziboi.delta.R.drawable.ic_tune,"Advanced search","Paste a link or nutrition text from any website",!vm.busy) {open(terms.trim())}}
+                            ActionRow(io.github.ebziboi.delta.R.drawable.ic_edit,"Create “$name”","Custom food · scan its label or type the values",!vm.busy) {onCustomNamed(name)}
                         }
                     }
                     item {
                         val uri=androidx.compose.ui.platform.LocalUriHandler.current
-                        TextAction("Open Food Facts · ODbL licence",{uri.openUri("https://world.openfoodfacts.org/terms-of-use")},color=Color(c.textDim))
+                        TextAction("Open Food Facts · ODbL licence",{uri.openUri("https://world.openfoodfacts.org/terms-of-use")},Modifier.padding(start=8.dp,top=12.dp),color=Color(c.textDim))
                     }
                 }
             }
@@ -265,6 +273,21 @@ internal fun FoodSearchPage(vm: NutritionViewModel,state: NutritionState,padding
     }
 }
 
+/** A create-or-find action laid out like a food row, so it lines up with the results around it. */
+@Composable private fun ActionRow(icon:Int,title:String,subtitle:String,enabled:Boolean,onClick:()->Unit) {
+    val c=LocalDeltaColors.current;val type=LocalDeltaType.current
+    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(Radii.tile)).clickable(enabled=enabled,role=androidx.compose.ui.semantics.Role.Button,onClick=onClick)
+        .padding(horizontal=8.dp,vertical=10.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(12.dp)) {
+        Box(Modifier.size(38.dp).clip(CircleShape).background(Color(c.accent).copy(alpha=.12f)),contentAlignment=Alignment.Center) {
+            DeltaIcon(icon,null,tint=Color(c.accent),size=18.dp)
+        }
+        Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(2.dp)) {
+            Text(title,style=type.body,maxLines=2,overflow=androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+            Text(subtitle,style=type.label,color=Color(c.textDim))
+        }
+    }
+}
+
 @Composable private fun SectionLabel(text:String) {Caption(text,Modifier.padding(start=8.dp,top=12.dp,bottom=4.dp))}
 
 @Composable private fun EmptyHint(content:Pair<String,Pair<String,()->Unit>>) {
@@ -277,8 +300,8 @@ internal fun FoodSearchPage(vm: NutritionViewModel,state: NutritionState,padding
 /** Compact ways to create a food, kept to one tidy row. */
 @Composable private fun CreateActions(onCustom:()->Unit,onRecipe:()->Unit,onPhoto:()->Unit,onImport:(()->Unit)?,busy:Boolean) {
     val c=LocalDeltaColors.current
-    val actions=listOfNotNull(Triple("Custom food",io.github.ebziboi.delta.R.drawable.ic_edit,onCustom),Triple("New recipe",io.github.ebziboi.delta.R.drawable.ic_restaurant,onRecipe),
-        Triple("Photo",io.github.ebziboi.delta.R.drawable.ic_auto_awesome,onPhoto),onImport?.let {Triple("Import food",io.github.ebziboi.delta.R.drawable.ic_download,it)})
+    val actions=listOfNotNull(Triple("Custom",io.github.ebziboi.delta.R.drawable.ic_edit,onCustom),Triple("New recipe",io.github.ebziboi.delta.R.drawable.ic_restaurant,onRecipe),
+        Triple("Photo",io.github.ebziboi.delta.R.drawable.ic_auto_awesome,onPhoto),onImport?.let {Triple("Advanced",io.github.ebziboi.delta.R.drawable.ic_tune,it)})
     Row(Modifier.fillMaxWidth().padding(horizontal=4.dp,vertical=6.dp),horizontalArrangement=Arrangement.spacedBy(8.dp)) {
         actions.forEach {(label,icon,action)->
             Column(Modifier.weight(1f).clip(RoundedCornerShape(Radii.control)).background(Color(c.text).copy(alpha=.05f))
@@ -293,8 +316,9 @@ internal fun FoodSearchPage(vm: NutritionViewModel,state: NutritionState,padding
 
 @Composable private fun StoreChips(vm:NutritionViewModel,onChanged:()->Unit) {
     androidx.compose.foundation.lazy.LazyRow(horizontalArrangement=Arrangement.spacedBy(8.dp),contentPadding=PaddingValues(horizontal=4.dp)) {
-        item {Chip("All stores",vm.selectedStore==null,!vm.busy) {vm.chooseStore(null);onChanged()}}
-        items(vm.storeOrder,key={it.id}) {store->Chip(store.label,vm.selectedStore==store.id,!vm.busy) {vm.chooseStore(store.id);onChanged()}}
+        val enabled=!vm.busy || vm.searching
+        item {Chip("All stores",vm.selectedStore==null,enabled) {vm.chooseStore(null);onChanged()}}
+        items(vm.storeOrder,key={it.id}) {store->Chip(store.label,vm.selectedStore==store.id,enabled) {vm.chooseStore(store.id);onChanged()}}
     }
 }
 @Composable internal fun Chip(label:String,selected:Boolean,enabled:Boolean=true,onClick:()->Unit) {
@@ -373,7 +397,8 @@ internal data class RowAmount(val amount:Double,val last:Boolean)
         Box(Modifier.size(38.dp).clip(CircleShape).background(Color(c.accent).copy(alpha=.12f)),contentAlignment=Alignment.Center) {DeltaIcon(icon,null,tint=Color(c.accent),size=18.dp)}
         Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(2.dp)) {
             Text(food.name,style=type.body,maxLines=2,overflow=androidx.compose.ui.text.style.TextOverflow.Ellipsis)
-            Text(listOf(food.brand.ifBlank {food.subtitle},portion).filter {it.isNotBlank()}.joinToString(" · "),style=type.label,color=Color(c.textDim),maxLines=1,overflow=androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+            // Your last amount leads, so it survives truncation; otherwise brand or source comes first.
+            Text((if(shown?.last==true) listOf(portion,food.brand.ifBlank {food.subtitle}) else listOf(food.brand.ifBlank {food.subtitle},portion)).filter {it.isNotBlank()}.joinToString(" · "),style=type.label,color=Color(c.textDim),maxLines=1,overflow=androidx.compose.ui.text.style.TextOverflow.Ellipsis)
             if(food.missingNutrition) Text("No nutrition listed · add it from the label",style=type.label,color=Color(c.warn))
             else Text(Nutrient.macros.joinToString("  ") {n->"${n.label.take(1)} ${at(n)?.let {v->amountText(Math.round(v*10)/10.0)} ?: "–"}"},style=type.label,color=Color(c.textDim))
         }
@@ -432,7 +457,7 @@ internal fun PortionPage(food:Food,entry:DiaryEntry?,day:LocalDate,meal:Meal,pad
         NumberField(quantity,{quantity=it},if(portion==food.unit.symbol) "Amount (${food.unit.symbol})" else "Number of ${portion.lowercase()}s",Modifier.fillMaxWidth())
         Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(8.dp)) {
             val presets=if(portion==food.unit.symbol) listOf(50.0,100.0,150.0,200.0) else listOf(.5,1.0,1.5,2.0)
-            presets.forEach {v->Box(Modifier.weight(1f)) {Chip(if(portion==food.unit.symbol) "${amountText(v)} ${food.unit.symbol}" else "${amountText(v)}×",quantity.number()==v) {quantity=editText(v)}}}
+            presets.forEach {v->Box(Modifier.weight(1f),contentAlignment=Alignment.Center) {Chip(if(portion==food.unit.symbol) "${amountText(v)} ${food.unit.symbol}" else "${amountText(v)}×",quantity.number()==v) {quantity=editText(v)}}}
         }
         if(portion!="${food.unit.symbol}") Text("1 ${portion.lowercase()} = ${amountText(factor)} ${food.unit.symbol}",style=LocalDeltaType.current.bodySmall)
         if(amount!=null) Text("${amountText(amount)} ${food.unit.symbol} total"+(if(previous!=null && Math.abs(amount-lastAmount!!)<.001) " · same as last time" else ""),style=LocalDeltaType.current.bodySmall)
@@ -557,10 +582,13 @@ internal fun RecipeEditor(vm:NutritionViewModel,state:NutritionState,padding:Pad
         ContentSection {
             Caption("Ingredients")
             ingredients.forEachIndexed {i,item ->
-                NutritionRow(item.food.name,"${amountText(item.amount)} ${item.food.unit.symbol}","${nutrientText(item.nutrients[Nutrient.ENERGY],Nutrient.ENERGY)}",{editingIngredient=i;ingredientAmount=editText(item.amount)})
-                TextAction("Remove ${item.food.name}",{vm.recipeIngredients=ingredients.filterIndexed {index,_->index!=i}})
+                Row(verticalAlignment=Alignment.CenterVertically) {
+                    Box(Modifier.weight(1f)) {NutritionRow(item.food.name,"${amountText(item.amount)} ${item.food.unit.symbol}","${nutrientText(item.nutrients[Nutrient.ENERGY],Nutrient.ENERGY)} · tap to change amount",{editingIngredient=i;ingredientAmount=editText(item.amount)})}
+                    HapticIconButton({vm.recipeIngredients=ingredients.filterIndexed {index,_->index!=i}}) {DeltaIcon(io.github.ebziboi.delta.R.drawable.ic_close,"Remove ${item.food.name}",tint=Color(LocalDeltaColors.current.textDim),size=18.dp)}
+                }
             }
-            SecondaryButton("Add ingredient",onPick,enabled=!vm.busy)
+            if(ingredients.isEmpty()) Text("Add each ingredient with the amount that goes into the whole recipe.",style=LocalDeltaType.current.bodySmall,color=Color(LocalDeltaColors.current.textDim))
+            SecondaryButton("Add ingredient",onPick,Modifier.fillMaxWidth(),enabled=!vm.busy,icon=io.github.ebziboi.delta.R.drawable.ic_add)
         }
         NumberField(servings,{servings=it},"Number of servings",Modifier.fillMaxWidth())
         NumberField(yield,{yield=it},"Finished recipe weight (g)",Modifier.fillMaxWidth())
@@ -582,7 +610,7 @@ internal fun RecipeEditor(vm:NutritionViewModel,state:NutritionState,padding:Pad
 }
 
 @Composable
-internal fun TargetsPage(targets:NutritionTargets,padding:PaddingValues,busy:Boolean,onBack:()->Unit,onSave:(NutritionTargets)->Unit) {
+internal fun TargetsPage(targets:NutritionTargets,padding:PaddingValues,busy:Boolean,onBack:()->Unit,autoEnergy:Boolean=false,onEnergySettings:()->Unit={},onSave:(NutritionTargets)->Unit) {
     var mode by rememberSaveable {mutableStateOf(targets.mode)}
     var fields by rememberSaveable {mutableStateOf(Nutrient.entries.associate {it.name to (targets.amounts[it]?.let(::editText) ?: "")})}
     var percentages by rememberSaveable {mutableStateOf(Nutrient.macros.associate {it.name to editText(targets.percentages[it] ?: 0.0)})}
@@ -595,7 +623,11 @@ internal fun TargetsPage(targets:NutritionTargets,padding:PaddingValues,busy:Boo
             percentages.mapNotNull {(k,v)->v.number()?.let {Nutrient.valueOf(k) to it}}.toMap(),limits.map(Nutrient::valueOf).toSet()).validated()
     }
     NutritionPage("Targets",padding,onBack) {
-        NumberField(fields[Nutrient.ENERGY.name] ?: "",{fields=fields+(Nutrient.ENERGY.name to it)},"Daily energy (kcal)",Modifier.fillMaxWidth())
+        if(autoEnergy) ContentSection(tone=ModuleTone.SAGE) {
+            Caption("Daily energy")
+            Text("Set automatically each day from your calorie budget (Body & energy).",style=LocalDeltaType.current.bodySmall)
+            TextAction("Change budget settings",onEnergySettings)
+        } else NumberField(fields[Nutrient.ENERGY.name] ?: "",{fields=fields+(Nutrient.ENERGY.name to it)},"Daily energy (kcal)",Modifier.fillMaxWidth())
         SegmentedControl(MacroMode.entries,mode,{if(it==MacroMode.GRAMS) "Grams" else "% of energy"}) {mode=it}
         ContentSection {
             Caption("Macronutrients")

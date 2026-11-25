@@ -51,8 +51,10 @@ class BetaFoodUiTest {
                 store.update {it.copy(onboardingDone=true,motion=false,appearance=style.defaults().copy(reduceMotion=true),homeCardOrder=listOf("trend")+CardLayouts.home.filterNot {id->id=="trend"})}
                 compose.activityRule.scenario.recreate()
                 val chart=compose.onNodeWithContentDescription("Combined trends graph");chart.performScrollTo()
-                assertTrue(chart.fetchSemanticsNode().config[SemanticsProperties.StateDescription].contains("scale ceiling 2666."))
-                shot("$style-capped-chart")
+                // Every day fits (today's 10,000 kcal included), the average covers finished days only, and none sit above it.
+                val spoken=chart.fetchSemanticsNode().config[SemanticsProperties.StateDescription]
+                assertTrue(spoken,spoken.contains("average 2000 kcal, 0 above average, highest 10000 kcal"))
+                shot("$style-fitted-chart")
                 click("Nutrition details");compose.onNodeWithText("Nutrition trends",ignoreCase=true).assertExists()
                 compose.runOnIdle {compose.activity.onBackPressedDispatcher.onBackPressed()};compose.waitForIdle()
                 compose.onNodeWithContentDescription("Combined trends graph").assertExists()
@@ -65,11 +67,13 @@ class BetaFoodUiTest {
             // Typing shows store chips beside the online search, with no live network request needed to select one.
             compose.onNodeWithContentDescription("Add food").performClick();compose.waitForIdle()
             compose.onNodeWithContentDescription("Search foods").performTextInput("milk");compose.waitForIdle()
+            // Everyday matches come first, so the supermarket section may start below the fold.
+            compose.onAllNodes(hasScrollToNodeAction()).onFirst().performScrollToNode(hasText("Supermarket products",substring=true,ignoreCase=true))
             click("Tesco");compose.onNodeWithText("Tesco").assertIsSelected();shot("store-filter")
             compose.onNodeWithContentDescription("Search foods").performTextClearance();compose.waitForIdle()
             context.startActivity(io.github.ebziboi.delta.widget.FoodBitmapWidget.launchIntent(context,"search"))
             compose.waitUntil(10000) {compose.activity.intent.getStringExtra("food_route")=="search"}
-            compose.waitForIdle();click("Custom food")
+            compose.waitForIdle();click("Custom")
             compose.onNodeWithText("Food name").performTextReplacement("Unsaved widget-link draft")
             compose.activityRule.scenario.recreate();compose.waitForIdle()
             compose.onNodeWithText("Unsaved widget-link draft").assertExists()

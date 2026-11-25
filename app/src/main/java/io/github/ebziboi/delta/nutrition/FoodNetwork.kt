@@ -109,7 +109,8 @@ class OpenFoodFacts {
                 val key=if(nutrient==Nutrient.FOLATE && !n.has("folates_100g")) "vitamin-b9" else nutrient.off
                 val raw=n.optDouble("${key}_100g",Double.NaN)
                 val value=if(nutrient==Nutrient.ENERGY) {
-                    if(raw.isFinite()) raw else n.optDouble("energy_100g",Double.NaN)/4.184
+                    // Some products list energy only in kJ.
+                    if(raw.isFinite()) raw else n.optDouble("energy_100g",n.optDouble("energy-kj_100g",Double.NaN))/4.184
                 } else raw * when(nutrient.unit) { "mg" -> 1000.0; "µg" -> 1000000.0; else -> 1.0 }
                 value.takeIf { it.validAmount() }?.let { nutrient to it }
             }.toMap()
@@ -129,7 +130,11 @@ class OpenFoodFacts {
             val textPack=if(multiple!=null) measure(multiple.groupValues[2])?.times(multiple.groupValues[1].toDouble()) else measure(quantity)
             val pack=canonicalPack ?: textPack?.takeIf {it>0 && it<=100000}
             // Search results list brands as an array; product records as comma-separated text.
-            val brands=p.optJSONArray("brands")?.let { a -> (0 until a.length()).map { a.optString(it).trim() }.filter { it.isNotBlank() }.joinToString(", ") } ?: p.optString("brands")
+            val brandList=p.optJSONArray("brands")?.let { a -> (0 until a.length()).map { a.optString(it) } } ?: p.optString("brands").split(',')
+            val brands=brandList.map { it.trim() }.filter { it.isNotBlank() }.distinctBy { it.lowercase(Locale.ROOT) }.let { all ->
+                // "Ferrero, Ferrero Rocher" reads as "Ferrero Rocher": drop a brand another one already starts with.
+                all.filterNot { b -> all.any { it!=b && it.lowercase(Locale.ROOT).startsWith(b.lowercase(Locale.ROOT)+" ") } }
+            }.joinToString(", ")
             return Food("off:$code",name.take(250),brands.take(250),nutrition,unit,
                 serving,servingText.ifBlank { "Serving" }.take(100),pack,FoodSource.OPEN_FOOD_FACTS,code,stores=p.optJSONArray("stores_tags")?.let {a->(0 until a.length()).map {a.getString(it).take(100)}.take(50)} ?: emptyList())
         }

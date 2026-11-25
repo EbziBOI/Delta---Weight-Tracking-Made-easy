@@ -73,8 +73,7 @@ internal fun NutritionChartsPage(state:NutritionState,weights:List<WeightEntry>,
             if(total.partial) Text("Partial labels · ${total.reported} of ${total.count} foods report ${nutrient.label.lowercase()}",style=LocalDeltaType.current.bodySmall)
             if(active.isEmpty()) Text("No reported ${nutrient.label.lowercase()} in this period.")
             run {
-                val scale=nutritionScale(state.entries,today,nutrient,true)
-                RecordedChart(listOf(RecordedSeries("intake",nutrient.label,Color(LocalDeltaColors.current.accent),graphValues,{nutrientText(it,nutrient)},bars=true,ceiling=scale.ceiling,typical=scale.typical)),oldest,today,"Daily intake graph",controller=profile,controls=false,historyStart=oldest,journeyStart=journeyStart,weekStartsOn=weekStartsOn,onSelected={day->selectedEpoch=day?.toEpochDay()})
+                RecordedChart(listOf(RecordedSeries("intake",nutrient.label,Color(LocalDeltaColors.current.accent),graphValues,{nutrientText(it,nutrient)},bars=true)),oldest,today,"Daily intake graph",controller=profile,controls=false,historyStart=oldest,journeyStart=journeyStart,weekStartsOn=weekStartsOn,onSelected={day->selectedEpoch=day?.toEpochDay()})
             }
             aggregateReadings(graphValues,profile.period,weekStartsOn,today).firstOrNull {it.day.toEpochDay()==selectedEpoch}?.let {bucket->
                 val foods=state.entries.filter {it.day in bucket.first..bucket.last};val t=foods.total(nutrient)
@@ -131,10 +130,3 @@ internal fun NutritionChartsPage(state:NutritionState,weights:List<WeightEntry>,
     }}
 }
 
-@Composable
-private fun IntakeChart(points:List<IntakePoint>,scale:NutritionScale,onSelect:(Int)->Unit) {
-    val c=LocalDeltaColors.current
-    val values=points.filter {it.hasValue}.map {p->RecordedValue(p.start,p.value)}
-    RecordedChart(listOf(RecordedSeries("intake",points.first().nutrient.label,Color(c.accent),values,
-        {nutrientText(it,points.first().nutrient)},bars=true,ceiling=scale.ceiling,typical=scale.typical)),points.first().start,points.last().days.last(),"Daily intake graph",onSelected={day->onSelect(points.indexOfFirst {day in it.days})})
-}

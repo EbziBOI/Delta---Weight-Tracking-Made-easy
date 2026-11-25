@@ -2,6 +2,8 @@ package io.github.ebziboi.delta.nutrition
 
 import io.github.ebziboi.delta.ui.RecordedValue
 import io.github.ebziboi.delta.ui.smoothRecorded
+import io.github.ebziboi.delta.ui.above
+import io.github.ebziboi.delta.ui.flags
 import org.junit.Assert.*
 import org.junit.Test
 import java.time.LocalDate
@@ -115,5 +117,41 @@ class DiaryLogicTest {
         assertTrue(java.net.URLDecoder.decode(OpenFoodFacts.searchUrl("oats","marks-spencer"),"UTF-8").contains("stores:\"marks & spencer\""))
         assertEquals("ben jerry s cookie dough",OpenFoodFacts.searchTerms("ben & jerry's: (cookie) dough*").replace("'"," ").replace(Regex("\\s+")," "))
         assertEquals("",OpenFoodFacts.searchTerms("\"*:*\""))
+    }
+
+    @Test fun intakeChartsFitEveryDayAndFlagDaysAboveTheWindowAverage() {
+        val week=listOf(1800.0,2100.0,1500.0,3600.0,1900.0,2000.0,1700.0)
+        val scale=io.github.ebziboi.delta.ui.intakeScale(week)
+        assertEquals("Rule is the window's average",week.average(),scale.rule!!,1e-9)
+        assertTrue("The biggest day fits inside the plot",scale.high>3600.0)
+        assertEquals(listOf(2100.0,3600.0),week.filter {scale.above(it)})
+        // A different window (another period button) gives a different average and scale.
+        val month=week+List(23) {1400.0}
+        val wider=io.github.ebziboi.delta.ui.intakeScale(month)
+        assertTrue(wider.rule!!<scale.rule!!)
+        assertTrue("More days are above a lower average",month.count {wider.above(it)}>week.count {scale.above(it)})
+    }
+
+    @Test fun intakeScaleHandlesEmptySingleAndZeroWindows() {
+        val empty=io.github.ebziboi.delta.ui.intakeScale(emptyList<Double>())
+        assertNull(empty.rule);assertTrue(empty.high>0)
+        val one=io.github.ebziboi.delta.ui.intakeScale(listOf(2000.0))
+        assertNull("One day has no average to be above",one.rule);assertFalse(one.above(2000.0))
+        val zeros=io.github.ebziboi.delta.ui.intakeScale(listOf(0.0,0.0))
+        assertEquals(0.0,zeros.rule!!,0.0);assertFalse(zeros.above(0.0));assertTrue(zeros.high>0)
+        val flat=io.github.ebziboi.delta.ui.intakeScale(listOf(1900.0,1900.0,1900.0))
+        assertTrue("Equal days are not above their own average",listOf(1900.0).none {flat.above(it)})
+        assertFalse(io.github.ebziboi.delta.ui.intakeScale(listOf(Double.NaN,100.0,200.0)).high.isNaN())
+    }
+
+    @Test fun todayInProgressIsPlottedButNeitherAveragedNorFlagged() {
+        val days=listOf(2000.0,2200.0,1800.0,2400.0).mapIndexed {i,v->io.github.ebziboi.delta.ui.RecordedValue(today.minusDays(4L-i),v)}+
+            io.github.ebziboi.delta.ui.RecordedValue(today,600.0)
+        val scale=io.github.ebziboi.delta.ui.intakeScale(days,today)
+        assertEquals(2100.0,scale.rule!!,1e-9)
+        assertEquals(listOf(2200.0,2400.0),days.filter {scale.flags(it,today)}.map {it.value})
+        // A huge day today still fits, and is not flagged until it is over.
+        val big=io.github.ebziboi.delta.ui.intakeScale(days.dropLast(1)+io.github.ebziboi.delta.ui.RecordedValue(today,5000.0),today)
+        assertTrue(big.high>5000.0);assertFalse(big.flags(io.github.ebziboi.delta.ui.RecordedValue(today,5000.0),today))
     }
 }

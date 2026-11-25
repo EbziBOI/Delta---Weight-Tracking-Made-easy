@@ -57,8 +57,9 @@ private data class HapticIndication(val original:IndicationNodeFactory?,val feed
 @Composable fun HapticButton(onClick:()->Unit,modifier:Modifier=Modifier,enabled:Boolean=true,content:@Composable androidx.compose.foundation.layout.RowScope.()->Unit) {
     Button(onClick,modifier,enabled=enabled,interactionSource=rememberHapticInteractionSource(),content=content)
 }
-@Composable fun HapticDropdownMenuItem(text:@Composable ()->Unit,onClick:()->Unit,modifier:Modifier=Modifier) {
-    DropdownMenuItem(text,onClick,modifier,interactionSource=rememberHapticInteractionSource())
+@Composable fun HapticDropdownMenuItem(text:@Composable ()->Unit,onClick:()->Unit,modifier:Modifier=Modifier,
+                                       leadingIcon:(@Composable ()->Unit)?=null,trailingIcon:(@Composable ()->Unit)?=null) {
+    DropdownMenuItem(text,onClick,modifier,leadingIcon=leadingIcon,trailingIcon=trailingIcon,interactionSource=rememberHapticInteractionSource())
 }
 @Composable fun HapticSlider(value:Float,onValueChange:(Float)->Unit,modifier:Modifier=Modifier,enabled:Boolean=true,
     valueRange:ClosedFloatingPointRange<Float> = 0f..1f,steps:Int=0,onValueChangeFinished:(()->Unit)?=null,

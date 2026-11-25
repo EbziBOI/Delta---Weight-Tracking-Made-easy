@@ -495,7 +495,8 @@ object WidgetBitmaps {
             if (!labelled) return
             val label = percent?.let { "$it%" } ?: "—"
             val paint = ink(size * .16f, colors.text, type.number).apply { textAlign = Paint.Align.CENTER }
-            val room = oval.width() * .7f
+            // Kept clear of the ring, so "100%" never touches it.
+            val room = (oval.width() - arc.strokeWidth * 2) * .72f
             if (paint.measureText(label) > room) paint.textSize *= room / paint.measureText(label)
             c.drawText(label, cx, cy - (paint.ascent() + paint.descent()) / 2f, paint)
         }
@@ -848,10 +849,13 @@ object WidgetBitmaps {
                 val side = inner.height()
                 art(RectF(inner.left, inner.top, inner.left + side, inner.bottom))
                 val words = RectF(inner.left + side + 16f, inner.top, inner.right, inner.bottom)
+                val week = data.weekChangeKg?.takeIf { show.showChange && missing == null && !snap.reached }
                 val rows = stack(words, listOf(
                     Slot("title", 11f, keep = 2),
                     Slot("value", min(words.height() * .4f, 34f).coerceAtLeast(16f), keep = 9),
                     if (show.showTarget && target != null && missing == null) Slot("target", 13f, keep = 1) else null,
+                    // The week's change says whether the number is moving, which a percentage alone can't.
+                    if (week != null) Slot("week", 13f, keep = 0) else null,
                 ), 4f)
                 val showsRemaining = remaining != null && show.showDetail
                 rows["title"]?.let { label("title", listOf(if (showsRemaining) "TO GO" else "PROGRESS"), it) }
@@ -866,6 +870,7 @@ object WidgetBitmaps {
                 }
                 // Always with its label: a bare second weight would read as the current one.
                 rows["target"]?.let { note("target", listOf("Target $target", "To $target"), it) }
+                rows["week"]?.let { weekLine("week", week!!, it) }
                 return
             }
             // The art and its caption are one group: the caption sits just under the art, both centred.

@@ -52,6 +52,8 @@ object FoodWidgetBitmaps {
     private class Painter(val c:Canvas,val w:Float,val h:Float,val colors:DrawColors,val fonts:CanvasType,val data:FoodWidgetData,
                           val audit:MutableList<WidgetElement>?,val pad:Float,val liveClock:Boolean) {
         val box=RectF(pad,pad,w-pad,h-pad);val tiny=(w<120 && h<200) || h<100;val roomy=w>=240 && h>=140
+        /** A short, wide widget (such as 2×1 cells): one line of figures beats a dial too small to read. */
+        val strip=!tiny && h<150 && w>=h*1.3f
         val paint=Paint(Paint.ANTI_ALIAS_FLAG)
         val energy=data.total(Nutrient.ENERGY)
         fun short(v:Double):String=when {v>=1e6->"${round(v/1e5)/10}M";v>=10000->"${round(v/100)/10}k";else->amountText(v)}
@@ -78,7 +80,7 @@ object FoodWidgetBitmaps {
             paint.style=Paint.Style.FILL
         }
         fun row(y:Float,height:Float=20f)=RectF(box.left,y,box.right,y+height)
-        fun known(n:Nutrient,unit:Boolean=true):String {val v=data.total(n);return if(v.reported==0) "—" else (if(v.partial) "≥" else "")+short(v.amount)+(if(unit) "g" else "")}
+        fun known(n:Nutrient,unit:Boolean=true,whole:Boolean=false):String {val v=data.total(n);return if(v.reported==0) "—" else (if(v.partial) "≥" else "")+(if(whole) short(Math.round(v.amount).toDouble()) else short(v.amount))+(if(unit) "g" else "")}
         fun draw(kind:FoodWidgetKind) {when(kind) {FoodWidgetKind.ENERGY->energy();FoodWidgetKind.MACROS->macros();FoodWidgetKind.MEALS->meals();FoodWidgetKind.FASTING->fasting()}}
         fun energy() {
             val target=data.targets.target(Nutrient.ENERGY);val reported=energy.reported>0
@@ -99,6 +101,14 @@ object FoodWidgetBitmaps {
                 text("title",if(w<70) "kcal" else title,row(box.top,box.height()*.25f),11f,colors.textDim)
                 text("energy",figure+(if(w>=90) " kcal" else ""),RectF(box.left,box.top+box.height()*.24f,box.right,box.bottom-5f),32f,colors.accent,true)
                 rail(RectF(box.left,box.bottom-3f,box.right,box.bottom),target?.takeIf {it>0}?.let {energy.amount/it},colors.accent)
+                return
+            }
+            if(strip) {
+                text("title",title,row(box.top,16f),11f,colors.textDim)
+                text("energy",figure+" kcal",RectF(box.left,box.top+18,box.right,box.bottom-26),34f,colors.accent,true)
+                text("context",if(!reported) {if(data.entries.isEmpty()) "No food logged" else "Energy not supplied"}
+                    else "${short(energy.amount)} logged"+(target?.let {" of ${short(it)}"} ?: ""),row(box.bottom-22,14f),11f,colors.textDim)
+                rail(RectF(box.left,box.bottom-4,box.right,box.bottom),target?.takeIf {it>0 && reported}?.let {energy.amount/it},colors.accent)
                 return
             }
             text("title",title,row(box.top),12f,colors.textDim)
@@ -126,6 +136,17 @@ object FoodWidgetBitmaps {
                 nutrients.forEachIndexed {i,n->val total=data.total(n);val target=data.targets.target(n)
                     val width=(box.width()-6)/3
                     rail(RectF(box.left+i*(width+3),box.bottom-3,box.left+i*(width+3)+width,box.bottom),if(total.reported>0 && target!=null) total.amount/target else null,hues[i])}
+                return
+            }
+            if(strip) {
+                text("title","MACROS",row(box.top,16f),11f,colors.textDim)
+                val col=(box.width()-16)/3
+                nutrients.forEachIndexed {i,n->val x=box.left+i*(col+8);val total=data.total(n);val target=data.targets.target(n)
+                    text("macro-label-$i",if(col<64) listOf("Prot","Carbs","Fat")[i] else listOf("Protein","Carbs","Fat")[i],RectF(x,box.top+20,x+col,box.top+36),11f,hues[i])
+                    // Whole grams keep the three figures the same size side by side.
+                    text("macro-value-$i",known(n,whole=true),RectF(x,box.top+38,x+col,box.bottom-12),26f,hues[i],true)
+                    rail(RectF(x,box.bottom-4,x+col,box.bottom),if(total.reported>0 && target!=null) total.amount/target else null,hues[i])
+                }
                 return
             }
             text("title","MACRO BALANCE",row(box.top),12f,colors.textDim)
@@ -181,6 +202,15 @@ object FoodWidgetBitmaps {
             if(tiny) {
                 text("title",if(fast==null) "FASTING" else "ELAPSED",row(box.top,box.height()*.25f),10f,colors.textDim)
                 text("fasting",if(fast==null) "—" else "${hours}h",RectF(box.left,box.top+box.height()*.25f,box.right,box.bottom),30f,colors.accent,true)
+                return
+            }
+            val finishAt=fast?.targetEnd?.atZone(ZoneId.systemDefault())?.format(DateTimeFormatter.ofPattern("HH:mm"))
+            if(strip) {
+                text("title",if(fast==null) "FASTING" else "ELAPSED FAST",row(box.top,16f),11f,colors.textDim)
+                if(fast==null) text("fasting","Not fasting",RectF(box.left,box.top+22,box.right,box.bottom-30),22f,colors.text,true)
+                else if(!liveClock) text("fasting",String.format(java.util.Locale.ROOT,"%d:%02d",hours,minutes),RectF(box.left,box.top+18,box.right,box.bottom-26),34f,colors.accent,true)
+                text("fasting-context",when {fast==null->"Tap to start a fast";fast.reached(data.now)->"${amountText(fast.targetHours)}h goal reached";else->"${amountText(fast.targetHours)}h goal · ends $finishAt"},row(box.bottom-22,14f),11f,colors.textDim)
+                rail(RectF(box.left,box.bottom-4,box.right,box.bottom),fast?.let {elapsed.toDouble()/it.goalMs},colors.accent)
                 return
             }
             text("title",if(fast==null) "FASTING" else "ELAPSED FAST",row(box.top),12f,colors.textDim)

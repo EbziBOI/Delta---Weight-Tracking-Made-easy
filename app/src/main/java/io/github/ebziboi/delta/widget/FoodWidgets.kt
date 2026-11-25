@@ -121,7 +121,11 @@ abstract class FoodBitmapWidget:GlanceAppWidget() {
             if(clock) {
                 result.setChronometer(R.id.widget_food_clock,SystemClock.elapsedRealtime()-active!!.elapsed(now),null,true)
                 tint(R.id.widget_food_clock)
-                result.setTextViewTextSize(R.id.widget_food_clock,android.util.TypedValue.COMPLEX_UNIT_SP,minOf(28f,(width-36)/5,(minOf(width,height)-2*(minOf(width,height)*.09f).coerceIn(10f,16f)-66)/4.8f).coerceAtLeast(8f))
+                val pad=(minOf(width,height)*.09f).coerceIn(10f,16f)
+                // Matches the renderer: a short, wide widget shows the clock as its one big line, not inside a dial.
+                val strip=height<150 && height>=100 && width>=height*1.3f
+                result.setTextViewTextSize(R.id.widget_food_clock,android.util.TypedValue.COMPLEX_UNIT_SP,
+                    (if(strip) minOf(28f,(height-2*pad-44)/1.25f) else minOf(28f,(width-36)/5,(minOf(width,height)-2*pad-66)/4.8f)).coerceAtLeast(8f))
                 result.setOnClickPendingIntent(R.id.widget_food_clock,action("fasting"))
             }
             return result

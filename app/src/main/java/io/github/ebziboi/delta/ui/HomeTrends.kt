@@ -43,11 +43,10 @@ internal fun HomeTrends(weights:List<WeightEntry>,fat:List<BodyFatEntry>,nutriti
         .map {(d,v)->RecordedValue(d,v.map {it.percent}.average())}.sortedBy {it.day}}
     val foodValues=remember(nutrition.entries,today) {nutrition.entries.filter {it.day<=today}.groupBy {it.day}.mapNotNull {(d,v)->
         v.total(Nutrient.ENERGY).takeIf {it.reported>0}?.let {RecordedValue(d,it.amount,partial=it.partial)}}.sortedBy {it.day}}
-    val foodScale=remember(nutrition.entries,today) {nutritionScale(nutrition.entries,today,Nutrient.ENERGY,true)}
     val allSeries=listOf(
         HomeSeries.WEIGHT to RecordedSeries("weight","Weight",Color(c.accent),weightValues,{Units.weight(it,settings.unit)}),
         HomeSeries.BODY_FAT to RecordedSeries("body-fat","Body fat",Color(bodyFatInk(c)),fatValues,{BodyFat.format(it)}),
-        HomeSeries.NUTRITION to RecordedSeries("nutrition","Energy",Color(c.warn),foodValues,{nutrientText(it,Nutrient.ENERGY)},bars=true,ceiling=foodScale.ceiling,typical=foodScale.typical))
+        HomeSeries.NUTRITION to RecordedSeries("nutrition","Energy",Color(c.warn),foodValues,{nutrientText(it,Nutrient.ENERGY)},bars=true))
     val series=allSeries.filter {it.first in chosen}.map {it.second}
     val oldest=allSeries.flatMap {it.second.values}.minOfOrNull {it.day} ?: today.minusDays(29)
     Column(verticalArrangement=Arrangement.spacedBy(12.dp)) {

@@ -25,8 +25,9 @@ internal object ProductPages {
             if(depth>8 || products.size>=40) return
             when(value) {
                 is JSONObject->{
-                    val type=value.opt("@type").toString()
-                    if(Regex("\\bProduct\\b").containsMatchIn(type)) products+=value
+                    val type=value.opt("@type")?.toString().orEmpty()
+                    // Shops describe a Product; recipe and restaurant sites a Recipe or MenuItem with the same nutrition block.
+                    if(Regex("\\b(?:Product|Recipe|MenuItem)\\b").containsMatchIn(type)) products+=value
                     value.opt("@graph")?.let {visit(it,depth+1)}
                     value.opt("mainEntity")?.let {visit(it,depth+1)}
                 }
@@ -57,18 +58,31 @@ internal object ProductPages {
         val focused=end?.let {tail.take(it.range.first)} ?: tail
         reads+=LabelParser.parse(focused)
         product?.optJSONObject("nutrition")?.let {n->
+            // Schema.org states values per serving; a serving weight ("1 bowl (250 g)") makes them convertible.
             val serving=n.optString("servingSize")
-            val rows=listOf("calories" to "Energy","fatContent" to "Fat","saturatedFatContent" to "Saturated fat","carbohydrateContent" to "Carbohydrate","sugarContent" to "Sugars","fiberContent" to "Fibre","proteinContent" to "Protein","sodiumContent" to "Sodium")
-            val text="Per $serving\n"+rows.mapNotNull {(key,label)->n.optString(key).takeIf {it.isNotBlank()}?.let {"$label\t$it"}}.joinToString("\n")
+            val weight=Regex("(\\d+(?:[.,]\\d+)?)\\s*(g|ml)\\b",RegexOption.IGNORE_CASE).find(serving)
+            val basis=when {
+                Regex("^\\s*100\\s*(g|ml)\\s*$",RegexOption.IGNORE_CASE).matches(serving) -> "Per $serving"
+                weight!=null -> "Per serving (${weight.groupValues[1]} ${weight.groupValues[2].lowercase()})"
+                else -> "Per serving"
+            }
+            val rows=listOf("calories" to "Energy","fatContent" to "Fat","saturatedFatContent" to "Saturated fat","transFatContent" to "Trans fat",
+                "unsaturatedFatContent" to "Unsaturated fat","carbohydrateContent" to "Carbohydrate","sugarContent" to "Sugars","fiberContent" to "Fibre",
+                "proteinContent" to "Protein","sodiumContent" to "Sodium","cholesterolContent" to "Cholesterol")
+            // Bare numbers are grams (calories in kcal), as the schema defines.
+            val text="$basis\n"+rows.mapNotNull {(key,label)->n.opt(key)?.toString()?.trim()?.takeIf {it.isNotBlank() && it!="null"}?.let {v->
+                "$label\t"+if(v.matches(Regex("[0-9.,]+"))) v+(if(key=="calories") " kcal" else if(key in listOf("sodiumContent","cholesterolContent")) " mg" else " g") else v}}.joinToString("\n")
             reads+=LabelParser.parse(text)
         }
         val read=reads.maxByOrNull {r->r.columns.maxOfOrNull {it.observations.size*10+if(it.basis.amount!=null) 5 else 0} ?: 0} ?: LabelParser.parse("")
         return ProductPage(name.take(250),brand.take(250),url,barcode,match,conflict,read)
     }
     // Read the displayed document; no JavaScript bridge, credentials, hidden app state or cross-origin requests.
-    val extractScript="""(() => JSON.stringify({url:location.href,title:document.title,heading:document.querySelector('h1')?.innerText||'',
+    // Collapsed accordions (hidden="until-found", content-visibility) report empty innerText, so text falls back to textContent.
+    val extractScript="""(() => {const tx=e=>((e.innerText||'').trim()||(e.textContent||'').replace(/\s+/g,' ').trim());
+      return JSON.stringify({url:location.href,title:document.title,heading:tx(document.querySelector('h1')||document.createElement('h1')),
       structured:Array.from(document.querySelectorAll('script[type="application/ld+json"]')).slice(0,8).map(s=>s.textContent.slice(0,12000)),
-      tables:Array.from(document.querySelectorAll('table')).filter(t=>/protein|carbohydrate|saturat|kcal/i.test(t.innerText)).slice(0,10).map(t=>Array.from(t.rows).slice(0,75).map(r=>Array.from(r.cells).slice(0,6).map(c=>c.innerText.slice(0,250)))),
-      text:(document.querySelector('main')||document.body).innerText.slice(0,50000)}))()"""
+      tables:Array.from(document.querySelectorAll('table')).filter(t=>/protein|carbohydrate|saturat|kcal/i.test(tx(t))).slice(0,10).map(t=>Array.from(t.rows).slice(0,75).map(r=>Array.from(r.cells).slice(0,6).map(c=>tx(c).slice(0,250)))),
+      text:(document.querySelector('main')||document.body).innerText.slice(0,50000)})})()"""
     val firstResultScript="""(() => {for(const a of document.querySelectorAll('a')) {if(!a.querySelector('h3')) continue;try {let u=new URL(a.href);if(u.hostname.endsWith('google.com')&&u.pathname==='/url')u=new URL(u.searchParams.get('q')||u.searchParams.get('url'));if(u.protocol==='https:'&&!/(^|\.)google\.[a-z.]+$/.test(u.hostname)) return u.href;}catch(e){}}return '';})()"""
 }

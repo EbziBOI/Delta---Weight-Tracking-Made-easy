@@ -4,7 +4,11 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.foundation.background
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import io.github.ebziboi.delta.ui.*
@@ -31,6 +35,7 @@ internal fun FastingPage(vm:NutritionViewModel,state:NutritionState,padding:Padd
     var datePicker by remember {mutableStateOf(false)}
     var ending by remember {mutableStateOf(false)}
     var deleting by remember {mutableStateOf<Fast?>(null)}
+    var timePicker by remember {mutableStateOf(false)}
     val start=if(customStart) runCatching {LocalDate.ofEpochDay(startEpoch).atTime(LocalTime.parse(time)).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()}.getOrNull() else now
     NutritionPage("Fasting",padding,onBack) {
         if(active!=null) ContentSection(tone=ModuleTone.SAGE,framed=true) {
@@ -53,8 +58,12 @@ internal fun FastingPage(vm:NutritionViewModel,state:NutritionState,padding:Padd
                 Text("Choose start time",style=LocalDeltaType.current.body);Switch(customStart,{customStart=it},interactionSource=rememberHapticInteractionSource())
             }
             if(customStart) {
-                SecondaryButton(LocalDate.ofEpochDay(startEpoch).format(dayFormat),{datePicker=true})
-                GlassTextField(time,{time=it},"Start time (HH:mm)",Modifier.fillMaxWidth())
+                // Date and time are picked, not typed.
+                Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+                    SecondaryButton(LocalDate.ofEpochDay(startEpoch).format(dayFormat),{datePicker=true},Modifier.weight(1f),icon=io.github.ebziboi.delta.R.drawable.ic_calendar_month)
+                    SecondaryButton(time,{timePicker=true},Modifier.weight(1f),icon=io.github.ebziboi.delta.R.drawable.ic_schedule)
+                }
+                if(start!=null && start>now) Text("The start can't be in the future.",style=LocalDeltaType.current.bodySmall,color=Color(LocalDeltaColors.current.warn))
             }
             PrimaryButton("Start fast",{vm.run {vm.repo.startFast(hours.number()!!,if(customStart) start!! else System.currentTimeMillis())}},Modifier.fillMaxWidth(),
                 enabled=!vm.busy && hours.number()?.let {it>0 && it<=168}==true && start!=null && start<=now)
@@ -66,12 +75,27 @@ internal fun FastingPage(vm:NutritionViewModel,state:NutritionState,padding:Padd
             NutritionRow("Targets reached","$achieved / ${history.size}")
             NutritionRow("Average duration",durationText(history.map {it.elapsed()}.average().toLong()))
         }
-        history.forEach {f ->ContentSection {
-            Text(Instant.ofEpochMilli(f.start).atZone(ZoneId.systemDefault()).format(DateTimeFormatter.ofPattern("EEE, d MMM · HH:mm")),style=LocalDeltaType.current.title)
-            NutritionRow("Duration",durationText(f.elapsed()),"${amountText(f.targetHours)} hour target · ${if(f.reached()) "Reached" else "Ended early"}")
-            Text("Ended ${Instant.ofEpochMilli(f.end!!).atZone(ZoneId.systemDefault()).format(DateTimeFormatter.ofPattern("d MMM, HH:mm"))}",style=LocalDeltaType.current.bodySmall)
-            TextAction("Delete fast",{deleting=f})
-        } }
+        if(history.isNotEmpty()) ContentSection(spacing=2.dp) {
+            Caption("Past fasts")
+            history.forEach {f->
+                val c=LocalDeltaColors.current
+                Row(Modifier.fillMaxWidth().padding(vertical=4.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(10.dp)) {
+                    Box(Modifier.size(8.dp).clip(CircleShape).background(Color(if(f.reached()) c.good else c.warn)))
+                    Column(Modifier.weight(1f)) {
+                        Text("${durationText(f.elapsed())} · ${if(f.reached()) "reached" else "ended early"}",style=LocalDeltaType.current.body)
+                        Text(Instant.ofEpochMilli(f.start).atZone(ZoneId.systemDefault()).format(DateTimeFormatter.ofPattern("EEE d MMM, HH:mm"))+" · ${amountText(f.targetHours)} h target",style=LocalDeltaType.current.label,color=Color(c.textDim))
+                    }
+                    HapticIconButton({deleting=f}) {DeltaIcon(io.github.ebziboi.delta.R.drawable.ic_delete,"Delete fast",tint=Color(c.textDim),size=18.dp)}
+                }
+            }
+        }
+    }
+    if(timePicker) {
+        val initial=runCatching {LocalTime.parse(time)}.getOrDefault(LocalTime.now())
+        val picker=rememberTimePickerState(initial.hour,initial.minute,is24Hour=true)
+        AlertDialog(onDismissRequest={timePicker=false},title={Text("Fast started at")},text={TimePicker(picker)},
+            confirmButton={HapticTextButton({time=LocalTime.of(picker.hour,picker.minute).format(DateTimeFormatter.ofPattern("HH:mm"));timePicker=false}) {Text("Set")}},
+            dismissButton={HapticTextButton({timePicker=false}) {Text("Cancel")}})
     }
     if(datePicker) NutritionDatePicker(LocalDate.ofEpochDay(startEpoch),{datePicker=false},{startEpoch=it.toEpochDay()})
     if(ending) AlertDialog(onDismissRequest={ending=false},title={Text("End this fast?")},text={Text("Your elapsed time will be saved in fasting history.")},

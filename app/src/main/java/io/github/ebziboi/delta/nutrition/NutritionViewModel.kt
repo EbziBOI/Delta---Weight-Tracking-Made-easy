@@ -23,8 +23,15 @@ class NutritionViewModel(app: Application): AndroidViewModel(app) {
     var selectedStore by mutableStateOf<String?>(null);private set
     private val stores=StorePreferences(app)
     internal var storeOrder by mutableStateOf(stores.ranked());private set
-    fun chooseStore(id:String?) {if(busy) return;selectedStore=id;results=emptyList();searched=false;storeOrder=stores.ranked()}
+    /** Choosing a store mid-search replaces that search rather than being ignored. */
+    fun chooseStore(id:String?) {
+        if(busy && !searching) return
+        if(searching) {cancel();searching=false}
+        selectedStore=id;results=emptyList();searched=false;storeOrder=stores.ranked()
+    }
     var searched by mutableStateOf(false);private set
+    /** True only while a product search runs, unlike [busy], which any action sets. */
+    var searching by mutableStateOf(false);private set
     var selectedFood by mutableStateOf<Food?>(null)
     var selectedEntry by mutableStateOf<DiaryEntry?>(null)
     /** A portion typed with the search ("200g", "2 eggs"), applied to the next portion page. */
@@ -55,9 +62,11 @@ class NutritionViewModel(app: Application): AndroidViewModel(app) {
     fun cancel() { generation++;job?.cancel();busy=false }
     /** A [quiet] search (started by a pause in typing) never shows an error; pressing search does. */
     fun search(query: String,quiet:Boolean=false) = run {
+        searching=true
         try { results=off.search(query,selectedStore);if(results.isNotEmpty()) selectedStore?.let {stores.recordChoice(it)};searched=true;storeOrder=stores.ranked() }
         catch(e: CancellationException) { throw e }
         catch(e: Exception) { searched=false;results=emptyList();if(!quiet) throw e }
+        finally { searching=false }
     }
     /** Fills in a search result's serving size, pack and stores from its full product record. */
     internal suspend fun details(food:Food)=if(food.source==FoodSource.OPEN_FOOD_FACTS) off.details(food) else food

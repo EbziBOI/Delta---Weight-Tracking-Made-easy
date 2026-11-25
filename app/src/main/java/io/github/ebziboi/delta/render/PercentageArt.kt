@@ -32,13 +32,16 @@ object PercentageArt {
             PercentageDesign.RIBBON -> repeat(4) { i ->
                 val y = box.top + size * (0.20f + i * 0.105f)
                 val left = cx - size * (0.35f - i * 0.025f)
-                tile(RectF(left,y,cx+size*.35f,y+size*(if(matte) .065f else .045f)),
-                    (p*4-i).coerceIn(0f,1f),if(i%2==0) colors.accent else colors.accent2,size*.025f)
+                val rect = RectF(left,y,cx+size*.35f,y+size*(if(matte) .065f else .045f))
+                // A fill shorter than the bar is tall reads as a stray mark, not progress, so it waits.
+                val amount = (p*4-i).coerceIn(0f,1f).takeIf { it * rect.width() >= rect.height() * 1.5f } ?: 0f
+                tile(rect,amount,if(i%2==0) colors.accent else colors.accent2,size*.025f)
             }
             PercentageDesign.MOSAIC -> repeat(20) { i ->
                 val row = 3-i/5; val col=i%5
                 val x=cx-size*.30f+col*size*.123f;val y=box.top+size*.15f+row*size*.123f
-                tile(RectF(x,y,x+size*.105f,y+size*.105f),(p*20-i).coerceIn(0f,1f),
+                // Whole tiles only: each is 5%, and a sliver of one looks like a glitch.
+                tile(RectF(x,y,x+size*.105f,y+size*.105f),if(p*20-i>=1f) 1f else 0f,
                     if((row+col)%3==0) colors.accent2 else colors.accent,size*.014f)
             }
             PercentageDesign.SUMMIT -> {

@@ -56,7 +56,8 @@ class DiaryTourTest {
                 84.0-d*.06+kotlin.math.sin(d*1.7)*.45,true,"tour-$d")})
             repo.saveTargets(NutritionTargets(mapOf(Nutrient.ENERGY to 2200.0,Nutrient.PROTEIN to 150.0,Nutrient.CARBS to 230.0,Nutrient.FAT to 70.0)))
             repo.log(seeded)
-            store.update {it.copy(onboardingDone=true,motion=false,appearance=DesignStyle.GLASS.defaults().copy(reduceMotion=true))}
+            store.update {it.copy(onboardingDone=true,motion=false,appearance=DesignStyle.GLASS.defaults().copy(reduceMotion=true),
+                homeCardOrder=listOf("trend")+io.github.ebziboi.delta.data.CardLayouts.home.filterNot {id->id=="trend"})}
             compose.activityRule.scenario.recreate();compose.waitForIdle()
             waitText("Trends")
             val trends=compose.onNodeWithContentDescription("Combined trends graph");trends.performScrollTo()
@@ -79,10 +80,8 @@ class DiaryTourTest {
             compose.onNodeWithText("Protein by food").performScrollTo();shot("05-protein-by-food")
 
             compose.onNodeWithText("Nutritional breakdown").performScrollTo().performClick();compose.waitForIdle()
-            compose.onNodeWithText("Swipe for other meals").performScrollTo()
-            device.swipe(device.displayWidth/2,(device.displayHeight*.6f).toInt(),device.displayWidth/2,(device.displayHeight*.35f).toInt(),20);compose.waitForIdle()
-            shot("06-repeat")
-            compose.onNodeWithText("Swipe for other meals").performTouchInput {swipeLeft()};compose.waitForIdle();shot("07-repeat-swiped")
+            // Meals follow the summary directly; empty ones offer their usual foods inline.
+            compose.onNodeWithContentDescription("Add to Breakfast").performScrollTo();shot("06-meals")
 
             compose.onNodeWithContentDescription("Add to Lunch").performScrollTo().performClick();compose.waitForIdle()
             waitText("Add food");shot("08-add-food")
@@ -91,7 +90,7 @@ class DiaryTourTest {
             compose.onAllNodesWithText("Big Mac").onFirst().performClick();waitText("Portion");shot("11-portion")
             compose.runOnIdle {compose.activity.onBackPressedDispatcher.onBackPressed()};compose.waitForIdle()
             compose.onNodeWithContentDescription("Search foods").performTextClearance()
-            compose.onNodeWithText("Recent").performClick();compose.waitForIdle();compose.onAllNodesWithText("Custom food").onFirst().performClick();waitText("Nutrition label");shot("12-custom-food")
+            compose.onNodeWithText("Recent").performClick();compose.waitForIdle();compose.onAllNodesWithText("Custom").onFirst().performClick();waitText("Nutrition label");shot("12-custom-food")
             compose.runOnIdle {compose.activity.onBackPressedDispatcher.onBackPressed()};compose.waitForIdle()
 
             InstrumentationRegistry.getInstrumentation().uiAutomation.grantRuntimePermission(context.packageName,android.Manifest.permission.CAMERA)
